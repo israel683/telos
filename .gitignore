@@ -39,5 +39,5 @@ out/
 *.log
 /tmp/
 
-# === User data ===
-data/
+# (Note: Python data/ package lives under growk/data/ — kept in repo.
+#  Runtime DB files are already covered by the *.db patterns above.)
