@@ -3,5 +3,14 @@
   "framework": "nextjs",
   "buildCommand": "next build",
   "installCommand": "npm install",
-  "outputDirectory": ".next"
+  "crons": [
+    {
+      "path": "/api/cron/poll",
+      "schedule": "*/5 * * * *"
+    },
+    {
+      "path": "/api/cron/cycle",
+      "schedule": "17 * * * *"
+    }
+  ]
 }
