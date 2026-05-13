@@ -21,13 +21,13 @@ RUN pip install -r requirements.txt
 
 COPY . .
 
-# Persistent SQLite path. On Railway, mount a volume at /app/data.
-ENV DB_PATH=/app/data/growk.db \
+# Persistent SQLite path. On Railway, mount a volume at /app/db_data.
+ENV DB_PATH=/app/db_data/growk.db \
     GROWK_API_HOST=0.0.0.0 \
     GROWK_API_PORT=8765 \
     LOG_LEVEL=INFO
 
-RUN mkdir -p /app/data
+RUN mkdir -p /app/db_data
 
 # Railway provides $PORT; honor it if set, else fall back to 8765.
 EXPOSE 8765
