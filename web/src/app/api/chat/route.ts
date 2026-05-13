@@ -6,7 +6,12 @@ import {
   type UIMessage,
 } from "ai";
 import { buildAgentTools } from "@/lib/agent-tools";
-import { getSystem, DEFAULT_SYSTEM_ID } from "@/lib/db";
+import {
+  getSystem,
+  getRecentReadings,
+  getRecentDecisions,
+  DEFAULT_SYSTEM_ID,
+} from "@/lib/db";
 
 export const maxDuration = 60;
 
@@ -21,16 +26,16 @@ const BASE_SYSTEM_PROMPT = `You are GrowK — a master agronomist who runs hydro
 
 The grower may have MULTIPLE growing systems (different crops, different physical setups, different points in time). Each chat session has ONE active system — its ID and name are provided below. ALL of your tool calls operate ONLY on that system. You never see or comment on data from other systems unless explicitly asked.
 
-When the grower starts a NEW system, history resets to zero — this is intentional. If this is a brand-new system (name is generic like "מערכת חדשה" / no readings yet / no decisions), your first job is to ONBOARD it conversationally. Don't show a form. Walk through these in order, using \`askGrower\` for closed questions and free-text for open ones:
+When a fresh system is detected (the chat route will inject a "FRESH SYSTEM — ONBOARDING REQUIRED" block at the end of this system prompt), your ONLY first job is to ONBOARD via \`askGrower\` — one question at a time, never in free text, never multiple at once. The six-question flow:
 
-  1. What should we call this system? (free text — most personal)
-  2. What are you growing? (closed: lettuce, basil, spinach, strawberry, tomato)
-  3. Growth stage? (closed: seedling, vegetative, flowering, fruiting)
-  4. Reservoir size in liters? (free text — typical values: 20–200)
-  5. Where is it? (free text — e.g., "מרפסת תל אביב", "חממה צפון")
-  6. Anything specific you want me to know about this setup? (free text, optional)
+  1. **Name** (free text via askGrower with NO options) — "איך תרצה לקרוא למערכת הזאת?"
+  2. **Crop** (askGrower with options) — values: lettuce/basil/spinach/strawberry/tomato; labels in Hebrew: חסה/בזיליקום/תרד/תות/עגבנייה
+  3. **Growth stage** (askGrower with options) — seedling/vegetative/flowering/fruiting; labels: נבט/וגטטיבי/פריחה/פירות
+  4. **Reservoir liters** (askGrower with options) — preset 20/40/60/100/200 with label like "60 ליטר"; allow "אחר" too if grower wants custom
+  5. **Location** (free text via askGrower with NO options) — "איפה המערכת ממוקמת?"
+  6. **Notes** (free text via askGrower with NO options) — "משהו שכדאי שאדע על המערכת הזאת? (אפשר לדלג)"
 
-After each answer, call \`updateSystem\` to persist what you learned, then move to the next question. After all six, give a brief summary in Hebrew and tell the grower they're set up. Don't ask all six at once — one at a time, conversational tempo.
+After each answer, call \`updateSystem\` with the relevant field, THEN call \`askGrower\` for the next question. After step 6, give a brief Hebrew summary and tell the grower they're set up.
 
 # Voice
 
@@ -71,11 +76,44 @@ export async function POST(req: Request) {
   // Build per-request tool set bound to this system
   const tools = buildAgentTools(systemId);
 
-  // Fetch system context so we can tell Claude which system this is
+  // Fetch system context so we can tell Claude which system this is.
+  // Detect "fresh placeholder" — name == default sentinel AND no readings AND
+  // no decisions yet → onboarding mode.
   const sys = await getSystem(systemId);
-  const contextLine = sys
+  const [readingsForFreshCheck, decisionsForFreshCheck] = sys
+    ? await Promise.all([
+        getRecentReadings(720, 1, sys.id), // 30 days, 1 row is enough
+        getRecentDecisions(1, sys.id),
+      ])
+    : [[], []];
+  const isFreshSystem =
+    !!sys &&
+    sys.name === "מערכת חדשה" &&
+    readingsForFreshCheck.length === 0 &&
+    decisionsForFreshCheck.length === 0;
+
+  let contextLine = sys
     ? `\n\n# Active system\n- id: ${sys.id}\n- name: ${sys.name}\n- crop: ${sys.crop_type}\n- growth stage: ${sys.growth_stage}\n- reservoir: ${sys.reservoir_liters}L\n- location: ${sys.location}`
     : `\n\n# Active system\n- id: ${systemId} (not found in DB)`;
+
+  if (isFreshSystem) {
+    contextLine += `
+
+# ⚠️ FRESH SYSTEM — ONBOARDING REQUIRED
+
+This system was just created. Name is still the placeholder "מערכת חדשה" and there are no readings/decisions in the DB. The grower has NOT yet told you anything — the fields above are DEFAULTS, not real choices.
+
+**MANDATORY behavior for the next assistant turn:**
+
+1. Greet the grower very briefly in Hebrew (one short sentence — "שלום, יש לנו מערכת חדשה להתקנה").
+2. IMMEDIATELY call the \`askGrower\` tool with the FIRST onboarding question. Do NOT ask in free text. Do NOT ask multiple questions at once. Do NOT call any other read-only tool first.
+
+First onboarding question: ask in Hebrew "איך תרצה לקרוא למערכת הזאת?" with NO options (free text — the grower types a name).
+
+After the grower replies with a name, call \`updateSystem({ name: "<the name>" })\`, then proceed to question 2 (crop, this time WITH options via askGrower), and so on through the full six-step flow.
+
+DO NOT skip askGrower. The whole point of this UX is clickable stacked-question cards instead of typing.`;
+  }
 
   const modelId = process.env.CHAT_MODEL || "claude-sonnet-4-6";
 
