@@ -45,7 +45,8 @@ git push -u origin main
 
 1. Go to https://railway.app → **New Project** → **Deploy from GitHub repo** → select your `growk` repo.
 2. Railway will scan the repo and find `growk/Dockerfile`. Set the service **Root Directory** to `growk` (in service Settings → Source).
-3. Add a **Volume** mounted at `/app/data` (Settings → Volumes → Mount Path `/app/data`). This keeps the SQLite DB across redeploys.
+3. Add a **Volume** mounted at `/app/db_data` (Settings → Volumes → Mount Path `/app/db_data`). This keeps the SQLite DB across redeploys.
+   > **Important:** the mount path must be `/app/db_data`, NOT `/app/data`. The latter would shadow the Python `data/` package that contains `store.py` and crash the container at import time. (Learned from PR #1.)
 4. **Variables** tab — set:
    ```
    ANTHROPIC_API_KEY=sk-ant-...
@@ -66,7 +67,7 @@ git push -u origin main
    GROWK_API_HOST=0.0.0.0
    GROWK_API_TOKEN=<generate a random string — used for auth from Vercel>
    GROWK_CORS_ORIGINS=https://<your-vercel-domain>.vercel.app
-   DB_PATH=/app/data/growk.db
+   DB_PATH=/app/db_data/growk.db
    ```
    The `PORT` variable is injected by Railway automatically.
 5. **Settings → Networking → Generate Domain.** Copy the public URL — you'll need it for Vercel.
