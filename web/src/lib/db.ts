@@ -28,11 +28,33 @@ export function sql(): NeonQueryFunction<false, false> {
   return _sql;
 }
 
+// Swallow "already exists" Postgres errors that race when multiple cold
+// invocations hit CREATE TABLE / CREATE INDEX concurrently. Each function
+// invocation has its own process and its own _schemaReady flag, so the first
+// few requests can race on the catalog. After the first success, the IF NOT
+// EXISTS / catch path is harmless.
+async function safeDdl(fn: () => Promise<unknown>) {
+  try {
+    await fn();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    if (
+      msg.includes("already exists") ||
+      msg.includes("duplicate key") ||
+      msg.includes("pg_class_relname_nsp_index") ||
+      msg.includes("pg_type_typname_nsp_index")
+    ) {
+      return; // benign race
+    }
+    throw e;
+  }
+}
+
 export async function ensureSchema(): Promise<void> {
   if (_schemaReady) return;
   const s = sql();
 
-  await s`
+  await safeDdl(() => s`
     CREATE TABLE IF NOT EXISTS sensor_readings (
       id          BIGSERIAL PRIMARY KEY,
       system_id   TEXT NOT NULL DEFAULT 'default',
@@ -47,9 +69,9 @@ export async function ensureSchema(): Promise<void> {
       sg          DOUBLE PRECISION,
       source      TEXT
     )
-  `;
+  `);
 
-  await s`
+  await safeDdl(() => s`
     CREATE TABLE IF NOT EXISTS ai_decisions (
       id                     BIGSERIAL PRIMARY KEY,
       system_id              TEXT NOT NULL DEFAULT 'default',
@@ -63,9 +85,9 @@ export async function ensureSchema(): Promise<void> {
       cache_creation_tokens  INTEGER,
       cache_read_tokens      INTEGER
     )
-  `;
+  `);
 
-  await s`
+  await safeDdl(() => s`
     CREATE TABLE IF NOT EXISTS dosing_actions (
       id            BIGSERIAL PRIMARY KEY,
       system_id     TEXT NOT NULL DEFAULT 'default',
@@ -78,9 +100,9 @@ export async function ensureSchema(): Promise<void> {
       ai_analysis   TEXT,
       decision_id   BIGINT REFERENCES ai_decisions(id)
     )
-  `;
+  `);
 
-  await s`
+  await safeDdl(() => s`
     CREATE TABLE IF NOT EXISTS human_tasks (
       id            BIGSERIAL PRIMARY KEY,
       system_id     TEXT NOT NULL DEFAULT 'default',
@@ -96,12 +118,12 @@ export async function ensureSchema(): Promise<void> {
       user_response TEXT,
       decision_id   BIGINT REFERENCES ai_decisions(id)
     )
-  `;
+  `);
 
-  await s`CREATE INDEX IF NOT EXISTS idx_readings_ts ON sensor_readings(system_id, ts DESC)`;
-  await s`CREATE INDEX IF NOT EXISTS idx_decisions_ts ON ai_decisions(system_id, ts DESC)`;
-  await s`CREATE INDEX IF NOT EXISTS idx_actions_ts ON dosing_actions(system_id, ts DESC)`;
-  await s`CREATE INDEX IF NOT EXISTS idx_tasks_pending ON human_tasks(system_id, status, priority)`;
+  await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_readings_ts ON sensor_readings(system_id, ts DESC)`);
+  await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_decisions_ts ON ai_decisions(system_id, ts DESC)`);
+  await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_actions_ts ON dosing_actions(system_id, ts DESC)`);
+  await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_tasks_pending ON human_tasks(system_id, status, priority)`);
 
   _schemaReady = true;
 }
