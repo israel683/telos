@@ -14,18 +14,73 @@ const STARTERS = [
   "האם כדאי להחליף מים השבוע?",
 ];
 
+type HistoryMessage = {
+  id: string;
+  ts: string;
+  role: "user" | "assistant" | "system";
+  parts: Array<Record<string, unknown>>;
+  source: "chat" | "cron-cycle" | "cron-poll" | "system";
+  decision_id: number | null;
+  status: string | null;
+};
+
 export default function ChatPage() {
   const [activeSystem, setActiveSystemState] = useState<string>("default");
-  useEffect(() => {
-    setActiveSystemState(getActiveSystem());
-  }, []);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  // Map message id → { source, decision_id, status } so we can render
+  // cron-pushed messages with the collapsed-card pattern.
+  const [messageMeta, setMessageMeta] = useState<
+    Record<string, { source: string; decision_id: number | null; status: string | null; ts: string }>
+  >({});
 
-  const { messages, sendMessage, status, error, regenerate } = useChat({
+  const { messages, sendMessage, setMessages, status, error, regenerate } = useChat({
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: () => ({ system: getActiveSystem() }),
     }),
   });
+
+  // Load history once we know which system is active.
+  useEffect(() => {
+    const sys = getActiveSystem();
+    setActiveSystemState(sys);
+    let cancelled = false;
+    (async () => {
+      try {
+        const qs = sys && sys !== "default" ? `?system=${encodeURIComponent(sys)}` : "";
+        const r = await fetch(`/api/chat/history${qs}`, { cache: "no-store" });
+        if (!r.ok) throw new Error(`history ${r.status}`);
+        const j = (await r.json()) as { messages: HistoryMessage[] };
+        if (cancelled) return;
+        const meta: Record<string, { source: string; decision_id: number | null; status: string | null; ts: string }> = {};
+        for (const m of j.messages) {
+          meta[m.id] = {
+            source: m.source,
+            decision_id: m.decision_id,
+            status: m.status,
+            ts: m.ts,
+          };
+        }
+        setMessageMeta(meta);
+        // Hydrate the chat with persisted messages
+        setMessages(
+          j.messages.map((m) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant" | "system",
+            parts: m.parts as never,
+          }))
+        );
+      } catch (e) {
+        console.error("[history] load failed:", e);
+      } finally {
+        if (!cancelled) setHistoryLoaded(true);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [setMessages]);
+
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -43,7 +98,7 @@ export default function ChatPage() {
     setInput("");
   }
 
-  const isEmpty = messages.length === 0;
+  const isEmpty = historyLoaded && messages.length === 0;
   const isStreaming = status === "submitted" || status === "streaming";
 
   return (
@@ -76,13 +131,19 @@ export default function ChatPage() {
           </div>
         )}
 
+        {!historyLoaded && (
+          <div className="text-center text-zinc-400 text-sm pt-12">טוען היסטוריה...</div>
+        )}
+
         {messages.map((m, idx) => {
           const isLast = idx === messages.length - 1;
           const isAssistant = m.role === "assistant";
+          const meta = messageMeta[m.id];
           return (
             <MessageBubble
               key={m.id}
               message={m}
+              meta={meta}
               isLastAssistant={isLast && isAssistant}
               awaitingAnswer={!isStreaming}
               onAnswer={(text) => handleSubmit(text)}
@@ -148,18 +209,89 @@ export default function ChatPage() {
 
 type UIMessageType = ReturnType<typeof useChat>["messages"][number];
 
+const STATUS_LABEL: Record<string, string> = {
+  healthy: "תקין",
+  attention: "לב",
+  warning: "אזהרה",
+  critical: "קריטי",
+};
+const STATUS_BG: Record<string, string> = {
+  healthy: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
+  attention: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
+  warning: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
+  critical: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+};
+
 function MessageBubble({
   message,
+  meta,
   isLastAssistant,
   onAnswer,
   awaitingAnswer,
 }: {
   message: UIMessageType;
+  meta?: { source: string; decision_id: number | null; status: string | null; ts: string };
   isLastAssistant: boolean;
   onAnswer: (text: string) => void;
   awaitingAnswer: boolean;
 }) {
   const isUser = message.role === "user";
+  const isCronPushed = meta?.source === "cron-cycle" || meta?.source === "cron-poll";
+
+  // Cron-pushed assistant messages render as a compact, collapsible "log card"
+  // — the agronomist's quiet check-ins or active interventions. Keeps the chat
+  // scannable instead of an information firehose.
+  if (!isUser && isCronPushed) {
+    const status = meta?.status || "unknown";
+    const time = meta?.ts ? new Date(meta.ts) : null;
+    const textPart = message.parts.find((p) => p.type === "text") as
+      | { type: "text"; text: string }
+      | undefined;
+    return (
+      <details className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden max-w-full" open={isLastAssistant}>
+        <summary className="cursor-pointer px-4 py-3 list-none flex items-start gap-3">
+          <span className="text-lg leading-none mt-0.5">🤖</span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1 flex-wrap">
+              <span className="font-medium">בדיקה אוטומטית</span>
+              {STATUS_LABEL[status] && (
+                <span className={`px-1.5 py-0.5 rounded text-xs ${STATUS_BG[status]}`}>
+                  {STATUS_LABEL[status]}
+                </span>
+              )}
+              {time && (
+                <span className="text-zinc-400" dir="ltr">
+                  {time.toLocaleString("he-IL", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}
+                </span>
+              )}
+            </div>
+            {textPart?.text && (
+              <p className="text-sm leading-relaxed line-clamp-3">{textPart.text}</p>
+            )}
+          </div>
+          <span className="text-zinc-300 text-sm">▾</span>
+        </summary>
+        <div className="px-4 pb-4 border-t border-zinc-100 dark:border-zinc-800 pt-3 space-y-3 text-sm">
+          {textPart?.text && (
+            <div className="prose-chat">
+              <ReactMarkdown>{textPart.text}</ReactMarkdown>
+            </div>
+          )}
+          {message.parts
+            .filter((p) => typeof p.type === "string" && (p.type as string).startsWith("tool-"))
+            .map((p, i) => (
+              <ToolPart key={i} part={p as { type: string } & Record<string, unknown>} />
+            ))}
+          {meta?.decision_id && (
+            <div className="text-xs text-zinc-400" dir="ltr">
+              decision #{meta.decision_id}
+            </div>
+          )}
+        </div>
+      </details>
+    );
+  }
+
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div

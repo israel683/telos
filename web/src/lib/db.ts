@@ -125,6 +125,25 @@ export async function ensureSchema(): Promise<void> {
   await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_actions_ts ON dosing_actions(system_id, ts DESC)`);
   await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_tasks_pending ON human_tasks(system_id, status, priority)`);
 
+  // Chat message history — persists user + assistant turns AND cron-pushed
+  // proactive updates so the grower has a single thread per system that
+  // survives refreshes.
+  await safeDdl(() => s`
+    CREATE TABLE IF NOT EXISTS chat_messages (
+      id           BIGSERIAL PRIMARY KEY,
+      system_id    TEXT NOT NULL DEFAULT 'default',
+      thread_id    TEXT NOT NULL DEFAULT 'main',
+      ts           TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      role         TEXT NOT NULL,
+      parts        JSONB NOT NULL,
+      source       TEXT NOT NULL DEFAULT 'chat',
+      decision_id  BIGINT REFERENCES ai_decisions(id),
+      client_id    TEXT,
+      status       TEXT
+    )
+  `);
+  await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_chat_ts ON chat_messages(system_id, thread_id, ts)`);
+
   // First-class systems table — each row is an isolated project.
   await safeDdl(() => s`
     CREATE TABLE IF NOT EXISTS systems (
@@ -674,6 +693,85 @@ export async function expireOldTasks(
     RETURNING id
   `) as unknown as Array<{ id: number }>;
   return rows.length;
+}
+
+// === Chat history ===
+
+export type ChatMessageRole = "user" | "assistant" | "system";
+export type ChatMessageSource = "chat" | "cron-cycle" | "cron-poll" | "system";
+
+export type ChatMessageRow = {
+  id: number;
+  system_id: string;
+  thread_id: string;
+  ts: Date;
+  role: ChatMessageRole;
+  parts: Array<Record<string, unknown>>;
+  source: ChatMessageSource;
+  decision_id: number | null;
+  client_id: string | null;
+  status: string | null;
+};
+
+export async function saveChatMessage(opts: {
+  systemId?: string;
+  threadId?: string;
+  role: ChatMessageRole;
+  parts: Array<Record<string, unknown>>;
+  source?: ChatMessageSource;
+  decisionId?: number | null;
+  clientId?: string | null;
+  status?: string | null;
+}): Promise<number> {
+  await ensureSchema();
+  const s = sql();
+  const rows = (await s`
+    INSERT INTO chat_messages
+      (system_id, thread_id, role, parts, source, decision_id, client_id, status)
+    VALUES (
+      ${opts.systemId ?? DEFAULT_SYSTEM_ID},
+      ${opts.threadId ?? "main"},
+      ${opts.role},
+      ${JSON.stringify(opts.parts)}::jsonb,
+      ${opts.source ?? "chat"},
+      ${opts.decisionId ?? null},
+      ${opts.clientId ?? null},
+      ${opts.status ?? null}
+    )
+    RETURNING id
+  `) as unknown as Array<{ id: number }>;
+  return rows[0].id;
+}
+
+export async function getChatHistory(
+  systemId: string = DEFAULT_SYSTEM_ID,
+  threadId: string = "main",
+  limit: number = 200
+): Promise<ChatMessageRow[]> {
+  await ensureSchema();
+  const s = sql();
+  const rows = (await s`
+    SELECT id, system_id, thread_id, ts, role, parts, source, decision_id,
+           client_id, status
+    FROM chat_messages
+    WHERE system_id = ${systemId} AND thread_id = ${threadId}
+    ORDER BY ts DESC
+    LIMIT ${limit}
+  `) as unknown as Array<{
+    id: number;
+    system_id: string;
+    thread_id: string;
+    ts: string;
+    role: ChatMessageRole;
+    parts: Array<Record<string, unknown>>;
+    source: ChatMessageSource;
+    decision_id: number | null;
+    client_id: string | null;
+    status: string | null;
+  }>;
+  return rows
+    .map((r) => ({ ...r, ts: new Date(r.ts) }))
+    .reverse(); // chronological order for chat rendering
 }
 
 export async function hasPendingTaskOfType(

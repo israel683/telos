@@ -10,6 +10,7 @@ import {
   getSystem,
   getRecentReadings,
   getRecentDecisions,
+  saveChatMessage,
   DEFAULT_SYSTEM_ID,
 } from "@/lib/db";
 
@@ -117,6 +118,23 @@ DO NOT skip askGrower. The whole point of this UX is clickable stacked-question 
 
   const modelId = process.env.CHAT_MODEL || "claude-sonnet-4-6";
 
+  // Persist the latest user message before the model call so the thread is
+  // captured even if the model crashes mid-stream.
+  const latestUser = messages[messages.length - 1];
+  if (latestUser && latestUser.role === "user") {
+    try {
+      await saveChatMessage({
+        systemId,
+        role: "user",
+        parts: latestUser.parts as unknown as Array<Record<string, unknown>>,
+        source: "chat",
+        clientId: latestUser.id,
+      });
+    } catch (e) {
+      console.error("[chat] failed to save user message:", e);
+    }
+  }
+
   const result = streamText({
     model: anthropic(modelId),
     system: BASE_SYSTEM_PROMPT + contextLine,
@@ -125,5 +143,19 @@ DO NOT skip askGrower. The whole point of this UX is clickable stacked-question 
     stopWhen: stepCountIs(8),
   });
 
-  return result.toUIMessageStreamResponse();
+  return result.toUIMessageStreamResponse({
+    onFinish: async ({ responseMessage }) => {
+      try {
+        await saveChatMessage({
+          systemId,
+          role: "assistant",
+          parts: (responseMessage.parts ?? []) as unknown as Array<Record<string, unknown>>,
+          source: "chat",
+          clientId: responseMessage.id,
+        });
+      } catch (e) {
+        console.error("[chat] failed to save assistant message:", e);
+      }
+    },
+  });
 }

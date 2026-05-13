@@ -24,6 +24,7 @@ import {
   createHumanTask,
   expireOldTasks,
   listSystems,
+  saveChatMessage,
 } from "@/lib/db";
 import { analyzeAndDecide } from "@/lib/brain";
 import { doseChannel } from "@/lib/devices/jebao";
@@ -136,6 +137,27 @@ export async function GET(req: Request) {
             success: r.success,
             error: r.error,
           });
+        }
+
+        // Push a chat message so the grower sees this cycle in their thread
+        // next time they open the conversation. The UI renders these as
+        // collapsible log cards — full reasoning + actions hidden by default.
+        try {
+          await saveChatMessage({
+            systemId: sys.id,
+            role: "assistant",
+            parts: [
+              {
+                type: "text",
+                text: decision.message || decision.analysis || "מחזור ניתוח אוטומטי הסתיים.",
+              },
+            ],
+            source: "cron-cycle",
+            decisionId,
+            status: decision.status,
+          });
+        } catch (e) {
+          console.error("[cron/cycle] failed to push chat message:", e);
         }
 
         results.push({
