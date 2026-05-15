@@ -70,13 +70,18 @@ export async function POST(req: Request) {
     if (!did) return NextResponse.json({ error: "no device bound" }, { status: 404 });
 
     // Build attrs: master + (optionally) all channels + ALL TIMERS to OFF.
-    // The device firmware re-enables Timer*ON flags on its own even when
-    // CH*SWTime is empty; explicitly setting them false stops any internal
-    // scheduled cycle.
-    const attrs: Record<string, boolean | number> = { switch: on };
+    // After a physical reset the device can enter built-in calibration mode
+    // (CALSet="校准1") which pulses pumps autonomously, ignoring the cloud's
+    // manual switches. Multiple attempts to cancel cover the unknown firmware
+    // contract:
+    //   - CALSW false      (calibration switch OFF)
+    //   - Calib1..5 false  (per-channel calibration flags)
+    //   - All channels/timers/master OFF as before
+    const attrs: Record<string, boolean | number | string> = { switch: on };
     if (alsoChannels) {
       for (let i = 1; i <= 8; i++) attrs[`channe${i}`] = false;
       for (let i = 1; i <= 8; i++) attrs[`Timer${i}ON`] = false;
+      for (let i = 1; i <= 5; i++) attrs[`Calib${i}`] = false;
       attrs.CALSW = false;
     }
 
