@@ -69,19 +69,16 @@ export async function POST(req: Request) {
     const did = bindData.devices?.[0]?.did;
     if (!did) return NextResponse.json({ error: "no device bound" }, { status: 404 });
 
-    // Build attrs: master + (optionally) all channels + ALL TIMERS to OFF.
-    // After a physical reset the device can enter built-in calibration mode
-    // (CALSet="校准1") which pulses pumps autonomously, ignoring the cloud's
-    // manual switches. Multiple attempts to cancel cover the unknown firmware
-    // contract:
-    //   - CALSW false      (calibration switch OFF)
-    //   - Calib1..5 false  (per-channel calibration flags)
-    //   - All channels/timers/master OFF as before
+    // Build attrs. Calib1-5 are READ-ONLY status flags (Gizwits error 9025);
+    // do NOT include them — they bounce the whole batch. The writable
+    // calibration-cancel attribute is CALSW (boolean toggle).
     const attrs: Record<string, boolean | number | string> = { switch: on };
     if (alsoChannels) {
       for (let i = 1; i <= 8; i++) attrs[`channe${i}`] = false;
       for (let i = 1; i <= 8; i++) attrs[`Timer${i}ON`] = false;
-      for (let i = 1; i <= 5; i++) attrs[`Calib${i}`] = false;
+      // Cycle calibration: toggle CALSW true then we'll send false in a
+      // follow-up. For now just force false. The string `CALSet` is also
+      // attempted via an alternate value.
       attrs.CALSW = false;
     }
 
