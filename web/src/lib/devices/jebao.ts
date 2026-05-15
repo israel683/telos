@@ -133,7 +133,11 @@ async function ensureSession(): Promise<SessionCache> {
   return _session;
 }
 
-async function setChannel(physicalChannel: number, on: boolean): Promise<boolean> {
+async function setChannel(
+  physicalChannel: number,
+  on: boolean,
+  allowReauth = true
+): Promise<{ ok: boolean; status?: number; body?: string }> {
   const s = await ensureSession();
   const attrName = `channe${physicalChannel}`;
   const r = await fetch(REGION_URLS[s.region].control(s.deviceId), {
@@ -146,7 +150,23 @@ async function setChannel(physicalChannel: number, on: boolean): Promise<boolean
     },
     body: JSON.stringify({ attrs: { [attrName]: on } }),
   });
-  return r.ok;
+
+  if (r.ok) return { ok: true, status: r.status };
+
+  // Capture body for diagnostics; small payload from Gizwits.
+  const body = await r.text().catch(() => "");
+  console.error(
+    `[jebao] setChannel channe${physicalChannel}=${on} failed: HTTP ${r.status}  body=${body.slice(0, 300)}`
+  );
+
+  // Auth-ish failure → invalidate session and retry once with a fresh token.
+  if (allowReauth && (r.status === 401 || r.status === 403)) {
+    console.warn("[jebao] reauthing and retrying once");
+    _session = null;
+    return setChannel(physicalChannel, on, false);
+  }
+
+  return { ok: false, status: r.status, body };
 }
 
 export type DoseResult = {
@@ -178,22 +198,28 @@ export async function doseChannel(
 
   console.log(`[jebao] dosing ${amountMl}ml on channe${physical} (${channel}) — ${runtimeSeconds.toFixed(2)}s · ${reason}`);
 
-  const onOk = await setChannel(physical, true);
-  if (!onOk) {
-    return { success: false, channel, amount_ml: amountMl, runtime_seconds: runtimeSeconds, error: "switch ON failed" };
+  const onResp = await setChannel(physical, true);
+  if (!onResp.ok) {
+    return {
+      success: false,
+      channel,
+      amount_ml: amountMl,
+      runtime_seconds: runtimeSeconds,
+      error: `switch ON failed (HTTP ${onResp.status ?? "?"}${onResp.body ? ": " + onResp.body.slice(0, 150) : ""})`,
+    };
   }
 
   try {
     await new Promise((res) => setTimeout(res, runtimeSeconds * 1000));
   } finally {
-    const offOk = await setChannel(physical, false);
-    if (!offOk) {
+    const offResp = await setChannel(physical, false);
+    if (!offResp.ok) {
       return {
         success: false,
         channel,
         amount_ml: amountMl,
         runtime_seconds: runtimeSeconds,
-        error: "CRITICAL: switch OFF failed — pump may be stuck on",
+        error: `CRITICAL: switch OFF failed — pump may be stuck on (HTTP ${offResp.status ?? "?"})`,
       };
     }
   }
