@@ -87,13 +87,25 @@ async function login(region: Region, username: string, password: string): Promis
   }
 }
 
-async function ensureSession(): Promise<SessionCache> {
-  if (_session && Date.now() < _session.expiresAt) return _session;
+// MD-4.5 product key (verified 2026-05-07). After a physical device reset
+// the did changes, but the product_key stays the same — so we match by it.
+const MD45_PRODUCT_KEY = "5ab6019f2dbb4ae7a42b48d2b8ce0530";
 
+type BoundDevice = {
+  did: string;
+  product_key?: string;
+  is_online?: boolean;
+  dev_alias?: string;
+};
+
+async function loginAndListDevices(forceRefresh = false): Promise<{
+  region: Region;
+  token: string;
+  devices: BoundDevice[];
+}> {
   const username = required("JEBAO_USERNAME");
   const password = required("JEBAO_PASSWORD");
   const configuredRegion = (process.env.JEBAO_REGION as Region | undefined) || "us";
-
   const tryOrder: Region[] = [
     configuredRegion,
     ...(Object.keys(REGION_URLS) as Region[]).filter((r) => r !== configuredRegion),
@@ -108,29 +120,56 @@ async function ensureSession(): Promise<SessionCache> {
       break;
     }
   }
-  if (!token || !usedRegion) {
-    throw new Error("Jebao login failed in all regions");
-  }
+  if (!token || !usedRegion) throw new Error("Jebao login failed in all regions");
 
-  // Get bound device
   const r = await fetch(REGION_URLS[usedRegion].bind, {
     headers: {
       "X-Gizwits-Application-Id": JEBAO_AQUA_APP_ID,
       "X-Gizwits-User-token": token,
       Accept: "application/json",
     },
+    cache: forceRefresh ? "no-store" : "default",
   });
-  const data = (await r.json()) as { devices?: Array<{ did: string }> };
-  const did = data.devices?.[0]?.did;
-  if (!did) throw new Error("No Jebao device bound to this account");
+  const data = (await r.json()) as { devices?: BoundDevice[] };
+  return { region: usedRegion, token, devices: data.devices ?? [] };
+}
+
+async function ensureSession(): Promise<SessionCache> {
+  if (_session && Date.now() < _session.expiresAt) return _session;
+
+  const { region, token, devices } = await loginAndListDevices(true);
+  if (devices.length === 0) throw new Error("No Jebao device bound to this account");
+
+  // Prefer: the MD-4.5 doser, online, with the most recent state.
+  // Fall back to: any online device, then any device at all.
+  const md45 = devices.filter((d) => d.product_key === MD45_PRODUCT_KEY);
+  const candidates = md45.length > 0 ? md45 : devices;
+  const picked =
+    candidates.find((d) => d.is_online) ?? candidates[0];
+
+  if (!picked.did) throw new Error("Bound device has no did");
+
+  console.log(
+    `[jebao] picked device did=${picked.did} alias=${picked.dev_alias ?? "?"} online=${picked.is_online} (of ${devices.length} bound)`
+  );
 
   _session = {
     token,
-    region: usedRegion,
-    deviceId: did,
-    expiresAt: Date.now() + 30 * 60 * 1000, // 30 min cache
+    region,
+    deviceId: picked.did,
+    expiresAt: Date.now() + 5 * 60 * 1000, // shortened from 30→5 min so resets recover faster
   };
   return _session;
+}
+
+// Exported for diagnostic / debug endpoint
+export async function listJebaoBindings(): Promise<BoundDevice[]> {
+  const { devices } = await loginAndListDevices(true);
+  return devices;
+}
+
+export function clearJebaoSession(): void {
+  _session = null;
 }
 
 async function setChannel(
