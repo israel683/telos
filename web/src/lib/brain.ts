@@ -22,13 +22,7 @@ const anthropic = createAnthropic({
   baseURL: "https://api.anthropic.com/v1",
 });
 
-const CHANNELS: DoserChannel[] = [
-  "nutrient_a",
-  "nutrient_b",
-  "ph_up",
-  "ph_down",
-  "supplement",
-];
+const CHANNELS: DoserChannel[] = ["micro", "grow", "bloom", "ph_up"];
 
 export type ApprovedCommand = {
   channel: DoserChannel;

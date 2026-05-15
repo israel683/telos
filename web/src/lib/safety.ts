@@ -28,12 +28,13 @@ export const SAFETY_LIMITS = {
   max_sensor_age_seconds: 300,
 } as const;
 
-export type DoserChannel =
-  | "nutrient_a"
-  | "nutrient_b"
-  | "ph_up"
-  | "ph_down"
-  | "supplement";
+// Channels reflect the physical Terra Aquatica Tri Part setup on this rig.
+// No pH_down is installed — high pH must be handled via a human task.
+export type DoserChannel = "micro" | "grow" | "bloom" | "ph_up";
+
+// Nutrient channels = any of the Tri Part components. The agent should dose
+// them in ratio (see prompt-engine.ts for stage-specific ratios).
+export const NUTRIENT_CHANNELS: DoserChannel[] = ["micro", "grow", "bloom"];
 
 export type DosingCommand = {
   channel: DoserChannel;
@@ -74,19 +75,22 @@ export async function validateCommand(
         reason: `pH=${currentReading.ph.toFixed(2)} is critically low — only pH Up allowed`,
       };
     }
-    if (currentReading.ph > SAFETY_LIMITS.ph_max && command.channel !== "ph_down") {
+    // No pH Down channel on this rig — high pH blocks ALL dosing and must
+    // be resolved by the grower manually (the agent should also raise a
+    // human task in this case, handled upstream in the brain).
+    if (currentReading.ph > SAFETY_LIMITS.ph_max) {
       return {
         ok: false,
-        reason: `pH=${currentReading.ph.toFixed(2)} is critically high — only pH Down allowed`,
+        reason: `pH=${currentReading.ph.toFixed(2)} is critically high — no pH Down on this rig; manual intervention required`,
       };
     }
   }
 
-  // 3. EC bounds — block nutrient dosing when EC already exceeds max
+  // 3. EC bounds — block nutrient (Micro/Grow/Bloom) dosing when EC exceeds max
   if (
     currentReading.ec !== null &&
     currentReading.ec > SAFETY_LIMITS.ec_max &&
-    (command.channel === "nutrient_a" || command.channel === "nutrient_b")
+    NUTRIENT_CHANNELS.includes(command.channel)
   ) {
     return {
       ok: false,

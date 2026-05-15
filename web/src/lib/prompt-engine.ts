@@ -132,7 +132,7 @@ Create tasks for the human grower when you can't act directly:
   "analysis": "1-3 sentences referencing cross-window evidence",
   "status": "healthy" | "attention" | "warning" | "critical",
   "actions": [
-    { "channel": "nutrient_a"|"nutrient_b"|"ph_up"|"ph_down"|"supplement", "amount_ml": <number>, "reason": "<English>" }
+    { "channel": "micro"|"grow"|"bloom"|"ph_up", "amount_ml": <number>, "reason": "<English>" }
   ],
   "human_tasks_to_create": [
     { "type": "...", "priority": "low|medium|high|urgent", "title": "<Hebrew>", "reason": "<Hebrew>", "payload": {...}, "expires_in_hours": <number|null> }

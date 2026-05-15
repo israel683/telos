@@ -31,15 +31,24 @@ const REGION_URLS = {
 
 type Region = keyof typeof REGION_URLS;
 
+// Channel mapping reflects the actual physical setup on this dosing controller:
+// Terra Aquatica Tri Part nutrient stack + pH UP only (no pH DOWN installed).
+// Channel 5 is physically wired but currently unused.
 export const CHANNEL_MAP: Record<
-  "nutrient_a" | "nutrient_b" | "ph_down" | "ph_up" | "supplement",
+  "micro" | "grow" | "bloom" | "ph_up",
   number
 > = {
-  nutrient_a: 1,
-  nutrient_b: 2,
-  ph_down: 3,
-  ph_up: 4,
-  supplement: 5,
+  micro: 1,  // Terra Aquatica Micro, NPK 5-0-1
+  grow: 2,   // Terra Aquatica Grow,  NPK 3-1-6
+  bloom: 3,  // Terra Aquatica Bloom, NPK 0-5-4
+  ph_up: 4,  // pH Up (potassium hydroxide solution)
+};
+
+export const CHANNEL_LABELS_HE: Record<keyof typeof CHANNEL_MAP, string> = {
+  micro: "Micro",
+  grow: "Grow",
+  bloom: "Bloom",
+  ph_up: "pH Up",
 };
 
 const FLOW_RATE_ML_PER_MIN = 50;

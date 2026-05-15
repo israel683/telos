@@ -135,9 +135,9 @@ export function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
 
     proposeAction: tool({
       description:
-        "Propose a dosing action by creating a 'dose_approval' Human Task for the grower to confirm. This does NOT execute the dose. Use when, based on the data, you'd recommend dosing but want explicit human approval first.",
+        "Propose a dosing action by creating a 'dose_approval' Human Task for the grower to confirm. This does NOT execute the dose. Use when, based on the data, you'd recommend dosing but want explicit human approval first. Channels reflect the Terra Aquatica Tri Part setup: micro/grow/bloom (NPK) + ph_up. There is NO pH Down channel — high pH must go through a manual_action human task instead.",
       inputSchema: z.object({
-        channel: z.enum(["nutrient_a", "nutrient_b", "ph_up", "ph_down", "supplement"]),
+        channel: z.enum(["micro", "grow", "bloom", "ph_up"]),
         amount_ml: z.number().min(0.1).max(50),
         title_he: z.string().describe("Short Hebrew title for the dashboard"),
         reason_he: z.string().describe("Hebrew explanation for the grower"),
