@@ -12,8 +12,10 @@ import {
   getSystem,
   updateSystem,
   markSetupComplete,
+  saveReading,
   DEFAULT_SYSTEM_ID,
 } from "./db";
+import { readTuyaSensor } from "./devices/tuya";
 import { getDosingConfig, allChannelKeys, type DosingConfig } from "./dosing-config";
 import { getProfile, listProfiles } from "./fertilizer-profiles";
 import { getPrimingState, PRIMING_ML_PER_CHANNEL } from "./priming";
@@ -330,6 +332,91 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           channels: Object.keys(assignments),
           note: "Dosing config saved. Future doses + safety checks use this layout.",
         };
+      },
+    }),
+
+    pollSensorNow: tool({
+      description:
+        "Pull a FRESH live reading from the Tuya sensor right now (not the DB cache).  Use this whenever you need a current value and the most recent DB row is older than ~30 seconds — typical cases: " +
+        "1) just after markSetupComplete (first proof the sensor is in water and reporting), " +
+        "2) the grower just told you about a physical event ('I added water', 'I added nutrient', 'I moved the sensor'), " +
+        "3) right before proposing a dose so you reason on a current value, " +
+        "4) the grower asks 'what does it say now / מה הקריאה'. " +
+        "DO NOT call this in tight loops — it hits the Tuya cloud and the sensor itself.  If a reading was saved in the last 20s, this tool returns that cached one instead of a fresh fetch (rate limit).  Saved to DB so the next cron cycle and the brain see it too.",
+      inputSchema: z.object({
+        force: z
+          .boolean()
+          .optional()
+          .describe("Bypass the 20s rate-limit (use sparingly; only when the grower explicitly requests a fresh reading)"),
+      }),
+      execute: async ({ force }) => {
+        // Rate-limit unless explicitly bypassed: if the newest reading on
+        // this system is fresher than 20s, return it without hitting Tuya.
+        const recentFromDb = await getRecentReadings(1, 1, systemId);
+        const latest = recentFromDb[recentFromDb.length - 1];
+        const ageSec = latest ? (Date.now() - latest.ts.getTime()) / 1000 : Infinity;
+        if (!force && latest && ageSec < 20) {
+          return {
+            source: "db_cache",
+            age_seconds: Math.round(ageSec),
+            reading: {
+              timestamp: latest.ts.toISOString(),
+              ph: latest.ph,
+              ec: latest.ec,
+              tds: latest.tds,
+              orp: latest.orp,
+              water_temp: latest.water_temp,
+              cf: latest.cf,
+              salinity: latest.salinity,
+              sg: latest.sg,
+            },
+            note: "Last reading is fresh enough (<20s); skipped a Tuya call. Set force:true to fetch live anyway.",
+          };
+        }
+
+        const sys = await getSystem(systemId);
+        try {
+          const r = await readTuyaSensor({ deviceId: sys?.tuya_device_id ?? undefined });
+          // Persist so the cron + brain see it too on their next pass.
+          await saveReading(
+            {
+              ph: r.ph,
+              ec: r.ec,
+              tds: r.tds,
+              orp: r.orp,
+              water_temp: r.water_temp,
+              cf: r.cf,
+              salinity: r.salinity,
+              sg: r.sg,
+              source: r.source,
+            },
+            systemId
+          );
+          return {
+            source: "tuya_live",
+            online: r.online,
+            reading: {
+              timestamp: r.ts.toISOString(),
+              ph: r.ph,
+              ec: r.ec,
+              tds: r.tds,
+              orp: r.orp,
+              water_temp: r.water_temp,
+              cf: r.cf,
+              salinity: r.salinity,
+              sg: r.sg,
+            },
+            note: r.online
+              ? "Fresh reading from Tuya saved to DB."
+              : "Sensor reported offline — the values above may be a Tuya cache.",
+          };
+        } catch (e) {
+          return {
+            source: "error",
+            error: e instanceof Error ? e.message : String(e),
+            note: "Tuya call failed. If this persists, the sensor may be offline or credentials need a refresh.",
+          };
+        }
       },
     }),
 
