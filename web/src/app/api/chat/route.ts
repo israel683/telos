@@ -107,14 +107,9 @@ export async function POST(req: Request) {
   const tools = await buildAgentTools(systemId);
 
   // Fetch system context so we can tell Claude which system this is.
-  //
-  // We now have TWO new-system flavours since the structured-form dialog
-  // landed:
-  //   - "fresh placeholder" (legacy)        — name === 'מערכת חדשה', defaults
-  //     for everything.  Treat as needs-full-onboarding via askGrower.
-  //   - "fresh, structured-form-created"    — name + crop + stage etc. are
-  //     already real values, but setup_completed_at is null.  Skip the
-  //     6-Q dance; jump straight to physical-readiness + fertilizer config.
+  // New-system detection: name still the placeholder sentinel "מערכת חדשה"
+  // AND no readings/decisions yet → conversational onboarding mode
+  // (agronomist walks the grower through the 6 questions via askGrower).
   const sys = await getSystem(systemId);
   const [readingsForFreshCheck, decisionsForFreshCheck] = sys
     ? await Promise.all([
@@ -122,15 +117,10 @@ export async function POST(req: Request) {
         getRecentDecisions(1, sys.id),
       ])
     : [[], []];
-  const isLegacyPlaceholder =
+  const isFreshSystem =
     !!sys &&
     sys.name === "מערכת חדשה" &&
     readingsForFreshCheck.length === 0 &&
-    decisionsForFreshCheck.length === 0;
-  const isStructuredFresh =
-    !!sys &&
-    !isLegacyPlaceholder &&
-    sys.setup_completed_at === null &&
     decisionsForFreshCheck.length === 0;
 
   let contextLine = sys
@@ -152,12 +142,12 @@ This system is currently paused. The autonomous cycle is OFF — no sensor polls
 - The grower releases maintenance via the UI button; you do not need to ask them to resume.`;
   }
 
-  if (isLegacyPlaceholder) {
+  if (isFreshSystem) {
     contextLine += `
 
-# ⚠️ FRESH SYSTEM — ONBOARDING REQUIRED (legacy placeholder flow)
+# ⚠️ FRESH SYSTEM — ONBOARDING REQUIRED
 
-This system was just created via the legacy placeholder flow. Name is still the placeholder "מערכת חדשה" and there are no readings/decisions in the DB. The grower has NOT yet told you anything — the fields above are DEFAULTS, not real choices.
+This system was just created. Name is still the placeholder "מערכת חדשה" and there are no readings/decisions in the DB. The grower has NOT yet told you anything — the fields above are DEFAULTS, not real choices.
 
 **MANDATORY behavior for the next assistant turn:**
 
@@ -168,19 +158,13 @@ First onboarding question: ask in Hebrew "איך תרצה לקרוא למערכ�
 
 After the grower replies with a name, call \`updateSystem({ name: "<the name>" })\`, then proceed to question 2 (crop, this time WITH options via askGrower), and so on through the full six-step flow.
 
-DO NOT skip askGrower. The whole point of this UX is clickable stacked-question cards instead of typing.`;
-  }
+DO NOT skip askGrower. The whole point of this UX is clickable stacked-question cards instead of typing.
 
-  if (isStructuredFresh) {
-    contextLine += `
+**After step 6 — the FERTILIZER + PHYSICAL READINESS steps:**
 
-# 🌱 NEW SYSTEM — STRUCTURED FORM ALREADY COMPLETED
+After the 6 basic questions, do NOT call markSetupComplete yet.  Two onboarding gaps still remain:
 
-This system was just created via the structured "create system" form in the UI.  The grower has ALREADY filled in name, crop, growth stage, reservoir size, location and notes — those fields above are the REAL values they entered.  No \`setup_completed_at\` yet, so the autonomous brain isn't running.
-
-**DO NOT** repeat the 6-question onboarding via askGrower.  All that info exists.  You may briefly acknowledge it ("יפה, ${sys?.crop_type} בנפח ${sys?.reservoir_liters}L — קלטתי") in one short Hebrew sentence and then move on to the TWO remaining onboarding gaps:
-
-1. **Fertilizer + channel layout.**  Ask which fertilizer line is installed (offer LivinGreen המושלם / Terra Aquatica Tri Part / Other) via \`askGrower\`.  Once chosen, ask which physical Jebao channel (1..5) carries each bottle, plus whether pH up / pH down are wired and on which channel.  Use \`listFertilizerProfiles\` and \`configureFertilizer\` to persist.
+1. **Fertilizer + channel layout.**  Ask which fertilizer line is installed via \`askGrower\` (options: LivinGreen המושלם, Terra Aquatica Tri Part, אחר).  Once chosen, ask which physical Jebao channel (1..5) carries each bottle, plus whether pH up / pH down are wired and on which channel.  Use \`listFertilizerProfiles\` for option enrichment and \`configureFertilizer\` to persist the final layout.
 
 2. **Physical readiness confirmation.**  AFTER fertilizer is configured, tell the grower in Hebrew that you have everything and ask them to confirm when the sensor is in water and the system is physically running.  When they confirm: call \`markSetupComplete\` (with a short Hebrew note) and IMMEDIATELY call \`pollSensorNow\` to fetch the first live reading.  Share the actual pH/EC/temp values — never say "תחזור עוד 10 דקות".
 

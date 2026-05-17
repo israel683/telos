@@ -1,15 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listSystems, deleteSystem, type SystemSummary } from "@/lib/api";
+import { listSystems, createSystem, deleteSystem, type SystemSummary } from "@/lib/api";
 import { getActiveSystem, setActiveSystem, DEFAULT_SYSTEM } from "@/lib/system";
-import { CreateSystemDialog } from "./CreateSystemDialog";
 
 export function SystemSwitcher() {
   const [systems, setSystems] = useState<SystemSummary[]>([]);
   const [active, setActive] = useState<string>(DEFAULT_SYSTEM);
   const [open, setOpen] = useState(false);
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -44,9 +43,24 @@ export function SystemSwitcher() {
     window.location.reload();
   }
 
-  function handleSystemCreated(system: SystemSummary) {
-    setShowCreateDialog(false);
-    pick(system.id);
+  /**
+   * Conversational onboarding path.  Create a minimal placeholder row
+   * (name = sentinel "מערכת חדשה", defaults for the rest) and jump straight
+   * to chat — the agronomist takes it from there using askGrower to walk
+   * through name / crop / stage / reservoir / location / notes one card at
+   * a time, calling updateSystem after each answer.  No modal forms.
+   */
+  async function handleCreateNew() {
+    if (creating) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const r = await createSystem({ name: "מערכת חדשה" });
+      pick(r.system.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      setCreating(false);
+    }
   }
 
   async function handleDelete(s: SystemSummary, ev: React.MouseEvent) {
@@ -96,7 +110,7 @@ export function SystemSwitcher() {
       {open && (
         <div
           className="absolute end-0 mt-2 w-80 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg z-20 overflow-hidden"
-          onMouseLeave={() => !deletingId && setOpen(false)}
+          onMouseLeave={() => !deletingId && !creating && setOpen(false)}
         >
           {error && (
             <div className="text-xs text-red-600 dark:text-red-400 p-2 bg-red-50 dark:bg-red-950/40">
@@ -149,22 +163,13 @@ export function SystemSwitcher() {
             )}
           </ul>
           <button
-            onClick={() => {
-              setOpen(false);
-              setShowCreateDialog(true);
-            }}
-            className="w-full text-right px-3 py-2 border-t border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-medium text-emerald-600 dark:text-emerald-400"
+            onClick={handleCreateNew}
+            disabled={creating}
+            className="w-full text-right px-3 py-2 border-t border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-medium text-emerald-600 dark:text-emerald-400 disabled:opacity-50"
           >
-            + מערכת חדשה
+            {creating ? "פותח שיחה..." : "+ מערכת חדשה (החקלאי ינחה אותך)"}
           </button>
         </div>
-      )}
-
-      {showCreateDialog && (
-        <CreateSystemDialog
-          onCreated={handleSystemCreated}
-          onCancel={() => setShowCreateDialog(false)}
-        />
       )}
     </div>
   );
