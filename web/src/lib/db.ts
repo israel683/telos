@@ -182,23 +182,14 @@ export async function ensureSchema(): Promise<void> {
     ALTER TABLE systems ADD COLUMN IF NOT EXISTS setup_completed_at TIMESTAMPTZ
   `);
 
-  // Auto-create the 'default' row so existing data has a parent. The name
-  // is the onboarding-trigger sentinel "מערכת חדשה" — if the row gets
-  // recreated (e.g. after a manual wipe) the next chat session opens with
-  // the agronomist running the 6-question onboarding flow instead of
-  // silently inheriting stale defaults.
-  await safeDdl(() => s`
-    INSERT INTO systems (id, name, crop_type, growth_stage, reservoir_liters,
-                         system_type, location, outdoor, tuya_device_id)
-    VALUES ('default', 'מערכת חדשה', ${process.env.CROP_TYPE || "lettuce"},
-            ${process.env.GROWTH_STAGE || "vegetative"},
-            ${Number(process.env.RESERVOIR_LITERS || 60)},
-            ${process.env.SYSTEM_TYPE || "nft_wall_mounted"},
-            ${process.env.LOCATION || "Tel Aviv, Israel"},
-            TRUE,
-            ${process.env.TUYA_SENSOR_DEVICE_ID || null})
-    ON CONFLICT (id) DO NOTHING
-  `);
+  // NOTE: we used to auto-create a 'default' row on every bootstrap so the
+  // single-system POC always had a parent for incoming readings.  That made
+  // the systems table impossible to truly empty — every API hit would
+  // recreate the placeholder.  Now the grower creates systems explicitly
+  // through the UI (POST /api/systems) or via the agronomist's onboarding
+  // flow.  The SystemSwitcher renders an empty-state ("אין מערכות עדיין")
+  // when no rows exist, and the cron routes filter to status=active so a
+  // zero-row DB is a no-op rather than a crash.
 
   _schemaReady = true;
 }
