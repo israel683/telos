@@ -166,7 +166,8 @@ export async function ensureSchema(): Promise<void> {
       tuya_device_id    TEXT,
       notes             TEXT,
       dosing_config     JSONB,
-      next_check_at     TIMESTAMPTZ
+      next_check_at     TIMESTAMPTZ,
+      setup_completed_at TIMESTAMPTZ
     )
   `);
 
@@ -176,6 +177,9 @@ export async function ensureSchema(): Promise<void> {
   `);
   await safeDdl(() => s`
     ALTER TABLE systems ADD COLUMN IF NOT EXISTS next_check_at TIMESTAMPTZ
+  `);
+  await safeDdl(() => s`
+    ALTER TABLE systems ADD COLUMN IF NOT EXISTS setup_completed_at TIMESTAMPTZ
   `);
 
   // Auto-create the 'default' row so existing data has a parent. The name
@@ -299,6 +303,17 @@ export type SystemRow = {
    * `next_check_minutes` Claude returned.
    */
   next_check_at: Date | null;
+  /**
+   * Wall-clock moment the physical install was confirmed running by the
+   * grower.  Sensor readings BEFORE this timestamp are noise (sensor was
+   * in the package, on a shelf, drying after calibration, etc.) and are
+   * filtered out of every reading-query by default.
+   *
+   * NULL means setup hasn't been confirmed yet — readings exist in the DB
+   * for diagnostic purposes (proves Tuya connectivity) but the autonomous
+   * brain refuses to reason on them.
+   */
+  setup_completed_at: Date | null;
 };
 
 function rowToSystem(row: Record<string, unknown>): SystemRow {
@@ -319,6 +334,9 @@ function rowToSystem(row: Record<string, unknown>): SystemRow {
     notes: (row.notes as string) ?? null,
     dosing_config: (row.dosing_config as Record<string, unknown> | null) ?? null,
     next_check_at: row.next_check_at ? new Date(row.next_check_at as string) : null,
+    setup_completed_at: row.setup_completed_at
+      ? new Date(row.setup_completed_at as string)
+      : null,
   };
 }
 
@@ -331,6 +349,25 @@ export async function setNextCheckAt(systemId: string, when: Date): Promise<void
   await ensureSchema();
   const s = sql();
   await s`UPDATE systems SET next_check_at = ${when.toISOString()} WHERE id = ${systemId}`;
+}
+
+/**
+ * Mark the moment the physical system was confirmed running.  Called by the
+ * agent's `markSetupComplete` tool once the grower says the sensor is in
+ * the reservoir and the system is live.  All reading-queries (cron,
+ * dashboard, chat) start filtering on `ts >= setup_completed_at` from this
+ * point on, so the brain never reasons on pre-install sensor noise.
+ *
+ * Passing `null` clears the marker — useful if the grower hits "I made a
+ * mistake, the install isn't done" via a future maintenance action.
+ */
+export async function markSetupComplete(
+  systemId: string,
+  when: Date | null = new Date()
+): Promise<void> {
+  await ensureSchema();
+  const s = sql();
+  await s`UPDATE systems SET setup_completed_at = ${when ? when.toISOString() : null} WHERE id = ${systemId}`;
 }
 
 export async function listSystems(includeArchived = false): Promise<SystemRow[]> {
@@ -455,10 +492,20 @@ export async function getRecentReadings(
   await ensureSchema();
   const s = sql();
   const cutoff = new Date(Date.now() - hours * 3600 * 1000).toISOString();
+  // Honour the per-system setup_completed_at marker — readings from before
+  // the grower confirmed the physical install was running are noise
+  // (sensor was in the package / on a shelf / drying after calibration).
+  // We fetch the marker in the same query via a sub-select so callers don't
+  // have to thread it through manually.
   const rows = (await s`
     SELECT id, ts, ph, ec, tds, orp, water_temp, cf, salinity, sg, source
     FROM sensor_readings
-    WHERE system_id = ${systemId} AND ts > ${cutoff}
+    WHERE system_id = ${systemId}
+      AND ts > ${cutoff}
+      AND ts >= COALESCE(
+        (SELECT setup_completed_at FROM systems WHERE id = ${systemId}),
+        ts
+      )
     ORDER BY ts DESC LIMIT ${limit}
   `) as unknown as Array<{
     id: number;

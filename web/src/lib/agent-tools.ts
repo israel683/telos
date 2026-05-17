@@ -11,6 +11,7 @@ import {
   createHumanTask,
   getSystem,
   updateSystem,
+  markSetupComplete,
   DEFAULT_SYSTEM_ID,
 } from "./db";
 import { getDosingConfig, allChannelKeys, type DosingConfig } from "./dosing-config";
@@ -42,7 +43,8 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
   return {
     getCurrentState: tool({
       description:
-        "Get the current sensor reading, last AI decision, and system profile for the active system. Call this whenever the grower asks about how things are right now.",
+        "Get the current sensor reading, last AI decision, and system profile for the active system. Call this whenever the grower asks about how things are right now. " +
+        "IMPORTANT: if `setup_completed_at` is null, the system is STILL IN INSTALL MODE — sensor readings (if any) are pre-install noise and you should NOT reason on them. Tell the grower that the system is pre-install and ask them to confirm when running.",
       inputSchema: z.object({}),
       execute: async () => {
         const [readings, decisions, pending, sys] = await Promise.all([
@@ -55,6 +57,10 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
         const last = decisions[0] || null;
         return {
           system: sys ? { id: sys.id, name: sys.name, status: sys.status } : null,
+          setup_completed_at: sys?.setup_completed_at
+            ? sys.setup_completed_at.toISOString()
+            : null,
+          pre_install: !sys?.setup_completed_at,
           current_reading: current
             ? {
                 timestamp: current.ts.toISOString(),
@@ -323,6 +329,32 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           profile: prof.id,
           channels: Object.keys(assignments),
           note: "Dosing config saved. Future doses + safety checks use this layout.",
+        };
+      },
+    }),
+
+    markSetupComplete: tool({
+      description:
+        "Mark the moment the physical install is confirmed running — sensor is in the reservoir, water is circulating, doser is wired. Call this ONLY when the grower explicitly confirms they're physically set up (e.g. 'החיישן במים', 'המערכת רצה', 'אני מוכן'). Before this is called, the autonomous brain refuses to reason on sensor history because pre-install readings are noise (sensor in package / on shelf / drying). After this is called, all reading-queries start filtering from this timestamp forward.",
+      inputSchema: z.object({
+        confirmation_note_he: z
+          .string()
+          .optional()
+          .describe("Optional Hebrew sentence summarising what the grower confirmed (e.g. 'חיישן במים, פאמפ פועל'). Stored to notes."),
+      }),
+      execute: async (params) => {
+        await markSetupComplete(systemId);
+        if (params.confirmation_note_he) {
+          const sys = await getSystem(systemId);
+          const newNote = sys?.notes
+            ? `${sys.notes}\n[setup confirmed] ${params.confirmation_note_he}`
+            : `[setup confirmed] ${params.confirmation_note_he}`;
+          await updateSystem(systemId, { notes: newNote });
+        }
+        return {
+          ok: true,
+          setup_completed_at: new Date().toISOString(),
+          note: "From now on the autonomous brain trusts sensor readings on this system.",
         };
       },
     }),

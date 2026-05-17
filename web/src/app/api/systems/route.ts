@@ -25,6 +25,7 @@ export async function GET(req: Request) {
         tuya_device_id: s.tuya_device_id,
         notes: s.notes,
         dosing_config: s.dosing_config,
+        setup_completed_at: s.setup_completed_at?.toISOString() ?? null,
       })),
     });
   } catch (e) {
