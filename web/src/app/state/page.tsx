@@ -6,6 +6,7 @@ import {
   getTasks,
   completeTask,
   dismissTask,
+  approveDoseTask,
 } from "@/lib/api";
 import type { StateResponse, HumanTask, AgentStatus } from "@/lib/types";
 import { SensorChart } from "@/components/SensorChart";
@@ -82,6 +83,22 @@ export default function Dashboard() {
 
   async function handleDismiss(id: number) {
     await dismissTask(id, "dismissed from dashboard");
+    refresh();
+  }
+
+  async function handleApproveDose(id: number) {
+    // dose_approval tasks need to actually FIRE the pump on approval, not
+    // just flip status='done'.  The dedicated /approve endpoint handles
+    // validate + execute + log + complete in one call.
+    try {
+      const r = await approveDoseTask(id);
+      if (!r.ok) {
+        const why = r.reason || r.error || "unknown failure";
+        alert(`לא בוצע: ${why}`);
+      }
+    } catch (e) {
+      alert(`שגיאה: ${e instanceof Error ? e.message : String(e)}`);
+    }
     refresh();
   }
 
@@ -187,70 +204,155 @@ export default function Dashboard() {
         </div>
       </section>
 
-      <section>
-        <h2 className="font-semibold mb-3">משימות ממתינות ({tasks.length})</h2>
-        {tasks.length === 0 ? (
-          <p className="text-sm text-zinc-500 text-center py-8 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
-            אין משימות ממתינות. המערכת רצה אוטונומית.
-          </p>
-        ) : (
-          <ul className="space-y-3">
-            {tasks.map((t) => (
-              <li
-                key={t.id}
-                className="bg-white dark:bg-zinc-900 rounded-lg p-4 shadow-sm border border-zinc-200 dark:border-zinc-800"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className={`text-xs px-2 py-0.5 rounded ${PRIORITY_COLOR[t.priority]}`}>
-                        {PRIORITY_LABEL[t.priority]}
-                      </span>
-                      <span className="text-xs text-zinc-500">
-                        {TASK_TYPE_LABEL[t.type]}
-                      </span>
-                      <span className="text-xs text-zinc-400">
-                        #{t.id} · {new Date(t.created_at).toLocaleString("he-IL")}
-                      </span>
-                    </div>
-                    <h3 className="font-medium leading-snug mb-1">{t.title}</h3>
-                    <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">
-                      {t.reason}
-                    </p>
-                    {Object.keys(t.payload).length > 0 && (
-                      <pre
-                        className="mt-2 text-xs bg-zinc-100 dark:bg-zinc-800 rounded p-2 overflow-x-auto"
-                        dir="ltr"
-                      >
-                        {JSON.stringify(t.payload, null, 2)}
-                      </pre>
-                    )}
-                  </div>
-                  <div className="flex flex-col gap-2 shrink-0">
-                    <button
-                      onClick={() => handleComplete(t.id)}
-                      className="text-xs px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700"
-                    >
-                      בוצע
-                    </button>
-                    <button
-                      onClick={() => handleDismiss(t.id)}
-                      className="text-xs px-3 py-1.5 rounded bg-zinc-300 hover:bg-zinc-400 dark:bg-zinc-700 dark:hover:bg-zinc-600"
-                    >
-                      בטל
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+      <TasksPanel
+        tasks={tasks}
+        onApprove={handleApproveDose}
+        onComplete={handleComplete}
+        onDismiss={handleDismiss}
+      />
 
       <footer className="text-xs text-zinc-400 text-center pt-4">
         מתעדכן כל {REFRESH_MS / 1000} שניות
       </footer>
     </main>
+  );
+}
+
+/**
+ * Split pending tasks into two visually distinct buckets:
+ *  - Approval-needed (dose_approval): the agent suggested a dose while
+ *    the grower wasn't in the chat. One click here actually FIRES the
+ *    pump (see /api/tasks/:id/approve), not just marks the task done.
+ *  - Hands-needed (water_change, manual_action, system_reset, question):
+ *    things only a human can do; clicking "בוצע" just records that you did it.
+ */
+function TasksPanel({
+  tasks,
+  onApprove,
+  onComplete,
+  onDismiss,
+}: {
+  tasks: HumanTask[];
+  onApprove: (id: number) => void;
+  onComplete: (id: number) => void;
+  onDismiss: (id: number) => void;
+}) {
+  const approval = tasks.filter((t) => t.type === "dose_approval");
+  const hands = tasks.filter((t) => t.type !== "dose_approval");
+
+  if (tasks.length === 0) {
+    return (
+      <section>
+        <h2 className="font-semibold mb-3">משימות ממתינות</h2>
+        <p className="text-sm text-zinc-500 text-center py-8 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+          אין משימות ממתינות. המערכת רצה אוטונומית.
+        </p>
+      </section>
+    );
+  }
+
+  return (
+    <section className="space-y-5">
+      {approval.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">⚡</span>
+            <h2 className="font-semibold">ממתין לאישור שלך ({approval.length})</h2>
+            <span className="text-xs text-zinc-500">— לחיצה על "אשר ובצע" תפעיל את המשאבה ישירות</span>
+          </div>
+          <ul className="space-y-3">
+            {approval.map((t) => (
+              <TaskCard
+                key={t.id}
+                t={t}
+                primaryLabel="אשר ובצע"
+                primaryColor="bg-emerald-600 hover:bg-emerald-700"
+                onPrimary={() => onApprove(t.id)}
+                onDismiss={() => onDismiss(t.id)}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {hands.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <span className="text-lg">🙋</span>
+            <h2 className="font-semibold">צריך ידיים שלך ({hands.length})</h2>
+            <span className="text-xs text-zinc-500">— פעולות פיזיות / שאלות לסוכן</span>
+          </div>
+          <ul className="space-y-3">
+            {hands.map((t) => (
+              <TaskCard
+                key={t.id}
+                t={t}
+                primaryLabel="בוצע"
+                primaryColor="bg-blue-600 hover:bg-blue-700"
+                onPrimary={() => onComplete(t.id)}
+                onDismiss={() => onDismiss(t.id)}
+              />
+            ))}
+          </ul>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function TaskCard({
+  t,
+  primaryLabel,
+  primaryColor,
+  onPrimary,
+  onDismiss,
+}: {
+  t: HumanTask;
+  primaryLabel: string;
+  primaryColor: string;
+  onPrimary: () => void;
+  onDismiss: () => void;
+}) {
+  return (
+    <li className="bg-white dark:bg-zinc-900 rounded-lg p-4 shadow-sm border border-zinc-200 dark:border-zinc-800">
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 mb-1 flex-wrap">
+            <span className={`text-xs px-2 py-0.5 rounded ${PRIORITY_COLOR[t.priority]}`}>
+              {PRIORITY_LABEL[t.priority]}
+            </span>
+            <span className="text-xs text-zinc-500">{TASK_TYPE_LABEL[t.type]}</span>
+            <span className="text-xs text-zinc-400">
+              #{t.id} · {new Date(t.created_at).toLocaleString("he-IL")}
+            </span>
+          </div>
+          <h3 className="font-medium leading-snug mb-1">{t.title}</h3>
+          <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">{t.reason}</p>
+          {Object.keys(t.payload).length > 0 && (
+            <pre
+              className="mt-2 text-xs bg-zinc-100 dark:bg-zinc-800 rounded p-2 overflow-x-auto"
+              dir="ltr"
+            >
+              {JSON.stringify(t.payload, null, 2)}
+            </pre>
+          )}
+        </div>
+        <div className="flex flex-col gap-2 shrink-0">
+          <button
+            onClick={onPrimary}
+            className={`text-xs px-3 py-1.5 rounded text-white ${primaryColor}`}
+          >
+            {primaryLabel}
+          </button>
+          <button
+            onClick={onDismiss}
+            className="text-xs px-3 py-1.5 rounded bg-zinc-300 hover:bg-zinc-400 dark:bg-zinc-700 dark:hover:bg-zinc-600"
+          >
+            בטל
+          </button>
+        </div>
+      </div>
+    </li>
   );
 }
 

@@ -78,7 +78,8 @@ IMMEDIATELY after \`markSetupComplete\`, call \`pollSensorNow\` to pull the firs
   • The grower asks "מה הקריאה עכשיו" / "what does it say now".
   Rate-limited: if a reading was saved in the last 20s, returns the cached one (free). Don't loop on it.
 - **\`getRecentReadings\` / \`getRecentDecisions\` / \`getPendingTasks\`** — when asked about trends, history, or pending items.
-- **\`proposeAction\`** — when you'd recommend a dose. Doesn't execute; creates a dose_approval task for grower confirmation.
+- **\`executeDose\`** — fire a REAL dose RIGHT NOW. Use this the moment the grower says yes/בצע/אישור/קדימה after you've suggested a dose in chat. Don't make the grower click anything in a dashboard — they're talking to you, just execute. The tool runs the safety check, fires the pump, and logs the action. Returns success + actual ml + runtime.
+- **\`proposeAction\`** — create a 'dose_approval' Human Task. Use ONLY when you DON'T have the grower with you in chat (e.g. you're explaining a follow-up that needs a manual ack later). In an active conversation, NEVER use proposeAction in place of executeDose — making the grower click a button in another tab to confirm something they just told you "yes" to in chat is a broken UX.
 - **\`requestObservation\`** — when you need info you can't sense (root color, leaf state, water level).
 
 Don't echo raw JSON from any tool result; summarize and explain.

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { SystemSwitcher } from "./SystemSwitcher";
 import { StatusChip } from "./StatusChip";
 import { MaintenanceToggle } from "./MaintenanceToggle";
+import { TasksBadge } from "./TasksBadge";
 
 const LINKS = [
   { href: "/", label: "שיחה" },
@@ -39,6 +40,7 @@ export function Nav() {
             );
           })}
         </ul>
+        <TasksBadge />
         <StatusChip />
         <MaintenanceToggle />
         <SystemSwitcher />

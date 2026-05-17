@@ -13,9 +13,12 @@ import {
   updateSystem,
   markSetupComplete,
   saveReading,
+  saveAction,
   DEFAULT_SYSTEM_ID,
 } from "./db";
 import { readTuyaSensor } from "./devices/tuya";
+import { doseChannelByPhysical } from "./devices/jebao";
+import { validateCommand } from "./safety";
 import { getDosingConfig, allChannelKeys, type DosingConfig } from "./dosing-config";
 import { getProfile, listProfiles } from "./fertilizer-profiles";
 import { getPrimingState, PRIMING_ML_PER_CHANNEL } from "./priming";
@@ -165,11 +168,88 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
       },
     }),
 
+    executeDose: tool({
+      description:
+        "FIRE A REAL DOSE on the doser RIGHT NOW.  Use this in chat the moment the grower explicitly says yes/בצע/אישור/קדימה to a dose you suggested — do NOT use proposeAction in that case (it just creates a clickable task and feels broken in the conversational flow). " +
+        "The tool validates against the SafetyController (pH/EC/temp bounds, per-hour quota, min-interval), resolves the physical Jebao channel from the system's dosing_config, fires the pump, and logs to dosing_actions.  Returns success + actual ml + runtime.  If safety blocks the dose, the tool returns the block reason — share it with the grower verbatim, don't paper over it. " +
+        `Channels available on THIS system: ${channelDescriptions}. ${profileBlurb}`,
+      inputSchema: z.object({
+        channel: z.string().describe(`Logical channel key: ${channelKeys.join(", ") || "(none)"}`),
+        amount_ml: z.number().min(0.1).max(50),
+        reason_he: z.string().describe("Hebrew explanation logged with the action so the grower can review later"),
+      }),
+      execute: async (params) => {
+        if (!channelKeys.includes(params.channel)) {
+          return {
+            ok: false,
+            error: `Channel '${params.channel}' is not configured. Available: ${channelKeys.join(", ") || "(none)"}.`,
+          };
+        }
+        const assignment = dosingConfig.assignments[params.channel];
+        if (!assignment) {
+          return { ok: false, error: `No physical channel mapped for '${params.channel}'` };
+        }
+
+        // Latest reading for the safety check.
+        const recent = await getRecentReadings(1, 1, systemId);
+        const current = recent[recent.length - 1] ?? null;
+        const safety = await validateCommand(
+          { channel: params.channel, amount_ml: params.amount_ml, reason: params.reason_he },
+          current,
+          { systemId, dosingConfig }
+        );
+        if (!safety.ok) {
+          return {
+            ok: false,
+            blocked_by_safety: true,
+            reason: safety.reason,
+            note: "Safety controller refused this dose. Explain the reason to the grower; do not retry without addressing it.",
+          };
+        }
+
+        // Fire the actual pump.
+        const r = await doseChannelByPhysical(
+          assignment.physical,
+          params.amount_ml,
+          params.reason_he,
+          params.channel
+        );
+        // Log either way so the audit trail stays honest.
+        try {
+          await saveAction(
+            {
+              channel: params.channel,
+              amount_ml: params.amount_ml,
+              reason: r.success ? params.reason_he : `FAILED: ${r.error}`,
+              success: r.success,
+              ai_status: "chat",
+              ai_analysis: "Direct dose via chat (executeDose)",
+            },
+            systemId
+          );
+        } catch (e) {
+          console.error("[executeDose] failed to log action:", e);
+        }
+
+        return {
+          ok: r.success,
+          channel: params.channel,
+          physical_channel: assignment.physical,
+          amount_ml: params.amount_ml,
+          runtime_seconds: r.runtime_seconds,
+          error: r.error,
+          note: r.success
+            ? "Dose fired. Briefly confirm to the grower (channel + ml) and offer to poll the sensor in a few minutes to see the effect."
+            : "Dose attempt failed. Share the error with the grower and suggest the next step (retry / check hardware / call a human task).",
+        };
+      },
+    }),
+
     proposeAction: tool({
       description:
-        "Propose a dosing action by creating a 'dose_approval' Human Task for the grower to confirm. This does NOT execute the dose. Use when, based on the data, you'd recommend dosing but want explicit human approval first. " +
-        `Channels available on THIS system: ${channelDescriptions}. ${profileBlurb} ` +
-        "Channels not listed here do not exist on this rig — for missing pH directions or missing components, raise a manual_action human task instead.",
+        "Create a 'dose_approval' Human Task — used ONLY when you DON'T have the grower in front of you in chat (autonomous cycle context, or follow-up that needs explicit human approval before any dose). " +
+        "In an active chat conversation, prefer `executeDose` after the grower says yes — that fires the dose directly with one round-trip and feels like a normal conversation rather than 'go click a button in the dashboard'. " +
+        `Channels available: ${channelDescriptions}. ${profileBlurb}`,
       inputSchema: z.object({
         // Zod free-string + runtime validation against the per-system config.
         // We don't lock the enum at schema time so each system's chat can

@@ -62,6 +62,25 @@ export async function completeTask(id: number, response = "") {
   });
 }
 
+/**
+ * Approve + execute a dose_approval task in one click.  Hits the dose
+ * endpoint, fires the pump, marks the task done.  Returns success or a
+ * safety/hardware failure reason.
+ */
+export async function approveDoseTask(id: number) {
+  return fetchJson<{
+    ok: boolean;
+    task_id: number;
+    channel: string;
+    physical_channel: number;
+    amount_ml: number;
+    runtime_seconds: number;
+    error?: string;
+    blocked_by_safety?: boolean;
+    reason?: string;
+  }>(`/api/tasks/${id}/approve`, { method: "POST" });
+}
+
 export async function dismissTask(id: number, response = "") {
   return fetchJson<{ ok: true }>(`/api/tasks/${id}/dismiss`, {
     method: "POST",
