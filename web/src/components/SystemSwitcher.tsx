@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { listSystems, createSystem, deleteSystem, type SystemSummary } from "@/lib/api";
+import { listSystems, deleteSystem, type SystemSummary } from "@/lib/api";
 import { getActiveSystem, setActiveSystem, DEFAULT_SYSTEM } from "@/lib/system";
+import { CreateSystemDialog } from "./CreateSystemDialog";
 
 export function SystemSwitcher() {
   const [systems, setSystems] = useState<SystemSummary[]>([]);
   const [active, setActive] = useState<string>(DEFAULT_SYSTEM);
   const [open, setOpen] = useState(false);
-  const [creating, setCreating] = useState(false);
+  const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -27,6 +28,15 @@ export function SystemSwitcher() {
     load();
   }, []);
 
+  // Re-fetch every time the dropdown opens so the data the grower sees
+  // reflects the latest agent updates (e.g. crop_type was lettuce by
+  // default, the agronomist changed it to basil via updateSystem — without
+  // this refresh the picker keeps showing "lettuce" until a full page
+  // reload).
+  useEffect(() => {
+    if (open) load();
+  }, [open]);
+
   function pick(id: string) {
     setActive(id);
     setActiveSystem(id);
@@ -34,20 +44,9 @@ export function SystemSwitcher() {
     window.location.reload();
   }
 
-  async function handleCreateNew() {
-    if (creating) return;
-    setCreating(true);
-    setError(null);
-    try {
-      // No modal — create a placeholder system and dive straight into chat.
-      // The agronomist will conversationally ask the grower to name it and
-      // fill in crop/stage/reservoir/etc. via the askGrower tool.
-      const r = await createSystem({ name: "מערכת חדשה" });
-      pick(r.system.id);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-      setCreating(false);
-    }
+  function handleSystemCreated(system: SystemSummary) {
+    setShowCreateDialog(false);
+    pick(system.id);
   }
 
   async function handleDelete(s: SystemSummary, ev: React.MouseEvent) {
@@ -97,7 +96,7 @@ export function SystemSwitcher() {
       {open && (
         <div
           className="absolute end-0 mt-2 w-80 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg z-20 overflow-hidden"
-          onMouseLeave={() => !creating && !deletingId && setOpen(false)}
+          onMouseLeave={() => !deletingId && setOpen(false)}
         >
           {error && (
             <div className="text-xs text-red-600 dark:text-red-400 p-2 bg-red-50 dark:bg-red-950/40">
@@ -150,13 +149,22 @@ export function SystemSwitcher() {
             )}
           </ul>
           <button
-            onClick={handleCreateNew}
-            disabled={creating}
-            className="w-full text-right px-3 py-2 border-t border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-medium text-emerald-600 dark:text-emerald-400 disabled:opacity-50"
+            onClick={() => {
+              setOpen(false);
+              setShowCreateDialog(true);
+            }}
+            className="w-full text-right px-3 py-2 border-t border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-medium text-emerald-600 dark:text-emerald-400"
           >
-            {creating ? "יוצר מערכת..." : "+ מערכת חדשה (החקלאי ינחה אותך)"}
+            + מערכת חדשה
           </button>
         </div>
+      )}
+
+      {showCreateDialog && (
+        <CreateSystemDialog
+          onCreated={handleSystemCreated}
+          onCancel={() => setShowCreateDialog(false)}
+        />
       )}
     </div>
   );
