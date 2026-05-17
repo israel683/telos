@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getSystem, updateSystem, archiveSystem, saveChatMessage } from "@/lib/db";
+import { getSystem, updateSystem, archiveSystem, saveChatMessage, sql, ensureSchema } from "@/lib/db";
 
 export const maxDuration = 15;
 
@@ -95,8 +95,34 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
   }
 }
 
-export async function DELETE(_req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  await archiveSystem(id);
-  return NextResponse.json({ ok: true });
+  const { searchParams } = new URL(req.url);
+  const hard = searchParams.get("hard") === "1";
+
+  if (!hard) {
+    // Default behaviour preserved: soft-archive (status='archived', data kept).
+    await archiveSystem(id);
+    return NextResponse.json({ ok: true, mode: "archived" });
+  }
+
+  // Hard delete — cascade every child row tied to this system_id, then drop
+  // the system itself.  Used by the UI trash button when the grower wants
+  // the system permanently gone (not just hidden from the active list).
+  await ensureSchema();
+  const s = sql();
+  // Order: child tables first to honour FKs (decisions referenced by tasks +
+  // dosing_actions).  We DELETE by system_id so an accidental id collision
+  // on another system's rows is impossible.
+  await s`DELETE FROM dosing_actions WHERE system_id = ${id}`;
+  await s`DELETE FROM human_tasks WHERE system_id = ${id}`;
+  await s`DELETE FROM chat_messages WHERE system_id = ${id}`;
+  await s`DELETE FROM ai_decisions WHERE system_id = ${id}`;
+  await s`DELETE FROM sensor_readings WHERE system_id = ${id}`;
+  const removed = (await s`DELETE FROM systems WHERE id = ${id} RETURNING id`) as unknown as Array<{ id: string }>;
+  return NextResponse.json({
+    ok: true,
+    mode: "hard_deleted",
+    deleted_system: removed[0]?.id ?? null,
+  });
 }

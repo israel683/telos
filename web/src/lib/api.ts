@@ -127,7 +127,22 @@ export async function archiveSystem(id: string) {
     headers: headers(),
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
-  return res.json() as Promise<{ ok: true }>;
+  return res.json() as Promise<{ ok: true; mode: "archived" }>;
+}
+
+/**
+ * Permanently remove a system and ALL its child data (readings, decisions,
+ * doses, tasks, chat). Irreversible.  Used by the SystemSwitcher trash
+ * button when the grower confirms they want the system fully gone, not
+ * just hidden.
+ */
+export async function deleteSystem(id: string) {
+  const res = await fetch(`${API_URL}/api/systems/${id}?hard=1`, {
+    method: "DELETE",
+    headers: headers(),
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json() as Promise<{ ok: true; mode: "hard_deleted"; deleted_system: string | null }>;
 }
 
 export async function patchSystem(
