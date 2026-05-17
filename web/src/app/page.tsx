@@ -27,6 +27,14 @@ type HistoryMessage = {
 export default function ChatPage() {
   const [activeSystem, setActiveSystemState] = useState<string>("default");
   const [historyLoaded, setHistoryLoaded] = useState(false);
+  // Per-system info needed to branch the empty-state UI:
+  //  - "fresh placeholder" → just created via SystemSwitcher, never onboarded
+  //  - "set up but no chat history yet" → existing system, first chat session
+  //  - "set up + has history" → normal recurring session
+  const [systemInfo, setSystemInfo] = useState<{
+    name: string;
+    setup_completed_at: string | null;
+  } | null>(null);
   // Map message id → { source, decision_id, status } so we can render
   // cron-pushed messages with the collapsed-card pattern.
   const [messageMeta, setMessageMeta] = useState<
@@ -40,7 +48,7 @@ export default function ChatPage() {
     }),
   });
 
-  // Load history once we know which system is active.
+  // Load history + system metadata once we know which system is active.
   useEffect(() => {
     const sys = getActiveSystem();
     setActiveSystemState(sys);
@@ -48,7 +56,25 @@ export default function ChatPage() {
     (async () => {
       try {
         const qs = sys && sys !== "default" ? `?system=${encodeURIComponent(sys)}` : "";
-        const r = await fetch(`/api/chat/history${qs}`, { cache: "no-store" });
+        // System metadata in parallel with history — we need it to render the
+        // right empty-state (fresh-system CTA vs normal starters).
+        const [r, sysRes] = await Promise.all([
+          fetch(`/api/chat/history${qs}`, { cache: "no-store" }),
+          fetch(`/api/systems/${encodeURIComponent(sys)}`, { cache: "no-store" }).catch(() => null),
+        ]);
+        if (sysRes && sysRes.ok && !cancelled) {
+          try {
+            const sj = (await sysRes.json()) as { system?: { name: string; setup_completed_at: string | null } };
+            if (sj.system) {
+              setSystemInfo({
+                name: sj.system.name,
+                setup_completed_at: sj.system.setup_completed_at,
+              });
+            }
+          } catch {
+            // metadata is non-fatal — empty state will fall back to defaults
+          }
+        }
         if (!r.ok) throw new Error(`history ${r.status}`);
         const j = (await r.json()) as { messages: HistoryMessage[] };
         if (cancelled) return;
@@ -100,6 +126,15 @@ export default function ChatPage() {
 
   const isEmpty = historyLoaded && messages.length === 0;
   const isStreaming = status === "submitted" || status === "streaming";
+  // A "fresh system" is one that hasn't completed physical setup yet —
+  // covers both "just created via SystemSwitcher" and "created but
+  // grower closed the tab before onboarding finished".  In that state
+  // the generic starters ("the leaves look pale") are nonsense; show
+  // a single explicit kickoff CTA instead.
+  const isFreshSystem =
+    systemInfo !== null &&
+    systemInfo.setup_completed_at === null &&
+    (systemInfo.name === "מערכת חדשה" || systemInfo.name === "");
 
   return (
     <main className="flex-1 flex flex-col max-w-3xl w-full mx-auto px-4 py-6 min-h-0">
@@ -108,7 +143,25 @@ export default function ChatPage() {
         ref={scrollRef}
         className="flex-1 overflow-y-auto pb-4 space-y-5 scroll-smooth"
       >
-        {isEmpty && (
+        {isEmpty && isFreshSystem && (
+          <div className="text-center pt-16 pb-8">
+            <div className="text-5xl mb-3">🌱</div>
+            <h1 className="text-2xl font-semibold mb-2">מערכת חדשה</h1>
+            <p className="text-zinc-500 text-sm leading-relaxed max-w-md mx-auto mb-6">
+              אני אנחה אותך דרך ההקמה — שם, גידול, נפח מאגר, דשן והערוצים הפיזיים.
+              לחיצה אחת ואני מתחיל לשאול.
+            </p>
+            <button
+              onClick={() => handleSubmit("בוא נתחיל להקים את המערכת")}
+              disabled={isStreaming}
+              className="px-6 py-3 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-medium text-sm disabled:opacity-50"
+            >
+              התחל הקמה →
+            </button>
+          </div>
+        )}
+
+        {isEmpty && !isFreshSystem && (
           <div className="text-center pt-16 pb-8">
             <h1 className="text-2xl font-semibold mb-2">
               שלום ישראל 👋
