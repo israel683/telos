@@ -527,6 +527,98 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
       },
     }),
 
+    primeAllChannels: tool({
+      description:
+        "Prime ALL the unprimed channels on this rig in ONE deterministic chain — fires the priming dose on each in sequence, waits for each pump to finish, and returns aggregate results.  Use this for the typical 'first-time-setup, prime everything' flow so the agent can't accidentally skip a channel or forget to come back.  " +
+        "Fits inside the 60s chat-route timeout for the standard 4-channel rig (~10s per channel including pump runtime).  If channels are specified explicitly, primes only those; otherwise primes every channel in the system's dosing_config that has no priming record yet.",
+      inputSchema: z.object({
+        channels: z
+          .array(z.string())
+          .optional()
+          .describe(
+            "Channel keys to prime.  Omit to auto-detect all currently-unprimed channels on this rig."
+          ),
+        amount_ml: z
+          .number()
+          .min(1)
+          .max(20)
+          .optional()
+          .describe(`Per-channel volume (default ${PRIMING_ML_PER_CHANNEL}ml dead-volume).`),
+      }),
+      execute: async (params) => {
+        const ml = params.amount_ml ?? PRIMING_ML_PER_CHANNEL;
+        // Auto-detect mode: ask priming.ts which channels are still unprimed.
+        let targets: string[];
+        if (params.channels && params.channels.length > 0) {
+          targets = params.channels;
+        } else {
+          const state = await getPrimingState(systemId);
+          targets = channelKeys.filter((k) => !state.channels[k]?.primed);
+        }
+        if (targets.length === 0) {
+          return {
+            ok: true,
+            note: "All channels already primed — nothing to do.",
+            primed: [],
+          };
+        }
+
+        const results: Array<{
+          channel: string;
+          physical: number;
+          ok: boolean;
+          ml: number;
+          runtime_seconds: number;
+          error?: string;
+        }> = [];
+
+        for (const key of targets) {
+          if (!channelKeys.includes(key)) {
+            results.push({ channel: key, physical: 0, ok: false, ml, runtime_seconds: 0, error: "channel not configured" });
+            continue;
+          }
+          const assignment = dosingConfig.assignments[key];
+          if (!assignment) {
+            results.push({ channel: key, physical: 0, ok: false, ml, runtime_seconds: 0, error: "no physical mapping" });
+            continue;
+          }
+          const reason = `${PRIMING_DONE_SENTINEL} (${ml}ml feed-tube prime)`;
+          const r = await doseChannelByPhysical(assignment.physical, ml, reason, key);
+          try {
+            await saveAction(
+              {
+                channel: key,
+                amount_ml: ml,
+                reason: r.success ? reason : `FAILED priming: ${r.error}`,
+                success: r.success,
+                ai_status: "priming",
+                ai_analysis: `primeAllChannels (chained) — ${key}`,
+              },
+              systemId
+            );
+          } catch (e) {
+            console.error("[primeAllChannels] log failed:", e);
+          }
+          results.push({
+            channel: key,
+            physical: assignment.physical,
+            ok: r.success,
+            ml,
+            runtime_seconds: r.runtime_seconds,
+            error: r.error,
+          });
+        }
+        const ok = results.every((x) => x.ok);
+        return {
+          ok,
+          primed: results,
+          note: ok
+            ? "All target channels primed in one chain. Tell the grower briefly (e.g. '✅ 4 ערוצים פראמדו') and move on to the next planned step (treatment dose / polling)."
+            : "Some channels failed to prime. Surface the failures to the grower with the specific errors so they can decide retry vs skip.",
+        };
+      },
+    }),
+
     primeChannel: tool({
       description:
         "Fire a priming dose (default 8ml) on a single channel to fill its feed-tube dead volume.  Use this for each UNPRIMED channel during initial setup.  Logged with the priming sentinel so it's exempt from the SafetyController's per-channel min-interval (i.e. you can prime + then real-dose the same channel within seconds).  Chain calls for multiple channels in the same assistant turn — do not pause for re-approval between channels once the grower approved the overall priming plan.",
