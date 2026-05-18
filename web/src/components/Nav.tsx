@@ -12,6 +12,7 @@ const LINKS = [
   { href: "/", label: "שיחה" },
   { href: "/state", label: "מצב" },
   { href: "/decisions", label: "החלטות" },
+  { href: "/architecture", label: "ארכיטקטורה" },
 ];
 
 export function Nav() {
