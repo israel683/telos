@@ -14,7 +14,7 @@
  *
  * EC overruns block "fertilizer" role channels regardless of brand.
  */
-import { getRecentActions, DEFAULT_SYSTEM_ID } from "./db";
+import { getRecentActions, getSystem, DEFAULT_SYSTEM_ID } from "./db";
 import type { WaterReading } from "./db";
 import {
   getDosingConfig,
@@ -24,6 +24,18 @@ import {
   phUpKey,
   phDownKey,
 } from "./dosing-config";
+
+/**
+ * Minimum residual ml in a bottle below which we refuse to dose from it.
+ * Below this the pump may spin but the pickup tube is sucking air, which
+ * is exactly the failure mode that emptied the POC v02 install overnight.
+ */
+export const MIN_BOTTLE_ML_TO_DOSE = 15;
+
+/** Hard cap on total ml dosed in a 24h window before doser_verified. */
+export const PRE_VERIFY_DAILY_TOTAL_ML = 30;
+/** Hard cap on total ml dosed in a 24h window after doser_verified. */
+export const VERIFIED_DAILY_TOTAL_ML = 250;
 
 export const SAFETY_LIMITS = {
   // pH absolute bounds — outside this range, only the corrective channel allowed
@@ -63,6 +75,16 @@ export type DosingCommand = {
   amount_ml: number;
   reason: string;
   confidence?: number;
+  /**
+   * Set to TRUE only by the dedicated `primeChannel` / doser-protocol code
+   * paths (server-side, not by free-text reason strings).  Priming doses
+   * are tube-fill events that don't change the reservoir and are exempt
+   * from the per-channel interval and per-hour quota.  Free-text "this
+   * is priming!" in `reason` is NO LONGER trusted — the old bypass let
+   * the autonomous brain inject reasons that read like priming and skip
+   * safety, which we've seen in production.
+   */
+  is_priming?: boolean;
 };
 
 export type SafetyValidation =
@@ -194,25 +216,74 @@ export async function validateCommand(
     return { ok: false, reason: `Invalid dose amount: ${command.amount_ml}ml` };
   }
 
-  // 7+8. Rate limits — fetch recent successful doses from DB
-  const recent = await getRecentActions(2, systemId); // last 2 hours covers hourly + interval
-  // Priming doses (tube-fill events) don't change the reservoir — they
-  // shouldn't count toward "wait between treatment doses" or the hourly
-  // cap.  Reason-string sentinels are checked here rather than splitting
-  // the row schema, since they're already used elsewhere (see lib/priming).
-  const isPrimingAction = (reasonStr: string | undefined) =>
-    typeof reasonStr === "string" && reasonStr.startsWith("priming:");
+  // Bottle level check — refuse to dose from an empty/near-empty bottle.
+  // Critical for preventing the "pump runs forever on an empty channel"
+  // failure mode.  We read the live system row (separate from dosing
+  // history) since bottle_levels mutates per dose.
+  const sys = await getSystem(systemId);
+  if (sys?.bottle_levels && typeof sys.bottle_levels[command.channel] === "number") {
+    const remaining = sys.bottle_levels[command.channel];
+    if (remaining < MIN_BOTTLE_ML_TO_DOSE) {
+      return {
+        ok: false,
+        reason:
+          `Bottle for '${command.channel}' is at ${remaining.toFixed(1)}ml — ` +
+          `below the ${MIN_BOTTLE_ML_TO_DOSE}ml minimum to dose safely. Refill the bottle and update bottle_levels.`,
+      };
+    }
+    if (remaining < command.amount_ml + MIN_BOTTLE_ML_TO_DOSE / 2) {
+      return {
+        ok: false,
+        reason:
+          `Bottle for '${command.channel}' has ${remaining.toFixed(1)}ml; this ${command.amount_ml}ml ` +
+          `dose would leave less than the floor (${MIN_BOTTLE_ML_TO_DOSE}ml). Refill before dosing further.`,
+      };
+    }
+  }
+
+  // 7+8. Rate limits — fetch recent successful doses from DB.
+  // Priming actions (tube fill, marked by server-set ai_status='priming')
+  // don't change the reservoir and are excluded from per-channel interval
+  // and per-channel hourly quota.  We DO NOT trust the free-text reason
+  // for this exemption anymore — only the server-controlled ai_status
+  // column qualifies, so the autonomous brain can't bypass safety by
+  // writing reasoning text that happens to read like a prime.
+  const recent = await getRecentActions(24, systemId); // 24h for the daily cap
+  const isPrimingAction = (a: { ai_status?: string }) => a.ai_status === "priming";
 
   const sameChannel = recent.filter(
-    (a) => a.channel === command.channel && a.success && !isPrimingAction(a.reason)
+    (a) => a.channel === command.channel && a.success && !isPrimingAction(a)
   );
+
+  // System-wide daily total — extra brake for unverified rigs.  Counts
+  // all successful non-priming doses across all channels in the last 24h.
+  const dailyTotal = recent
+    .filter((a) => a.success && !isPrimingAction(a))
+    .reduce((sum, a) => sum + a.amount_ml, 0);
+  const dailyCap = sys?.doser_verified
+    ? VERIFIED_DAILY_TOTAL_ML
+    : PRE_VERIFY_DAILY_TOTAL_ML;
+  if (!command.is_priming && dailyTotal + command.amount_ml > dailyCap) {
+    return {
+      ok: false,
+      reason:
+        `System-wide 24h cap: already dosed ${dailyTotal.toFixed(1)}ml; this ${command.amount_ml}ml ` +
+        `would exceed the ${dailyCap}ml/day cap ` +
+        `(${sys?.doser_verified ? "verified" : "pre-verification"} system). ` +
+        `Doser protocol must be run + autonomous enabled to raise the cap.`,
+    };
+  }
 
   const oneHourAgo = Date.now() - 60 * 60 * 1000;
   const hourlyTotal = sameChannel
     .filter((a) => a.ts.getTime() > oneHourAgo)
     .reduce((sum, a) => sum + a.amount_ml, 0);
 
-  if (hourlyTotal + command.amount_ml > SAFETY_LIMITS.max_hourly_dose_ml_per_channel) {
+  // Per-channel hourly cap doesn't apply to priming itself either.
+  if (
+    !command.is_priming &&
+    hourlyTotal + command.amount_ml > SAFETY_LIMITS.max_hourly_dose_ml_per_channel
+  ) {
     return {
       ok: false,
       reason:
@@ -221,8 +292,8 @@ export async function validateCommand(
     };
   }
 
-  // Min interval
-  if (sameChannel.length > 0) {
+  // Min interval — skipped entirely when THIS command is itself a prime.
+  if (!command.is_priming && sameChannel.length > 0) {
     const lastDose = sameChannel.reduce((latest, a) =>
       a.ts.getTime() > latest.ts.getTime() ? a : latest
     );

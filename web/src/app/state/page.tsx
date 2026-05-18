@@ -10,6 +10,7 @@ import {
 } from "@/lib/api";
 import type { StateResponse, HumanTask, AgentStatus } from "@/lib/types";
 import { SensorChart } from "@/components/SensorChart";
+import { BottleLevels } from "@/components/BottleLevels";
 
 const REFRESH_MS = 5_000;
 
@@ -163,6 +164,8 @@ export default function Dashboard() {
       </section>
 
       <SensorChart />
+
+      <BottleLevels />
 
       <section className="grid md:grid-cols-3 gap-4">
         <div className="md:col-span-2 bg-white dark:bg-zinc-900 rounded-lg p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">

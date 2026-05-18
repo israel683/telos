@@ -26,6 +26,9 @@ export async function GET(req: Request) {
         notes: s.notes,
         dosing_config: s.dosing_config,
         setup_completed_at: s.setup_completed_at?.toISOString() ?? null,
+        autonomous_dosing_enabled: s.autonomous_dosing_enabled,
+        doser_verified: s.doser_verified,
+        bottle_levels: s.bottle_levels,
       })),
     });
   } catch (e) {

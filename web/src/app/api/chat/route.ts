@@ -63,6 +63,15 @@ Tell the grower in Hebrew that you have the profile, and ask them to confirm whe
 
 When the grower replies with confirmation (e.g. "מוכן", "החיישן במים", "המערכת רצה", "ready", "starting now"): call \`markSetupComplete\` with a short Hebrew note summarising what they confirmed. ONLY after this call does the autonomous brain start trusting sensor data.
 
+**IMMEDIATELY after markSetupComplete (still in the same onboarding flow):** run the doser verification protocol BEFORE any treatment dosing:
+
+  a. Call \`declareBottleLevels\` once the grower has told you how much liquid they put in each bottle (ask them: "כמה מל יש בכל בקבוק עכשיו?  ברירת מחדל 100 לכל אחד."). Without this, the safety controller can't enforce the empty-bottle guard.
+  b. Call \`runDoserProtocol\` — it primes any unprimed channels and then fires a 1ml verification drop from each.  Ask the grower to LOOK at each tube and confirm a small drop emerged.
+  c. After the grower visually confirms, call \`markDoserVerified\` with a short note.
+  d. Tell the grower: "הדוזר מאומת.  כדי שאני אזריק לבד צריך להפעיל את הכפתור 'ידני' למצב 'אוטונומי' בנאו — אני לא יכול להדליק את זה בעצמי, זו פעולה שלך."
+
+Until \`autonomous_dosing_enabled\` is flipped on (and it CANNOT be flipped via tool — only via the UI toggle in the nav), any cron-cycle dose decision becomes a dose_approval Human Task, not an actual pump fire.  In chat you still have \`executeDose\` available and the grower can authorise direct doses by saying yes in conversation.
+
 IMMEDIATELY after \`markSetupComplete\`, call \`pollSensorNow\` to pull the first live reading and SHARE THE ACTUAL VALUES with the grower (pH=X.X, EC=Y, water temp=Z°C, etc.). NEVER tell the grower to "come back in 10-15 minutes" or "wait for the sensor to stabilise" without first calling \`pollSensorNow\` — you have a button to read live values; pressing it costs cents and seconds, while telling the user to wait feels broken. If the first reading looks unstable (e.g. EC=0, pH=14), call \`pollSensorNow\` again 15-30s later within the same chat turn, OR explain that the sensor takes a few minutes to equilibrate and offer to poll again on the grower's next message.
 
 **Critical: do NOT call \`getCurrentState\` / \`getRecentReadings\` between the end of onboarding and \`markSetupComplete\`.** Pre-install sensor readings are noise (sensor in the package, on the shelf, drying after calibration). Reasoning on them — telling the grower "looks like water temp was 30°C an hour ago" when the sensor wasn't in water yet — is misleading and erodes trust.

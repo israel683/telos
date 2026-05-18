@@ -112,6 +112,12 @@ export type SystemSummary = {
   ai_cycle_minutes: number;
   tuya_device_id: string | null;
   notes: string | null;
+  /** Safety-critical execution state — see lib/db.ts SystemRow. */
+  autonomous_dosing_enabled?: boolean;
+  doser_verified?: boolean;
+  bottle_levels?: Record<string, number> | null;
+  setup_completed_at?: string | null;
+  dosing_config?: Record<string, unknown> | null;
 };
 
 export async function listSystems(includeArchived = false) {
@@ -162,6 +168,27 @@ export async function deleteSystem(id: string) {
   });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json() as Promise<{ ok: true; mode: "hard_deleted"; deleted_system: string | null }>;
+}
+
+/**
+ * Flip the master autonomous-dosing toggle.  Server-side will refuse to
+ * enable if doser_verified is still FALSE.
+ */
+export async function setAutonomousDosing(id: string, enabled: boolean) {
+  const res = await fetch(`${API_URL}/api/systems/${id}/autonomous`, {
+    method: "POST",
+    headers: headers(),
+    body: JSON.stringify({ enabled }),
+  });
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(text || `${res.status} ${res.statusText}`);
+  }
+  return res.json() as Promise<{
+    ok: true;
+    autonomous_dosing_enabled: boolean;
+    note: string;
+  }>;
 }
 
 export async function patchSystem(

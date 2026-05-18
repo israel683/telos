@@ -6,6 +6,7 @@ import { SystemSwitcher } from "./SystemSwitcher";
 import { StatusChip } from "./StatusChip";
 import { MaintenanceToggle } from "./MaintenanceToggle";
 import { TasksBadge } from "./TasksBadge";
+import { AutonomousToggle } from "./AutonomousToggle";
 
 const LINKS = [
   { href: "/", label: "שיחה" },
@@ -41,6 +42,7 @@ export function Nav() {
           })}
         </ul>
         <TasksBadge />
+        <AutonomousToggle />
         <StatusChip />
         <MaintenanceToggle />
         <SystemSwitcher />

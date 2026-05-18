@@ -319,6 +319,12 @@ export type SystemProfile = {
   growth_stage?: string;
   location?: string;
   outdoor?: boolean;
+  /** Whether the autonomous loop is allowed to EXECUTE doses (vs only propose). */
+  autonomous_dosing_enabled?: boolean;
+  /** Whether the doser verification protocol has been completed. */
+  doser_verified?: boolean;
+  /** Per-channel remaining ml of liquid in each bottle, if declared. */
+  bottle_levels?: Record<string, number> | null;
 };
 
 export function buildUserPrompt(opts: {
@@ -362,6 +368,30 @@ export function buildUserPrompt(opts: {
   sections.push(`  Growth stage: ${systemProfile.growth_stage ?? "vegetative"}`);
   sections.push(`  Location: ${systemProfile.location ?? "Tel Aviv, Israel"}`);
   sections.push(`  Outdoor: ${systemProfile.outdoor ?? true}`);
+  sections.push("");
+
+  // CRITICAL safety context — the brain must know whether its proposals
+  // will execute or queue, and which bottles can actually deliver liquid.
+  sections.push("## Execution Authority + Bottle Inventory");
+  const autonomous = systemProfile.autonomous_dosing_enabled === true;
+  const verified = systemProfile.doser_verified === true;
+  sections.push(`  Autonomous dosing: ${autonomous ? "ENABLED" : "DISABLED"} ${autonomous ? "" : "← proposals will be queued as Human Tasks, NOT executed by this cycle"}`);
+  sections.push(`  Doser verified: ${verified ? "yes" : "no"} ${verified ? "" : "← grower hasn't run runDoserProtocol yet; daily-total cap is tight (30ml)"}`);
+  if (systemProfile.bottle_levels) {
+    sections.push("  Bottle levels (ml remaining):");
+    for (const [k, v] of Object.entries(systemProfile.bottle_levels)) {
+      const tag = v < 15 ? " ⚠ NEAR-EMPTY, cannot dose" : v < 30 ? " ⚠ low" : "";
+      sections.push(`    - ${k}: ${v.toFixed(1)}ml${tag}`);
+    }
+  } else {
+    sections.push("  Bottle levels: NOT DECLARED — grower hasn't told us how much liquid is in each bottle.");
+    sections.push("    Don't reason about 'we have enough nutrient' or 'pH Down is running low' — you literally have no inventory data.");
+  }
+  if (!autonomous) {
+    sections.push(
+      "  REASONING IMPLICATION: any dose you propose this cycle will become a dose_approval Human Task.  Be CONSERVATIVE; the grower reviews each one.  Don't fire-and-forget reasoning that assumes you can immediately retry — your proposal won't run until they click it."
+    );
+  }
   sections.push("");
 
   if (recentActions.length > 0) {

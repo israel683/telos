@@ -27,6 +27,7 @@ import {
   listSystems,
   saveChatMessage,
   setNextCheckAt,
+  decrementBottle,
 } from "@/lib/db";
 import { analyzeAndDecide } from "@/lib/brain";
 import { doseChannelByPhysical } from "@/lib/devices/jebao";
@@ -143,6 +144,12 @@ export async function GET(req: Request) {
             growth_stage: sys.growth_stage,
             location: sys.location,
             outdoor: sys.outdoor,
+            // Feed the safety-critical context so the brain knows whether
+            // its proposals execute or queue, and which bottles can
+            // actually deliver liquid right now.
+            autonomous_dosing_enabled: sys.autonomous_dosing_enabled,
+            doser_verified: sys.doser_verified,
+            bottle_levels: sys.bottle_levels,
           },
           recentActions: recentActions.map((a) => ({
             ts: a.ts,
@@ -186,38 +193,88 @@ export async function GET(req: Request) {
         }
 
         const executed: Array<{ channel: string; amount_ml: number; success: boolean; error?: string }> = [];
-        for (const cmd of decision.commands) {
-          // Brain already validated cmd.channel exists in dosingConfig, so
-          // assignments[cmd.channel] is non-null at this point.
-          const phys = dosingConfig.assignments[cmd.channel]?.physical;
-          if (!phys) {
+
+        // CRITICAL SAFETY GATE: do not let the autonomous loop fire pumps
+        // on a system whose grower hasn't explicitly enabled autonomous
+        // dosing.  Instead, materialise each command as a dose_approval
+        // Human Task so the grower can review + click "אשר ובצע" from the
+        // dashboard.  This stops the failure mode where a fresh install's
+        // brain ran overnight, burned through pH Down and nutrients, and
+        // the grower woke up to empty bottles.
+        if (!sys.autonomous_dosing_enabled) {
+          for (const cmd of decision.commands) {
+            try {
+              await createHumanTask(
+                {
+                  type: "dose_approval",
+                  priority: "high",
+                  title: `אישור מנה: ${cmd.channel} ${cmd.amount_ml}ml`,
+                  reason:
+                    `המוח האוטונומי מציע ${cmd.amount_ml}ml ב-${cmd.channel}. ` +
+                    `הסיבה: ${cmd.reason}. דישון אוטונומי כבוי במערכת — לחיצה על "אשר ובצע" תפעיל את המשאבה.`,
+                  payload: {
+                    channel: cmd.channel,
+                    amount_ml: cmd.amount_ml,
+                    reason_en: cmd.reason,
+                    source: "cron-cycle-autonomous-disabled",
+                  },
+                  expires_in_hours: 4,
+                  decision_id: decisionId,
+                },
+                sys.id
+              );
+            } catch (e) {
+              console.error(`[cron/cycle] failed to create dose_approval task: ${e}`);
+            }
             executed.push({
               channel: cmd.channel,
               amount_ml: cmd.amount_ml,
               success: false,
-              error: `no physical channel mapped for '${cmd.channel}'`,
+              error: "autonomous_dosing_enabled=false — proposal queued as dose_approval",
             });
-            continue;
           }
-          const r = await doseChannelByPhysical(phys, cmd.amount_ml, cmd.reason, cmd.channel);
-          await saveAction(
-            {
+        } else {
+          for (const cmd of decision.commands) {
+            const phys = dosingConfig.assignments[cmd.channel]?.physical;
+            if (!phys) {
+              executed.push({
+                channel: cmd.channel,
+                amount_ml: cmd.amount_ml,
+                success: false,
+                error: `no physical channel mapped for '${cmd.channel}'`,
+              });
+              continue;
+            }
+            const r = await doseChannelByPhysical(phys, cmd.amount_ml, cmd.reason, cmd.channel);
+            await saveAction(
+              {
+                channel: cmd.channel,
+                amount_ml: cmd.amount_ml,
+                reason: r.success ? cmd.reason : `FAILED: ${r.error}`,
+                success: r.success,
+                ai_status: decision.status,
+                ai_analysis: decision.analysis,
+                decision_id: decisionId,
+              },
+              sys.id
+            );
+            // Bottle-level bookkeeping — decrement only on confirmed-success
+            // and only for non-priming actions (priming flows handle their
+            // own decrement in the agent tool).
+            if (r.success) {
+              try {
+                await decrementBottle(sys.id, cmd.channel, cmd.amount_ml);
+              } catch (e) {
+                console.error(`[cron/cycle] decrementBottle failed: ${e}`);
+              }
+            }
+            executed.push({
               channel: cmd.channel,
               amount_ml: cmd.amount_ml,
-              reason: r.success ? cmd.reason : `FAILED: ${r.error}`,
               success: r.success,
-              ai_status: decision.status,
-              ai_analysis: decision.analysis,
-              decision_id: decisionId,
-            },
-            sys.id
-          );
-          executed.push({
-            channel: cmd.channel,
-            amount_ml: cmd.amount_ml,
-            success: r.success,
-            error: r.error,
-          });
+              error: r.error,
+            });
+          }
         }
 
         // Honour Claude's `next_check_minutes` for the cycle gate.  Floored

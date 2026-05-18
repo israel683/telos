@@ -14,6 +14,9 @@ import {
   markSetupComplete,
   saveReading,
   saveAction,
+  decrementBottle,
+  setBottleLevels,
+  setDoserVerified,
   DEFAULT_SYSTEM_ID,
 } from "./db";
 import { readTuyaSensor } from "./devices/tuya";
@@ -195,7 +198,15 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
         const recent = await getRecentReadings(1, 1, systemId);
         const current = recent[recent.length - 1] ?? null;
         const safety = await validateCommand(
-          { channel: params.channel, amount_ml: params.amount_ml, reason: params.reason_he },
+          {
+            channel: params.channel,
+            amount_ml: params.amount_ml,
+            reason: params.reason_he,
+            // executeDose is grower-driven treatment, never priming.  Priming
+            // has its own tool (primeChannel) that sets is_priming=true on
+            // the safety call AND writes ai_status='priming' on the row.
+            is_priming: false,
+          },
           current,
           { systemId, dosingConfig }
         );
@@ -230,6 +241,14 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           );
         } catch (e) {
           console.error("[executeDose] failed to log action:", e);
+        }
+        // Decrement bottle level on confirmed-success treatment doses.
+        if (r.success) {
+          try {
+            await decrementBottle(systemId, params.channel, params.amount_ml);
+          } catch (e) {
+            console.error("[executeDose] decrementBottle failed:", e);
+          }
         }
 
         return {
@@ -523,6 +542,139 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           ok: true,
           setup_completed_at: new Date().toISOString(),
           note: "From now on the autonomous brain trusts sensor readings on this system.",
+        };
+      },
+    }),
+
+    declareBottleLevels: tool({
+      description:
+        "Record how many ml of liquid the grower has put in each bottle.  CRITICAL for safety — the dosing pipeline decrements these on every successful dose and refuses to dose from a bottle below the minimum (15ml floor).  Call this whenever the grower tells you they filled / refilled a bottle.  Provide ml for ONLY the channels they're declaring; existing values for other channels are preserved.",
+      inputSchema: z.object({
+        levels: z
+          .record(z.string(), z.number().min(0).max(5000))
+          .describe(`Map of channel key → ml. Channels available: ${channelKeys.join(", ") || "(none)"}`),
+      }),
+      execute: async (params) => {
+        // Merge with existing levels so partial declarations don't wipe other channels.
+        const sys = await getSystem(systemId);
+        const existing = (sys?.bottle_levels as Record<string, number> | null) ?? {};
+        const merged: Record<string, number> = { ...existing };
+        for (const [k, v] of Object.entries(params.levels)) {
+          if (!channelKeys.includes(k)) continue; // ignore unknown channels
+          merged[k] = v;
+        }
+        await setBottleLevels(systemId, merged);
+        return {
+          ok: true,
+          bottle_levels: merged,
+          note: "Bottle levels recorded. Safety controller will now decrement on each dose and block when any channel runs below 15ml.",
+        };
+      },
+    }),
+
+    markDoserVerified: tool({
+      description:
+        "Mark the doser as VERIFIED — the grower has visually confirmed each channel pumps liquid and the channel→bottle mapping is correct (via runDoserProtocol's calibration step).  Required prerequisite before `enableAutonomousDosing` can be called.  Do not call this unless the grower explicitly confirmed they SAW liquid emerge from each tube AND matched it to the correct bottle.",
+      inputSchema: z.object({
+        confirmation_note_he: z
+          .string()
+          .optional()
+          .describe("Optional Hebrew sentence recording what the grower visually confirmed."),
+      }),
+      execute: async (params) => {
+        await setDoserVerified(systemId, true);
+        if (params.confirmation_note_he) {
+          const sys = await getSystem(systemId);
+          const newNote = sys?.notes
+            ? `${sys.notes}\n[doser verified] ${params.confirmation_note_he}`
+            : `[doser verified] ${params.confirmation_note_he}`;
+          await updateSystem(systemId, { notes: newNote });
+        }
+        return {
+          ok: true,
+          note: "Doser is now marked verified. The grower can flip the autonomous dosing toggle in the UI when they're ready — DO NOT enable it for them via tool; it's a deliberate human action.",
+        };
+      },
+    }),
+
+    runDoserProtocol: tool({
+      description:
+        "Run the doser verification protocol on a fresh install: for each configured channel, fire a tiny 1ml calibration dose so the grower can visually confirm (a) the pump physically spins, (b) liquid actually emerges from the correct tube, (c) the channel→bottle mapping matches what they declared.  RUNS PRIMING FIRST (8ml per channel) if any channel is still unprimed, so the calibration drops aren't lost in the dead-volume tube. " +
+        "After this completes, ASK the grower to visually verify all 4 drops emerged from the correct bottles, then call `markDoserVerified` only if they confirm.  This whole flow MUST run before autonomous dosing can be enabled.",
+      inputSchema: z.object({
+        calibration_ml: z
+          .number()
+          .min(0.5)
+          .max(3)
+          .optional()
+          .describe("Volume per channel for the verification drop (default 1ml — small enough that 4 channels' worth doesn't materially shift the reservoir)."),
+      }),
+      execute: async ({ calibration_ml }) => {
+        const ml = calibration_ml ?? 1;
+        // Step 1: prime any unprimed channels first.
+        const state = await getPrimingState(systemId);
+        const unprimed = channelKeys.filter((k) => !state.channels[k]?.primed);
+        const priming_results: Array<{ channel: string; ok: boolean; error?: string }> = [];
+        for (const key of unprimed) {
+          const a = dosingConfig.assignments[key];
+          if (!a) {
+            priming_results.push({ channel: key, ok: false, error: "no physical mapping" });
+            continue;
+          }
+          const reason = `${PRIMING_DONE_SENTINEL} (doserProtocol prime, ${PRIMING_ML_PER_CHANNEL}ml)`;
+          const r = await doseChannelByPhysical(a.physical, PRIMING_ML_PER_CHANNEL, reason, key);
+          try {
+            await saveAction(
+              {
+                channel: key,
+                amount_ml: PRIMING_ML_PER_CHANNEL,
+                reason: r.success ? reason : `FAILED priming: ${r.error}`,
+                success: r.success,
+                ai_status: "priming",
+                ai_analysis: "runDoserProtocol — initial prime",
+              },
+              systemId
+            );
+          } catch {}
+          priming_results.push({ channel: key, ok: r.success, error: r.error });
+        }
+
+        // Step 2: 1ml verification drop on EVERY channel.
+        const verify_results: Array<{ channel: string; ok: boolean; ml: number; error?: string }> = [];
+        for (const key of channelKeys) {
+          const a = dosingConfig.assignments[key];
+          if (!a) {
+            verify_results.push({ channel: key, ok: false, ml, error: "no physical mapping" });
+            continue;
+          }
+          const reason = `doserProtocol verification drop (${ml}ml)`;
+          const r = await doseChannelByPhysical(a.physical, ml, reason, key);
+          try {
+            await saveAction(
+              {
+                channel: key,
+                amount_ml: ml,
+                reason: r.success ? reason : `FAILED verification: ${r.error}`,
+                success: r.success,
+                ai_status: "doser_protocol",
+                ai_analysis: "runDoserProtocol — 1ml verification drop",
+              },
+              systemId
+            );
+          } catch {}
+          // Don't decrement bottle level here — these are tiny and the
+          // grower hasn't necessarily declared levels yet at this point.
+          verify_results.push({ channel: key, ok: r.success, ml, error: r.error });
+        }
+
+        const allOk =
+          priming_results.every((x) => x.ok) && verify_results.every((x) => x.ok);
+        return {
+          ok: allOk,
+          primed: priming_results,
+          verification_drops: verify_results,
+          next_step:
+            "Ask the grower: 'תראה לי שיצאו 4 טיפות, אחת מכל צינור.  אם כן — תאשר ואני אסמן את הדוזר כמאומת.'  Only call markDoserVerified after they confirm visually.",
         };
       },
     }),

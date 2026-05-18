@@ -167,7 +167,10 @@ export async function ensureSchema(): Promise<void> {
       notes             TEXT,
       dosing_config     JSONB,
       next_check_at     TIMESTAMPTZ,
-      setup_completed_at TIMESTAMPTZ
+      setup_completed_at TIMESTAMPTZ,
+      autonomous_dosing_enabled BOOLEAN NOT NULL DEFAULT FALSE,
+      doser_verified    BOOLEAN NOT NULL DEFAULT FALSE,
+      bottle_levels     JSONB
     )
   `);
 
@@ -180,6 +183,25 @@ export async function ensureSchema(): Promise<void> {
   `);
   await safeDdl(() => s`
     ALTER TABLE systems ADD COLUMN IF NOT EXISTS setup_completed_at TIMESTAMPTZ
+  `);
+  // Critical guardrail: a fresh system MUST NOT execute autonomous doses
+  // until the grower has verified the doser hardware via the doser protocol
+  // and explicitly flipped this flag on.  Default FALSE protects new
+  // installs from the failure mode where the brain ran overnight on an
+  // unverified rig, fired phantom "priming" doses, and emptied bottles
+  // before the grower woke up.
+  await safeDdl(() => s`
+    ALTER TABLE systems ADD COLUMN IF NOT EXISTS autonomous_dosing_enabled BOOLEAN NOT NULL DEFAULT FALSE
+  `);
+  await safeDdl(() => s`
+    ALTER TABLE systems ADD COLUMN IF NOT EXISTS doser_verified BOOLEAN NOT NULL DEFAULT FALSE
+  `);
+  // Per-channel remaining liquid (ml).  Shape: { "<channel-key>": ml }.
+  // Decremented on every successful dose.  When a channel's level drops
+  // below MIN_BOTTLE_ML_TO_DOSE the safety controller blocks new doses on
+  // that channel until the grower marks it refilled.
+  await safeDdl(() => s`
+    ALTER TABLE systems ADD COLUMN IF NOT EXISTS bottle_levels JSONB
   `);
 
   // NOTE: we used to auto-create a 'default' row on every bootstrap so the
@@ -305,6 +327,29 @@ export type SystemRow = {
    * brain refuses to reason on them.
    */
   setup_completed_at: Date | null;
+  /**
+   * Master safety flag for the autonomous loop.  When FALSE (default for
+   * new installs), the cron-driven brain may still REASON and create
+   * dose_approval Human Tasks, but it WILL NOT execute pumps directly.
+   * Flipped to TRUE only via explicit grower action AFTER the doser
+   * protocol has been run successfully.
+   */
+  autonomous_dosing_enabled: boolean;
+  /**
+   * Set to TRUE once the grower has run the doser protocol — primed every
+   * channel + did a tiny verification dose to confirm pumps actually move
+   * liquid + confirmed correct channel mapping visually.  This is a
+   * prerequisite for `autonomous_dosing_enabled` to be flipped on.
+   */
+  doser_verified: boolean;
+  /**
+   * Per-channel residual liquid in ml.  Keys are channel keys from
+   * dosing_config; values are remaining ml as the grower declared at
+   * install (and which the safety controller decrements on each dose).
+   * NULL means "not tracked yet" — safety stops being able to enforce
+   * the empty-bottle guard until the grower declares.
+   */
+  bottle_levels: Record<string, number> | null;
 };
 
 function rowToSystem(row: Record<string, unknown>): SystemRow {
@@ -328,7 +373,64 @@ function rowToSystem(row: Record<string, unknown>): SystemRow {
     setup_completed_at: row.setup_completed_at
       ? new Date(row.setup_completed_at as string)
       : null,
+    autonomous_dosing_enabled: Boolean(row.autonomous_dosing_enabled),
+    doser_verified: Boolean(row.doser_verified),
+    bottle_levels: (row.bottle_levels as Record<string, number> | null) ?? null,
   };
+}
+
+/**
+ * Bottle-level bookkeeping.  Read/modify the per-system bottle_levels
+ * JSONB.  Helpers are intentionally low-level — the dosing pipeline calls
+ * decrementBottle after each successful dose; the chat / UI sets levels
+ * via setBottleLevels.
+ */
+export async function setBottleLevels(
+  systemId: string,
+  levels: Record<string, number>
+): Promise<void> {
+  await ensureSchema();
+  const s = sql();
+  await s`UPDATE systems SET bottle_levels = ${JSON.stringify(levels)}::jsonb WHERE id = ${systemId}`;
+}
+
+export async function decrementBottle(
+  systemId: string,
+  channel: string,
+  ml: number
+): Promise<{ before: number | null; after: number | null }> {
+  await ensureSchema();
+  const s = sql();
+  const rows = (await s`SELECT bottle_levels FROM systems WHERE id = ${systemId}`) as unknown as Array<{
+    bottle_levels: Record<string, number> | null;
+  }>;
+  const current = rows[0]?.bottle_levels ?? null;
+  if (!current || typeof current[channel] !== "number") {
+    return { before: null, after: null };
+  }
+  const before = current[channel];
+  const after = Math.max(0, before - ml);
+  const next = { ...current, [channel]: after };
+  await s`UPDATE systems SET bottle_levels = ${JSON.stringify(next)}::jsonb WHERE id = ${systemId}`;
+  return { before, after };
+}
+
+export async function setAutonomousDosing(
+  systemId: string,
+  enabled: boolean
+): Promise<void> {
+  await ensureSchema();
+  const s = sql();
+  await s`UPDATE systems SET autonomous_dosing_enabled = ${enabled} WHERE id = ${systemId}`;
+}
+
+export async function setDoserVerified(
+  systemId: string,
+  verified: boolean
+): Promise<void> {
+  await ensureSchema();
+  const s = sql();
+  await s`UPDATE systems SET doser_verified = ${verified} WHERE id = ${systemId}`;
 }
 
 /**

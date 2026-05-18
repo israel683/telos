@@ -50,6 +50,13 @@ export type PrimingState = {
  * Inspect the dosing-actions log to compute current priming state per
  * channel.  Looks back far enough to catch the original prime even on
  * long-running systems.
+ *
+ * Detection is by SERVER-CONTROLLED ai_status='priming' — NOT by free-text
+ * `reason`.  After the v0.3 audit, the reason-prefix path was abused by
+ * the autonomous brain (it wrote English-prose reasons that happened to
+ * read like priming, slipping past the priming-state check).  ai_status
+ * is set by the priming tools server-side and is not influenced by
+ * Claude's prose output.
  */
 export async function getPrimingState(systemId: string): Promise<PrimingState> {
   // 90 days is generous — covers the longest realistic gap between bottle
@@ -63,13 +70,16 @@ export async function getPrimingState(systemId: string): Promise<PrimingState> {
       channels[key] = { primed: false, last_event_at: null, ml_since_last_event: 0 };
     }
     const reason = a.reason || "";
-    if (reason.startsWith(PRIMING_DONE_SENTINEL)) {
+    if (a.ai_status === "priming" && a.success) {
       channels[key] = {
         primed: true,
         last_event_at: a.ts,
         ml_since_last_event: 0,
       };
     } else if (reason.startsWith(PRIMING_RESET_SENTINEL)) {
+      // Explicit "this tube was emptied, re-prime needed" sentinel from
+      // the grower.  Still a reason-prefix because it's a deliberate
+      // grower-driven event, not LLM output.
       channels[key] = {
         primed: false,
         last_event_at: a.ts,
