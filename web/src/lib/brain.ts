@@ -18,6 +18,8 @@ import { allChannelKeys, getDosingConfig, type DosingConfig } from "./dosing-con
 import { getProfile } from "./fertilizer-profiles";
 import { getPrimingState, type PrimingState } from "./priming";
 import { getBottleStatusReport } from "./bottle-status";
+import { getSystem } from "./db";
+import { getEffectiveTargets, diurnalContext } from "./tolerance";
 
 const CACHE_TTL_BETA = "extended-cache-ttl-2025-04-11";
 
@@ -94,6 +96,12 @@ export async function analyzeAndDecide(opts: {
   // so the brain can proactively flag refills + reason about whether a
   // proposed dose has enough liquid to actually run.
   const bottleReport = await getBottleStatusReport(systemId);
+  // Tolerance bands + diurnal context — without these the brain would
+  // chase every small pH wobble.  With them it understands the dead-band:
+  // "within the comfortable zone, even if not exactly at target, is fine."
+  const sysRow = await getSystem(systemId);
+  const targets = sysRow ? getEffectiveTargets(sysRow) : undefined;
+  const diurnal = diurnalContext();
 
   const userPrompt = buildUserPrompt({
     current: opts.current,
@@ -105,6 +113,8 @@ export async function analyzeAndDecide(opts: {
     fertilizerProfile,
     primingState,
     bottleReport,
+    targets,
+    diurnal,
     pendingTasks: opts.pendingTasks.map((t) => ({
       id: t.id,
       type: t.type,

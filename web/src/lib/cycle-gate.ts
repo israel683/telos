@@ -16,6 +16,8 @@
  * extra tokens than miss a pH excursion.
  */
 import type { WaterReading } from "./db";
+import type { TargetRanges } from "./tolerance";
+import { evaluateMetric } from "./tolerance";
 
 /** Tunable thresholds — kept here so they're easy to audit. */
 export const CYCLE_GATE = {
@@ -62,6 +64,14 @@ export type GateInput = {
   pendingHighPriorityCount: number;
   /** Last decision status — used to decide whether to honour a long skip. */
   lastDecisionStatus: string | null;
+  /**
+   * Effective tolerance bands for this system (crop+stage defaults
+   * shallow-merged with per-system overrides).  When provided, the gate
+   * uses band-aware classification ("within / edge / outside") instead
+   * of fixed critical thresholds — meaning the cycle runs only when
+   * readings escape the comfortable band, not on every small fluctuation.
+   */
+  targets?: TargetRanges;
 };
 
 export type GateDecision =
@@ -89,6 +99,41 @@ function critical(current: WaterReading): string | null {
       return `water_temp=${current.water_temp.toFixed(1)}°C below critical-low`;
     if (current.water_temp > CYCLE_GATE.water_temp_critical_high)
       return `water_temp=${current.water_temp.toFixed(1)}°C above critical-high`;
+  }
+  return null;
+}
+
+/**
+ * Band-aware classification.  Returns a non-null reason ONLY when at
+ * least one metric is "outside" its tolerance band — which is the
+ * threshold we now use to wake the brain.  Edge/within readings are
+ * considered routine drift and don't justify the LLM cost.
+ *
+ * Diurnal expectation is implicit: the bands already account for normal
+ * day/night drift (pH ±0.4 covers the typical photosynthesis swing).
+ */
+function outsideBand(current: WaterReading, targets: TargetRanges | undefined): string | null {
+  if (!targets) return null;
+  if (targets.ph && current.ph !== null) {
+    const ev = evaluateMetric(current.ph, targets.ph);
+    if (ev.status === "outside") {
+      return `pH=${current.ph.toFixed(2)} outside band [${ev.band_low.toFixed(2)}, ${ev.band_high.toFixed(2)}]`;
+    }
+  }
+  if (targets.ec && current.ec !== null) {
+    const ev = evaluateMetric(current.ec, targets.ec);
+    if (ev.status === "outside") {
+      return `EC=${current.ec.toFixed(0)} outside band [${ev.band_low.toFixed(0)}, ${ev.band_high.toFixed(0)}]`;
+    }
+  }
+  // water_temp band is informational — we can't dose to correct it, but
+  // if it drifts outside band we still want Claude to surface guidance
+  // (shade / cool the reservoir / reduce dosing because uptake changes).
+  if (targets.water_temp && current.water_temp !== null) {
+    const ev = evaluateMetric(current.water_temp, targets.water_temp);
+    if (ev.status === "outside") {
+      return `water_temp=${current.water_temp.toFixed(1)}°C outside band [${ev.band_low.toFixed(1)}, ${ev.band_high.toFixed(1)}]`;
+    }
   }
   return null;
 }
@@ -126,10 +171,21 @@ export function evaluateCycleGate(input: GateInput): GateDecision {
     return { run_llm: true, reason: `sensor stale (${sensorAgeSec.toFixed(0)}s)` };
   }
 
-  // BYPASS 2: current reading is in a critical envelope.
+  // BYPASS 2: current reading is in a critical envelope (safety bounds).
   const crit = critical(input.current);
   if (crit) {
     return { run_llm: true, reason: `critical: ${crit}` };
+  }
+
+  // BYPASS 2.5: reading is outside the per-system TOLERANCE band (looser
+  // than safety bounds, tighter than critical).  This is the dead-band
+  // controller: if pH/EC/temp drifts outside the comfortable zone, the
+  // brain runs.  If they're within the band — even if not exactly at
+  // target — we DON'T wake the brain, since the natural diurnal swing
+  // is normal and correcting it would chase noise.
+  const band = outsideBand(input.current, input.targets);
+  if (band) {
+    return { run_llm: true, reason: `outside tolerance band: ${band}` };
   }
 
   // BYPASS 3: pending urgent/high task and we haven't reasoned since.

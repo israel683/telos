@@ -172,7 +172,8 @@ export async function ensureSchema(): Promise<void> {
       doser_verified    BOOLEAN NOT NULL DEFAULT FALSE,
       bottle_levels     JSONB,
       bottle_capacities JSONB,
-      bottle_verified_at JSONB
+      bottle_verified_at JSONB,
+      target_ranges     JSONB
     )
   `);
 
@@ -216,6 +217,11 @@ export async function ensureSchema(): Promise<void> {
   // Used by the agent to decide when to nudge "let's verify levels again".
   await safeDdl(() => s`
     ALTER TABLE systems ADD COLUMN IF NOT EXISTS bottle_verified_at JSONB
+  `);
+  // Per-system overrides for the tolerance bands (otherwise crop+stage
+  // defaults from lib/tolerance.ts apply).  Shape: { ph?:{target,tolerance,tolerance_mode}, ec?:{...}, water_temp?:{...} }
+  await safeDdl(() => s`
+    ALTER TABLE systems ADD COLUMN IF NOT EXISTS target_ranges JSONB
   `);
 
   // NOTE: we used to auto-create a 'default' row on every bootstrap so the
@@ -368,6 +374,12 @@ export type SystemRow = {
   bottle_capacities: Record<string, number> | null;
   /** Per-channel ISO timestamp of last grower-confirmed visual check. */
   bottle_verified_at: Record<string, string> | null;
+  /**
+   * Optional per-system overrides for the pH/EC/water-temp tolerance bands.
+   * NULL → fall back to crop+stage defaults in lib/tolerance.ts.
+   * Shape: { ph?: MetricTarget, ec?: MetricTarget, water_temp?: MetricTarget }.
+   */
+  target_ranges: Record<string, unknown> | null;
 };
 
 function rowToSystem(row: Record<string, unknown>): SystemRow {
@@ -396,6 +408,7 @@ function rowToSystem(row: Record<string, unknown>): SystemRow {
     bottle_levels: (row.bottle_levels as Record<string, number> | null) ?? null,
     bottle_capacities: (row.bottle_capacities as Record<string, number> | null) ?? null,
     bottle_verified_at: (row.bottle_verified_at as Record<string, string> | null) ?? null,
+    target_ranges: (row.target_ranges as Record<string, unknown> | null) ?? null,
   };
 }
 

@@ -13,6 +13,8 @@ import { hasPhUp, hasPhDown, nutrientKeys, phUpKey, phDownKey } from "./dosing-c
 import type { FertilizerProfile } from "./fertilizer-profiles";
 import type { PrimingState } from "./priming";
 import type { ChannelBottleStatus } from "./bottle-status";
+import type { TargetRanges } from "./tolerance";
+import { evaluateMetric, bandWidth } from "./tolerance";
 
 export const SYSTEM_PROMPT = `You are GrowK, the autonomous controller of a real, physical
 hydroponic system. Your decisions directly affect living plants. You operate with
@@ -69,6 +71,30 @@ Rules:
    means noisy probe — be conservative.
 5. **For judgment, weight the 1h median over current reading.** Hard safety
    limits do operate on current readings, but your reasoning should weight stability.
+
+# Dead-band controller (CRITICAL — the user explicitly asked for this)
+
+Each metric has a target + tolerance band that accounts for normal diurnal
+drift.  pH naturally swings ±0.2-0.4 across a day in an outdoor NFT
+system: photosynthesis raises pH during peak daylight (10:00-16:00),
+respiration lowers it overnight, warmer water amplifies both.
+
+**If a current reading is WITHIN its tolerance band, you DO NOT propose
+corrective dosing.**  Even if the value isn't exactly at target.  Even
+if the 1h trend is non-zero.  The band already absorbs the normal swing.
+
+You ONLY propose correction when:
+1. The reading is OUTSIDE the band (status='outside' in the per-cycle prompt), AND
+2. Multi-window trends agree the drift is real (1h + 6h same direction), AND
+3. The trend is moving AWAY from target, not toward it, AND
+4. No earlier action this cycle is still mixing through the reservoir.
+
+For "edge" readings (between 1× and 1.5× the band width): wait for
+sustained drift across the next cycle.  Don't be the controller that
+chases noise into oscillation.
+
+The per-cycle prompt's "## Tolerance Bands" section shows current status
+for each metric.  Trust it.  Don't override "within" with intuition.
 
 # The System You Operate
 
@@ -346,6 +372,10 @@ export function buildUserPrompt(opts: {
     any_near_empty: boolean;
     any_needs_recheck: boolean;
   } | null;
+  /** Per-system tolerance bands for pH/EC/water-temp (the dead-band controller's setpoints). */
+  targets?: TargetRanges;
+  /** Diurnal context — period + expected pH drift for the current time of day. */
+  diurnal?: { period: string; expected_ph_drift: string };
   pendingTasks: Pick<HumanTask, "id" | "type" | "priority" | "title" | "created_at">[];
 }): string {
   const {
@@ -358,6 +388,8 @@ export function buildUserPrompt(opts: {
     fertilizerProfile,
     primingState,
     bottleReport,
+    targets,
+    diurnal,
     pendingTasks,
   } = opts;
   const sections: string[] = [];
@@ -553,7 +585,46 @@ export function buildUserPrompt(opts: {
   sections.push("## Time Context");
   sections.push(`  Now: ${now.toISOString().slice(0, 16)}`);
   sections.push(`  Period: ${period}`);
+  if (diurnal) {
+    sections.push(`  Diurnal phase: ${diurnal.period}`);
+    sections.push(`  Expected pH drift this hour: ${diurnal.expected_ph_drift}`);
+  }
   sections.push("");
+
+  // ----- Tolerance bands (the DEAD-BAND CONTROLLER) -----
+  if (targets) {
+    sections.push("## Tolerance Bands — dead-band controller (READ CAREFULLY)");
+    sections.push(
+      "  Each metric has a tolerance band around its target.  Inside the band = comfortable, NO ACTION needed even if not exactly at target.  Outside the band = candidate for correction, but only when SUSTAINED across windows (single anomalous readings → ignore)."
+    );
+    const renderMetric = (
+      label: string,
+      value: number | null,
+      m: { target: number; tolerance: number; tolerance_mode: "absolute" | "percent" } | undefined
+    ) => {
+      if (!m) return;
+      const ev = evaluateMetric(value, m);
+      const w = bandWidth(m);
+      const statusTag =
+        ev.status === "within"
+          ? "✓ WITHIN band — DO NOT propose corrective dosing"
+          : ev.status === "edge"
+          ? "⚠ AT BAND EDGE — act only on sustained drift, not a single reading"
+          : ev.status === "outside"
+          ? "🔴 OUTSIDE band — consider correction if multi-window agreement confirms drift"
+          : "(no current reading)";
+      sections.push(
+        `  - ${label}: target ${m.target}${m.tolerance_mode === "percent" ? "" : ""} ± ${w.toFixed(2)} (band [${ev.band_low.toFixed(2)}, ${ev.band_high.toFixed(2)}])${value !== null ? ` · now ${value.toFixed(2)}` : ""} → ${statusTag}`
+      );
+    };
+    renderMetric("pH", current.ph, targets.ph);
+    renderMetric("EC", current.ec, targets.ec);
+    renderMetric("water_temp", current.water_temp, targets.water_temp);
+    sections.push(
+      "  KEY RULE: if a metric is `within` its band, DO NOT propose a correction — even if 'a bit off target'.  The band already accounts for normal diurnal drift (pH ±0.4 covers typical photosynthesis swing).  Chasing every wobble is how reservoirs get over-corrected."
+    );
+    sections.push("");
+  }
 
   sections.push("## Your task");
   sections.push(

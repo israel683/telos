@@ -33,6 +33,7 @@ import { analyzeAndDecide } from "@/lib/brain";
 import { doseChannelByPhysical } from "@/lib/devices/jebao";
 import { getDosingConfig } from "@/lib/dosing-config";
 import { evaluateCycleGate, CYCLE_GATE } from "@/lib/cycle-gate";
+import { getEffectiveTargets } from "@/lib/tolerance";
 
 export const maxDuration = 60;
 
@@ -91,12 +92,14 @@ export async function GET(req: Request) {
         const highPriCount = pendingTasks.filter(
           (t) => t.priority === "high" || t.priority === "urgent"
         ).length;
+        const targets = getEffectiveTargets(sys);
         const gate = evaluateCycleGate({
           current,
           referenceReading,
           nextCheckAt: sys.next_check_at,
           pendingHighPriorityCount: highPriCount,
           lastDecisionStatus: lastDecision?.status ?? null,
+          targets,
         });
 
         if (!gate.run_llm) {
