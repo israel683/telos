@@ -17,8 +17,10 @@ import {
   decrementBottle,
   setBottleLevels,
   setDoserVerified,
+  verifyBottleLevel,
   DEFAULT_SYSTEM_ID,
 } from "./db";
+import { getBottleStatusReport } from "./bottle-status";
 import { readTuyaSensor } from "./devices/tuya";
 import { doseChannelByPhysical } from "./devices/jebao";
 import { validateCommand } from "./safety";
@@ -548,26 +550,86 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
 
     declareBottleLevels: tool({
       description:
-        "Record how many ml of liquid the grower has put in each bottle.  CRITICAL for safety — the dosing pipeline decrements these on every successful dose and refuses to dose from a bottle below the minimum (15ml floor).  Call this whenever the grower tells you they filled / refilled a bottle.  Provide ml for ONLY the channels they're declaring; existing values for other channels are preserved.",
+        "Record bottle FILL volumes — grower says 'I filled each bottle with 100ml' or 'I refilled pH Down to 250ml'.  Sets BOTH capacity (what the bottle should hold when full) AND current remaining to the declared value, and stamps verified-at (a fresh fill is by definition a verified level).  CRITICAL for the safety controller (which refuses to dose below 15ml floor) AND for the prediction logic (which estimates 'days until this bottle empties' based on capacity + consumption rate).  Partial declarations preserve other channels.",
       inputSchema: z.object({
         levels: z
           .record(z.string(), z.number().min(0).max(5000))
-          .describe(`Map of channel key → ml. Channels available: ${channelKeys.join(", ") || "(none)"}`),
+          .describe(`Map of channel key → ml just filled. Channels available: ${channelKeys.join(", ") || "(none)"}`),
       }),
       execute: async (params) => {
-        // Merge with existing levels so partial declarations don't wipe other channels.
-        const sys = await getSystem(systemId);
-        const existing = (sys?.bottle_levels as Record<string, number> | null) ?? {};
-        const merged: Record<string, number> = { ...existing };
+        const filtered: Record<string, number> = {};
         for (const [k, v] of Object.entries(params.levels)) {
-          if (!channelKeys.includes(k)) continue; // ignore unknown channels
-          merged[k] = v;
+          if (channelKeys.includes(k)) filtered[k] = v;
         }
-        await setBottleLevels(systemId, merged);
+        if (Object.keys(filtered).length === 0) {
+          return {
+            ok: false,
+            error: `No valid channels in the declaration. Available: ${channelKeys.join(", ") || "(none)"}.`,
+          };
+        }
+        await setBottleLevels(systemId, filtered, "fill");
         return {
           ok: true,
-          bottle_levels: merged,
-          note: "Bottle levels recorded. Safety controller will now decrement on each dose and block when any channel runs below 15ml.",
+          declared: filtered,
+          note: "Bottle capacities + remaining levels recorded as a fresh fill. The dosing pipeline will decrement remaining on each dose and the agent can now predict days-until-empty.",
+        };
+      },
+    }),
+
+    verifyBottleLevels: tool({
+      description:
+        "Visual sanity-check from the grower: they LOOK at a bottle and report the level they see.  We compare to the tracked-remaining the system has been maintaining and return the delta.  If delta is large (>10ml or >15% of capacity), something is wrong (leak, mis-calibrated pump, undetected dose, mis-reported level) — surface it to the grower clearly so they can decide what to do.  Use this for the first-time sanity check after install AND whenever the grower mentions inspecting the bottles.  Updates remaining to the observed value and stamps a fresh verified-at.",
+      inputSchema: z.object({
+        observations: z
+          .record(z.string(), z.number().min(0).max(5000))
+          .describe(`Map of channel key → ml the grower is reporting they see. Channels: ${channelKeys.join(", ") || "(none)"}`),
+      }),
+      execute: async (params) => {
+        const results: Array<{
+          channel: string;
+          observed_ml: number;
+          tracked_ml: number | null;
+          delta_ml: number | null;
+          capacity_ml: number | null;
+          discrepancy_pct: number | null;
+          flag: "ok" | "minor" | "major" | "no_baseline";
+        }> = [];
+        for (const [ch, ml] of Object.entries(params.observations)) {
+          if (!channelKeys.includes(ch)) continue;
+          const r = await verifyBottleLevel(systemId, ch, ml);
+          let flag: "ok" | "minor" | "major" | "no_baseline" = "ok";
+          let pct: number | null = null;
+          if (r.tracked_ml === null) {
+            flag = "no_baseline";
+          } else if (r.delta_ml !== null) {
+            const absDelta = Math.abs(r.delta_ml);
+            pct = r.capacity_ml ? (absDelta / r.capacity_ml) * 100 : null;
+            if (absDelta > 10 || (pct !== null && pct > 15)) flag = "major";
+            else if (absDelta > 3) flag = "minor";
+          }
+          results.push({ ...r, discrepancy_pct: pct, flag });
+        }
+        return {
+          ok: true,
+          results,
+          note: "Verification recorded. Tell the grower the deltas — especially major ones — and ask whether they want to update the dosing pipeline's assumptions or investigate hardware (leak / mis-cal pump / unlogged dose).",
+        };
+      },
+    }),
+
+    getBottleStatus: tool({
+      description:
+        "Return the current bottle status report for this system: per-channel capacity, remaining, % remaining, last-7-day consumption, daily average, and estimated days-until-empty.  Use to answer 'how are the bottles doing?', to proactively warn the grower when a bottle is predicted to empty soon, or before proposing big doses to make sure the math works.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const report = await getBottleStatusReport(systemId);
+        return {
+          ...report,
+          note: report.any_near_empty
+            ? "One or more bottles are near-empty — recommend a refill soon."
+            : report.any_needs_recheck
+            ? "Some channels haven't been visually verified in over a week — suggest a quick visual check."
+            : "All bottles healthy.",
         };
       },
     }),

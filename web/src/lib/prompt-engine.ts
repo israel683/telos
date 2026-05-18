@@ -12,6 +12,7 @@ import type { DosingConfig } from "./dosing-config";
 import { hasPhUp, hasPhDown, nutrientKeys, phUpKey, phDownKey } from "./dosing-config";
 import type { FertilizerProfile } from "./fertilizer-profiles";
 import type { PrimingState } from "./priming";
+import type { ChannelBottleStatus } from "./bottle-status";
 
 export const SYSTEM_PROMPT = `You are GrowK, the autonomous controller of a real, physical
 hydroponic system. Your decisions directly affect living plants. You operate with
@@ -339,6 +340,12 @@ export function buildUserPrompt(opts: {
   fertilizerProfile?: FertilizerProfile | null;
   /** Per-channel feed-tube priming state — first ~8ml on unprimed channels doesn't reach reservoir. */
   primingState?: PrimingState | null;
+  /** Per-channel bottle status report (capacity, remaining, % left, days-until-empty). */
+  bottleReport?: {
+    channels: ChannelBottleStatus[];
+    any_near_empty: boolean;
+    any_needs_recheck: boolean;
+  } | null;
   pendingTasks: Pick<HumanTask, "id" | "type" | "priority" | "title" | "created_at">[];
 }): string {
   const {
@@ -350,6 +357,7 @@ export function buildUserPrompt(opts: {
     dosingConfig,
     fertilizerProfile,
     primingState,
+    bottleReport,
     pendingTasks,
   } = opts;
   const sections: string[] = [];
@@ -377,8 +385,53 @@ export function buildUserPrompt(opts: {
   const verified = systemProfile.doser_verified === true;
   sections.push(`  Autonomous dosing: ${autonomous ? "ENABLED" : "DISABLED"} ${autonomous ? "" : "← proposals will be queued as Human Tasks, NOT executed by this cycle"}`);
   sections.push(`  Doser verified: ${verified ? "yes" : "no"} ${verified ? "" : "← grower hasn't run runDoserProtocol yet; daily-total cap is tight (30ml)"}`);
-  if (systemProfile.bottle_levels) {
-    sections.push("  Bottle levels (ml remaining):");
+  if (bottleReport && bottleReport.channels.length > 0) {
+    sections.push("  Bottle status (capacity / remaining / consumption / forecast):");
+    for (const c of bottleReport.channels) {
+      const parts: string[] = [];
+      parts.push(
+        c.remaining_ml !== null
+          ? `${c.remaining_ml.toFixed(1)}ml remaining`
+          : "remaining=unknown"
+      );
+      if (c.capacity_ml !== null) {
+        parts.push(`of ${c.capacity_ml.toFixed(0)}ml capacity`);
+      }
+      if (c.percent_remaining !== null) {
+        parts.push(`(${c.percent_remaining.toFixed(0)}%)`);
+      }
+      if (c.daily_avg_ml !== null) {
+        parts.push(`avg ${c.daily_avg_ml.toFixed(1)}ml/day`);
+      }
+      if (c.days_until_empty !== null) {
+        parts.push(`~${c.days_until_empty.toFixed(1)} days until empty`);
+      }
+      const flagTag =
+        c.level === "empty"
+          ? " ⚠ EMPTY — cannot dose"
+          : c.level === "near_empty"
+          ? " ⚠ NEAR-EMPTY (<15ml floor) — safety will block"
+          : c.level === "low"
+          ? " ⚠ LOW (<25%) — recommend refill"
+          : "";
+      const recheckTag = c.needs_recheck && c.remaining_ml !== null
+        ? " · 🔎 visual recheck overdue"
+        : "";
+      sections.push(`    - ${c.channel}: ${parts.join(" · ")}${flagTag}${recheckTag}`);
+    }
+    if (bottleReport.any_near_empty) {
+      sections.push(
+        "    ⚠ At least one channel is near-empty.  Either create a manual_action human task asking the grower to refill, or hold off proposing doses on that channel."
+      );
+    }
+    if (bottleReport.any_needs_recheck) {
+      sections.push(
+        "    🔎 Some channels haven't been visually verified in 7+ days.  When you next chat with the grower, suggest a 'verify bottle levels' check."
+      );
+    }
+  } else if (systemProfile.bottle_levels) {
+    // Fallback to the basic levels-only block when no report computed.
+    sections.push("  Bottle levels (ml remaining, no capacity/forecast):");
     for (const [k, v] of Object.entries(systemProfile.bottle_levels)) {
       const tag = v < 15 ? " ⚠ NEAR-EMPTY, cannot dose" : v < 30 ? " ⚠ low" : "";
       sections.push(`    - ${k}: ${v.toFixed(1)}ml${tag}`);

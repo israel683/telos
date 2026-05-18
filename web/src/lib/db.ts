@@ -170,7 +170,9 @@ export async function ensureSchema(): Promise<void> {
       setup_completed_at TIMESTAMPTZ,
       autonomous_dosing_enabled BOOLEAN NOT NULL DEFAULT FALSE,
       doser_verified    BOOLEAN NOT NULL DEFAULT FALSE,
-      bottle_levels     JSONB
+      bottle_levels     JSONB,
+      bottle_capacities JSONB,
+      bottle_verified_at JSONB
     )
   `);
 
@@ -202,6 +204,18 @@ export async function ensureSchema(): Promise<void> {
   // that channel until the grower marks it refilled.
   await safeDdl(() => s`
     ALTER TABLE systems ADD COLUMN IF NOT EXISTS bottle_levels JSONB
+  `);
+  // Per-channel bottle CAPACITY (ml when full / last-refilled).
+  // Together with bottle_levels (current remaining) we can compute %
+  // remaining, consumption rate, and predicted days-until-empty — and
+  // run sanity checks comparing tracked-remaining vs grower-reported.
+  await safeDdl(() => s`
+    ALTER TABLE systems ADD COLUMN IF NOT EXISTS bottle_capacities JSONB
+  `);
+  // Per-channel timestamp of last grower-confirmed visual verification.
+  // Used by the agent to decide when to nudge "let's verify levels again".
+  await safeDdl(() => s`
+    ALTER TABLE systems ADD COLUMN IF NOT EXISTS bottle_verified_at JSONB
   `);
 
   // NOTE: we used to auto-create a 'default' row on every bootstrap so the
@@ -350,6 +364,10 @@ export type SystemRow = {
    * the empty-bottle guard until the grower declares.
    */
   bottle_levels: Record<string, number> | null;
+  /** Per-channel original capacity (ml when full / last-refilled). */
+  bottle_capacities: Record<string, number> | null;
+  /** Per-channel ISO timestamp of last grower-confirmed visual check. */
+  bottle_verified_at: Record<string, string> | null;
 };
 
 function rowToSystem(row: Record<string, unknown>): SystemRow {
@@ -376,6 +394,8 @@ function rowToSystem(row: Record<string, unknown>): SystemRow {
     autonomous_dosing_enabled: Boolean(row.autonomous_dosing_enabled),
     doser_verified: Boolean(row.doser_verified),
     bottle_levels: (row.bottle_levels as Record<string, number> | null) ?? null,
+    bottle_capacities: (row.bottle_capacities as Record<string, number> | null) ?? null,
+    bottle_verified_at: (row.bottle_verified_at as Record<string, string> | null) ?? null,
   };
 }
 
@@ -385,13 +405,107 @@ function rowToSystem(row: Record<string, unknown>): SystemRow {
  * decrementBottle after each successful dose; the chat / UI sets levels
  * via setBottleLevels.
  */
+/**
+ * Declare bottle levels.  Semantics:
+ *   - mode='fill': grower just filled/refilled — set BOTH capacity and
+ *     remaining to the same value for each channel given.  Also stamps
+ *     bottle_verified_at because a fresh fill IS a verified level.
+ *   - mode='current': grower is just correcting the current remaining
+ *     without changing capacity (rare; use verifyBottleLevels for the
+ *     proper visual-check path).
+ *
+ * Always MERGES with existing values for unrelated channels.
+ */
 export async function setBottleLevels(
   systemId: string,
-  levels: Record<string, number>
+  levels: Record<string, number>,
+  mode: "fill" | "current" = "fill"
 ): Promise<void> {
   await ensureSchema();
   const s = sql();
-  await s`UPDATE systems SET bottle_levels = ${JSON.stringify(levels)}::jsonb WHERE id = ${systemId}`;
+  const rows = (await s`
+    SELECT bottle_levels, bottle_capacities, bottle_verified_at
+    FROM systems WHERE id = ${systemId}
+  `) as unknown as Array<{
+    bottle_levels: Record<string, number> | null;
+    bottle_capacities: Record<string, number> | null;
+    bottle_verified_at: Record<string, string> | null;
+  }>;
+  const cur = rows[0] ?? { bottle_levels: null, bottle_capacities: null, bottle_verified_at: null };
+  const nextLevels = { ...(cur.bottle_levels ?? {}), ...levels };
+  const nextCapacities = mode === "fill"
+    ? { ...(cur.bottle_capacities ?? {}), ...levels }
+    : (cur.bottle_capacities ?? {});
+  const nowIso = new Date().toISOString();
+  const nextVerified = mode === "fill"
+    ? {
+        ...(cur.bottle_verified_at ?? {}),
+        ...Object.fromEntries(Object.keys(levels).map((k) => [k, nowIso])),
+      }
+    : (cur.bottle_verified_at ?? {});
+  await s`
+    UPDATE systems SET
+      bottle_levels = ${JSON.stringify(nextLevels)}::jsonb,
+      bottle_capacities = ${JSON.stringify(nextCapacities)}::jsonb,
+      bottle_verified_at = ${JSON.stringify(nextVerified)}::jsonb
+    WHERE id = ${systemId}
+  `;
+}
+
+/**
+ * Sanity-check visual verification: grower reports the level they SEE
+ * in the bottle right now; we compare to tracked-remaining and flag
+ * the discrepancy.  Updates remaining to the grower's reported value
+ * and stamps verified-at.  Returns the comparison so the caller can
+ * surface it to the grower / log.
+ */
+export async function verifyBottleLevel(
+  systemId: string,
+  channel: string,
+  observedMl: number
+): Promise<{
+  channel: string;
+  observed_ml: number;
+  tracked_ml: number | null;
+  delta_ml: number | null;
+  capacity_ml: number | null;
+}> {
+  await ensureSchema();
+  const s = sql();
+  const rows = (await s`
+    SELECT bottle_levels, bottle_capacities, bottle_verified_at
+    FROM systems WHERE id = ${systemId}
+  `) as unknown as Array<{
+    bottle_levels: Record<string, number> | null;
+    bottle_capacities: Record<string, number> | null;
+    bottle_verified_at: Record<string, string> | null;
+  }>;
+  const cur = rows[0] ?? {
+    bottle_levels: null,
+    bottle_capacities: null,
+    bottle_verified_at: null,
+  };
+  const tracked = cur.bottle_levels?.[channel] ?? null;
+  const capacity = cur.bottle_capacities?.[channel] ?? null;
+  const delta = tracked !== null ? observedMl - tracked : null;
+  const nextLevels = { ...(cur.bottle_levels ?? {}), [channel]: observedMl };
+  const nextVerified = {
+    ...(cur.bottle_verified_at ?? {}),
+    [channel]: new Date().toISOString(),
+  };
+  await s`
+    UPDATE systems SET
+      bottle_levels = ${JSON.stringify(nextLevels)}::jsonb,
+      bottle_verified_at = ${JSON.stringify(nextVerified)}::jsonb
+    WHERE id = ${systemId}
+  `;
+  return {
+    channel,
+    observed_ml: observedMl,
+    tracked_ml: tracked,
+    delta_ml: delta,
+    capacity_ml: capacity,
+  };
 }
 
 export async function decrementBottle(

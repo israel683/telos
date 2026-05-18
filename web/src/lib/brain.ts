@@ -17,6 +17,7 @@ import { DEFAULT_SYSTEM_ID, type WaterReading, type HumanTask, type TaskType, ty
 import { allChannelKeys, getDosingConfig, type DosingConfig } from "./dosing-config";
 import { getProfile } from "./fertilizer-profiles";
 import { getPrimingState, type PrimingState } from "./priming";
+import { getBottleStatusReport } from "./bottle-status";
 
 const CACHE_TTL_BETA = "extended-cache-ttl-2025-04-11";
 
@@ -89,6 +90,10 @@ export async function analyzeAndDecide(opts: {
   // worth the trip so Claude knows which channels still need their first
   // ~8ml prime before any dose-vs-EC reasoning is meaningful.
   const primingState: PrimingState = await getPrimingState(systemId);
+  // Bottle status with predictions — feeds the per-channel days-until-empty
+  // so the brain can proactively flag refills + reason about whether a
+  // proposed dose has enough liquid to actually run.
+  const bottleReport = await getBottleStatusReport(systemId);
 
   const userPrompt = buildUserPrompt({
     current: opts.current,
@@ -99,6 +104,7 @@ export async function analyzeAndDecide(opts: {
     dosingConfig,
     fertilizerProfile,
     primingState,
+    bottleReport,
     pendingTasks: opts.pendingTasks.map((t) => ({
       id: t.id,
       type: t.type,
