@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { getActiveSystem } from "@/lib/system";
 import { StackedQuestion } from "@/components/StackedQuestion";
+import { PendingTasksCard } from "@/components/PendingTasksCard";
 
 const STARTERS = [
   "מה מצב הצמחים עכשיו?",
@@ -109,13 +110,31 @@ export default function ChatPage() {
 
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const didInitialScrollRef = useRef(false);
 
+  // Auto-scroll behaviour:
+  //  - On first paint after history loads → jump INSTANTLY to the bottom so
+  //    the grower sees the most-recent messages without having to scroll
+  //    through weeks of cron-pushed logs.
+  //  - On subsequent message changes (live streaming, new sends) → smooth.
   useEffect(() => {
-    scrollRef.current?.scrollTo({
+    if (!scrollRef.current) return;
+    if (historyLoaded && !didInitialScrollRef.current) {
+      // Instant scroll-to-bottom on the very first render after history
+      // loaded.  Using requestAnimationFrame so the browser has painted
+      // the new message DOM before we measure scrollHeight.
+      const el = scrollRef.current;
+      requestAnimationFrame(() => {
+        el.scrollTo({ top: el.scrollHeight, behavior: "instant" as ScrollBehavior });
+        didInitialScrollRef.current = true;
+      });
+      return;
+    }
+    scrollRef.current.scrollTo({
       top: scrollRef.current.scrollHeight,
       behavior: "smooth",
     });
-  }, [messages, status]);
+  }, [messages, status, historyLoaded]);
 
   function handleSubmit(text?: string) {
     const value = (text ?? input).trim();
@@ -224,6 +243,11 @@ export default function ChatPage() {
           </div>
         )}
       </div>
+
+      {/* Pending tasks (dose approvals, manual actions, etc.) — sticky just
+          above the input so the grower can act inline without leaving the
+          chat.  Renders nothing when there's nothing pending. */}
+      <PendingTasksCard />
 
       {/* Input */}
       <form

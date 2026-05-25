@@ -30,6 +30,7 @@ export async function GET(req: Request) {
     system_id: string;
     ok: boolean;
     online?: boolean;
+    skipped?: string;
     error?: string;
     duration_ms: number;
   }> = [];
@@ -37,6 +38,18 @@ export async function GET(req: Request) {
   try {
     const systems = (await listSystems()).filter((s) => s.status === "active");
     for (const sys of systems) {
+      // Systems whose readings arrive via push (Home Assistant, generic
+      // webhook) don't need a Tuya cloud round-trip here — skip them.
+      // Telos gets their data via POST /api/sensor/ingest instead.
+      if (sys.device_source && sys.device_source !== "tuya_cloud") {
+        results.push({
+          system_id: sys.id,
+          ok: true,
+          skipped: `device_source=${sys.device_source}`,
+          duration_ms: 0,
+        });
+        continue;
+      }
       const t0 = Date.now();
       try {
         const reading = await readTuyaSensor({ deviceId: sys.tuya_device_id ?? undefined });

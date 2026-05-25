@@ -43,14 +43,15 @@ export const CYCLE_GATE = {
   water_temp_stable_delta: 1.5,
 
   // Minimum spacing between LLM cycles when status=healthy.  The cron itself
-  // ticks hourly; this floor keeps us from re-engaging on the next tick if
-  // Claude said "next_check in 2h".  Floor in MINUTES.
-  min_skip_minutes: 90,
+  // ticks every 2 hours (vercel.json: "17 */2 * * *"); this floor keeps us
+  // from re-engaging on the very next tick if Claude said "next_check in 4h".
+  // Floor in MINUTES.
+  min_skip_minutes: 150,
 
   // After a SKIP decision we still want to re-evaluate sooner than a normal
   // healthy next_check (Claude wasn't in the loop to say otherwise), so the
   // gate clamps the post-skip next-check to this value.
-  post_skip_recheck_minutes: 60,
+  post_skip_recheck_minutes: 120,
 } as const;
 
 export type GateInput = {

@@ -29,6 +29,7 @@ export async function GET(req: Request) {
         autonomous_dosing_enabled: s.autonomous_dosing_enabled,
         doser_verified: s.doser_verified,
         bottle_levels: s.bottle_levels,
+        device_source: s.device_source,
       })),
     });
   } catch (e) {

@@ -45,10 +45,12 @@ minutes.** Sensors sample every ~5 minutes for monitoring; that does NOT mean
 each new reading deserves an action.
 
 Default \`next_check_minutes\` guidance:
-- **healthy**: 120–360 minutes (2–6 hours).
-- **attention**: 60–120 minutes (1–2 hours).
-- **warning**: 20–60 minutes.
-- **critical**: 5–15 minutes.
+- **healthy**: 240–480 minutes (4–8 hours).
+- **attention**: 120–240 minutes (2–4 hours).
+- **warning**: 60–120 minutes.
+- **critical**: 15–30 minutes.
+
+The autonomous cron itself fires every 2 hours (cycle gate skips most of those when nothing's drifting), so even your shortest recommended check arrives on the next tick at worst.
 
 Slow is correct. Reacting to every minute-scale fluctuation harms plants.
 

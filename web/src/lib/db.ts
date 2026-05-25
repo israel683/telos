@@ -225,6 +225,19 @@ export async function ensureSchema(): Promise<void> {
   await safeDdl(() => s`
     ALTER TABLE systems ADD COLUMN IF NOT EXISTS target_ranges JSONB
   `);
+  // Sensor data source.  'tuya_cloud' (default) → cron-poll pulls from Tuya.
+  // 'home_assistant' → cron-poll skips this system; readings arrive via
+  // POST /api/sensor/ingest pushed from a Home Assistant automation.
+  // Future values: 'mqtt', 'webhook_generic', etc.
+  await safeDdl(() => s`
+    ALTER TABLE systems ADD COLUMN IF NOT EXISTS device_source TEXT NOT NULL DEFAULT 'tuya_cloud'
+  `);
+  // Per-task snooze: a task with snoozed_until > NOW() is hidden from the
+  // pending list (and the chat widget) until that timestamp passes.  Used
+  // when the grower wants to act on a task "later today" without dismissing.
+  await safeDdl(() => s`
+    ALTER TABLE human_tasks ADD COLUMN IF NOT EXISTS snoozed_until TIMESTAMPTZ
+  `);
 
   // NOTE: we used to auto-create a 'default' row on every bootstrap so the
   // single-system POC always had a parent for incoming readings.  That made
@@ -377,6 +390,14 @@ export type SystemRow = {
   /** Per-channel ISO timestamp of last grower-confirmed visual check. */
   bottle_verified_at: Record<string, string> | null;
   /**
+   * Where sensor readings come from for this system.
+   *  - 'tuya_cloud' (default): cron-poll pulls from Tuya every 5 min.
+   *  - 'home_assistant': cron-poll skips this system; readings arrive via
+   *    POST /api/sensor/ingest pushed by a Home Assistant automation.
+   *  - 'webhook_generic': any other push source.
+   */
+  device_source: string;
+  /**
    * Optional per-system overrides for the pH/EC/water-temp tolerance bands.
    * NULL → fall back to crop+stage defaults in lib/tolerance.ts.
    * Shape: { ph?: MetricTarget, ec?: MetricTarget, water_temp?: MetricTarget }.
@@ -411,7 +432,21 @@ function rowToSystem(row: Record<string, unknown>): SystemRow {
     bottle_capacities: (row.bottle_capacities as Record<string, number> | null) ?? null,
     bottle_verified_at: (row.bottle_verified_at as Record<string, string> | null) ?? null,
     target_ranges: (row.target_ranges as Record<string, unknown> | null) ?? null,
+    device_source: (row.device_source as string | null) ?? "tuya_cloud",
   };
+}
+
+/**
+ * Switch a system's sensor source.  Used when migrating a system from
+ * Tuya cloud polling to a Home Assistant push (or back).
+ */
+export async function setDeviceSource(
+  systemId: string,
+  source: "tuya_cloud" | "home_assistant" | "webhook_generic"
+): Promise<void> {
+  await ensureSchema();
+  const s = sql();
+  await s`UPDATE systems SET device_source = ${source} WHERE id = ${systemId}`;
 }
 
 /**
@@ -907,11 +942,16 @@ export async function getPendingTasks(
 ): Promise<HumanTask[]> {
   await ensureSchema();
   const s = sql();
+  // Hide snoozed tasks (snoozed_until > NOW) so the chat widget and the
+  // dashboard list reflect "what needs attention right now".  Tasks
+  // come back into view automatically once the snooze timestamp passes.
   const rows = (await s`
     SELECT id, system_id, created_at, type, priority, title, reason, payload,
            status, expires_at, completed_at, user_response, decision_id
     FROM human_tasks
-    WHERE system_id = ${systemId} AND status = 'pending'
+    WHERE system_id = ${systemId}
+      AND status = 'pending'
+      AND (snoozed_until IS NULL OR snoozed_until <= NOW())
     ORDER BY
       CASE priority
         WHEN 'urgent' THEN 0 WHEN 'high' THEN 1
@@ -973,6 +1013,24 @@ export async function getTasksByStatus(
     expires_at: r.expires_at ? new Date(r.expires_at) : null,
     completed_at: r.completed_at ? new Date(r.completed_at) : null,
   }));
+}
+
+/**
+ * Snooze a task — hide it from pending-task surfaces until `until`.
+ * The grower-facing semantic: "deal with this later today".
+ */
+export async function snoozeTask(
+  id: number,
+  until: Date,
+  systemId: string = DEFAULT_SYSTEM_ID
+): Promise<void> {
+  await ensureSchema();
+  const s = sql();
+  await s`
+    UPDATE human_tasks
+    SET snoozed_until = ${until.toISOString()}
+    WHERE id = ${id} AND system_id = ${systemId} AND status = 'pending'
+  `;
 }
 
 export async function completeTask(

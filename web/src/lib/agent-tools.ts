@@ -18,6 +18,7 @@ import {
   setBottleLevels,
   setDoserVerified,
   verifyBottleLevel,
+  setDeviceSource,
   DEFAULT_SYSTEM_ID,
 } from "./db";
 import { getBottleStatusReport } from "./bottle-status";
@@ -630,6 +631,27 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
             : report.any_needs_recheck
             ? "Some channels haven't been visually verified in over a week — suggest a quick visual check."
             : "All bottles healthy.",
+        };
+      },
+    }),
+
+    setDeviceSource: tool({
+      description:
+        "Switch this system's sensor data source.  Use 'home_assistant' to stop polling Tuya cloud and instead receive pushed readings via POST /api/sensor/ingest from a Home Assistant automation.  Use 'tuya_cloud' to revert to the legacy polling path.  Call this AFTER the grower has confirmed an HA push is wired up and working — flipping prematurely will starve the brain of sensor data.",
+      inputSchema: z.object({
+        source: z.enum(["tuya_cloud", "home_assistant", "webhook_generic"]),
+      }),
+      execute: async (params) => {
+        await setDeviceSource(systemId, params.source);
+        return {
+          ok: true,
+          device_source: params.source,
+          note:
+            params.source === "home_assistant"
+              ? "System now expects readings from HA push. The Tuya cron-poll will skip it next tick."
+              : params.source === "tuya_cloud"
+              ? "System reverted to Tuya cloud polling."
+              : "System set to generic webhook source.",
         };
       },
     }),

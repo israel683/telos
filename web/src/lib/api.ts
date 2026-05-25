@@ -88,6 +88,20 @@ export async function dismissTask(id: number, response = "") {
   });
 }
 
+/**
+ * Hide a pending task until N minutes from now.  Default 60.  Used by the
+ * chat-thread task widget's "דחיית X" buttons.
+ */
+export async function snoozeTask(id: number, minutes = 60) {
+  return fetchJson<{ ok: true; snoozed_until: string; minutes: number }>(
+    `/api/tasks/${id}/snooze`,
+    {
+      method: "POST",
+      body: JSON.stringify({ minutes }),
+    }
+  );
+}
+
 export async function updateSystemProfile(patch: Partial<SystemProfile>) {
   return fetchJson<{ system_profile: SystemProfile }>("/api/system", {
     method: "POST",
@@ -118,6 +132,8 @@ export type SystemSummary = {
   bottle_levels?: Record<string, number> | null;
   setup_completed_at?: string | null;
   dosing_config?: Record<string, unknown> | null;
+  /** 'tuya_cloud' | 'home_assistant' | 'webhook_generic' — see SystemRow.device_source. */
+  device_source?: string;
 };
 
 export async function listSystems(includeArchived = false) {

@@ -10,7 +10,7 @@
     },
     {
       "path": "/api/cron/cycle",
-      "schedule": "17 * * * *"
+      "schedule": "17 */2 * * *"
     },
     {
       "path": "/api/cron/daily-report",
