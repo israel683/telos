@@ -156,7 +156,7 @@ export default function ChatPage() {
     (systemInfo.name === "מערכת חדשה" || systemInfo.name === "");
 
   return (
-    <main className="flex-1 flex flex-col max-w-3xl w-full mx-auto px-4 py-6 min-h-0">
+    <main className="flex-1 flex flex-col max-w-3xl w-full mx-auto px-3 sm:px-4 pt-4 sm:pt-6 pb-2 sm:pb-6 min-h-0">
       {/* Messages */}
       <div
         ref={scrollRef}
@@ -249,13 +249,16 @@ export default function ChatPage() {
           chat.  Renders nothing when there's nothing pending. */}
       <PendingTasksCard />
 
-      {/* Input */}
+      {/* Input — padded against the iOS safe-area inset so the send button
+          isn't covered by the home-indicator on notch phones.  The flex
+          parent already keeps this row pinned at the bottom of the
+          viewport via `flex-1 flex flex-col min-h-0`. */}
       <form
         onSubmit={(e) => {
           e.preventDefault();
           handleSubmit();
         }}
-        className="border-t border-zinc-200 dark:border-zinc-800 pt-3 flex gap-2"
+        className="border-t border-zinc-200 dark:border-zinc-800 pt-3 flex gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
       >
         <textarea
           value={input}
@@ -275,7 +278,7 @@ export default function ChatPage() {
         <button
           type="submit"
           disabled={!input.trim() || isStreaming}
-          className="px-4 py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed"
+          className="px-4 py-2 sm:py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed min-h-[40px] sm:min-h-0"
         >
           שלח
         </button>

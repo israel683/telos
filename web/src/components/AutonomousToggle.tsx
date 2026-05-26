@@ -83,7 +83,7 @@ export function AutonomousToggle() {
           ? "דישון אוטונומי כבוי — המוח מציע, אתה מאשר.  לחץ להפעיל."
           : "דוזר לא מאומת — הרץ runDoserProtocol בצ'אט קודם."
       }
-      className={`text-xs px-2 py-1 rounded-md border flex items-center gap-1.5 transition-colors ${
+      className={`text-[11px] sm:text-xs px-1.5 sm:px-2 py-1 rounded-md border flex items-center gap-1 sm:gap-1.5 transition-colors ${
         on
           ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300"
           : verified
@@ -91,11 +91,13 @@ export function AutonomousToggle() {
           : "border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-500"
       } disabled:opacity-50`}
     >
-      <span className={`inline-block w-2 h-2 rounded-full ${on ? "bg-emerald-500" : verified ? "bg-amber-500" : "bg-zinc-400"}`} />
-      <span className="font-medium">
+      <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${on ? "bg-emerald-500" : verified ? "bg-amber-500" : "bg-zinc-400"}`} />
+      <span className="font-medium whitespace-nowrap">
         {on ? "אוטונומי" : "ידני"}
       </span>
-      {!verified && <span className="text-zinc-400">·לא מאומת</span>}
+      {/* Hide the secondary tag on mobile — the dot colour already tells
+          the verified/unverified story and saves horizontal space. */}
+      {!verified && <span className="text-zinc-400 hidden sm:inline whitespace-nowrap">·לא מאומת</span>}
     </button>
   );
 }

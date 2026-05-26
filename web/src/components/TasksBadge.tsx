@@ -53,26 +53,28 @@ export function TasksBadge() {
   return (
     <Link
       href="/state"
-      title="משימות ממתינות"
-      className="flex items-center gap-1.5 text-xs px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+      title={`משימות ממתינות: ${approval} לאישור · ${hands} פיזי`}
+      className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs px-1.5 sm:px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800"
     >
       {approval > 0 && (
         <span className="flex items-center gap-1">
-          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-emerald-600 text-white text-[10px] font-semibold leading-none">
+          <span className="inline-flex items-center justify-center min-w-[1.125rem] sm:min-w-[1.25rem] h-[18px] sm:h-5 px-1 rounded-full bg-emerald-600 text-white text-[10px] font-semibold leading-none">
             {approval}
           </span>
-          <span className="text-zinc-700 dark:text-zinc-300">לאישור</span>
+          {/* Hide the word "לאישור" on mobile — the green pill colour
+              already signals "approval needed" and saves horizontal space. */}
+          <span className="text-zinc-700 dark:text-zinc-300 hidden sm:inline">לאישור</span>
         </span>
       )}
       {approval > 0 && hands > 0 && (
-        <span className="text-zinc-300 dark:text-zinc-700">·</span>
+        <span className="text-zinc-300 dark:text-zinc-700 hidden sm:inline">·</span>
       )}
       {hands > 0 && (
         <span className="flex items-center gap-1">
-          <span className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-full bg-blue-600 text-white text-[10px] font-semibold leading-none">
+          <span className="inline-flex items-center justify-center min-w-[1.125rem] sm:min-w-[1.25rem] h-[18px] sm:h-5 px-1 rounded-full bg-blue-600 text-white text-[10px] font-semibold leading-none">
             {hands}
           </span>
-          <span className="text-zinc-700 dark:text-zinc-300">פיזי</span>
+          <span className="text-zinc-700 dark:text-zinc-300 hidden sm:inline">פיזי</span>
         </span>
       )}
     </Link>

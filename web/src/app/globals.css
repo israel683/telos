@@ -24,3 +24,15 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Hide scrollbars on horizontally-scrollable containers (e.g. the nav
+   links row on narrow mobile viewports).  The container still scrolls —
+   we just don't show the chrome, since horizontal scrollbars on a 4-link
+   row look broken even though they're functional. */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

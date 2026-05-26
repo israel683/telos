@@ -56,13 +56,18 @@ export function MaintenanceToggle() {
       onClick={toggle}
       disabled={busy}
       title={isPaused ? "חזרה לפעולה רגילה" : "מעבר למצב תחזוקה"}
-      className={`text-xs px-2.5 py-1 rounded-md border transition-colors disabled:opacity-50 ${
+      className={`text-[11px] sm:text-xs px-1.5 sm:px-2.5 py-1 rounded-md border whitespace-nowrap transition-colors disabled:opacity-50 ${
         isPaused
           ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
           : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
       }`}
     >
-      {isPaused ? "▶ חזור לפעולה" : "🛠 השהה"}
+      <span aria-hidden="true">{isPaused ? "▶" : "🛠"}</span>
+      {/* Hide the verbose label on mobile — the icon carries the meaning,
+          and the title attribute still surfaces the long form on hover/long-press. */}
+      <span className="ms-1 hidden sm:inline">
+        {isPaused ? "חזור לפעולה" : "השהה"}
+      </span>
     </button>
   );
 }

@@ -96,7 +96,7 @@ export function SystemSwitcher() {
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="text-sm px-3 py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-2 max-w-[200px]"
+        className="text-[12px] sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 sm:gap-2 max-w-[140px] sm:max-w-[200px]"
         aria-expanded={open}
       >
         <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
@@ -109,7 +109,7 @@ export function SystemSwitcher() {
 
       {open && (
         <div
-          className="absolute end-0 mt-2 w-80 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg z-20 overflow-hidden"
+          className="absolute end-0 mt-2 w-[min(20rem,calc(100vw-1.5rem))] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg z-30 overflow-hidden"
           onMouseLeave={() => !deletingId && !creating && setOpen(false)}
         >
           {error && (

@@ -133,7 +133,7 @@ export default function Dashboard() {
   const status: AgentStatus = (d?.status as AgentStatus) || "unknown";
 
   return (
-    <main className="flex-1 max-w-6xl w-full mx-auto p-6 space-y-6">
+    <main className="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
       <header className="flex items-baseline justify-between">
         <div>
           <h1 className="text-2xl font-bold">לוח בקרה</h1>
@@ -152,7 +152,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
+      <section className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
         <Metric label="pH" value={r?.ph} unit="" digits={2} />
         <Metric label="EC" value={r?.ec} unit="μS/cm" digits={0} />
         <Metric label="טמפ' מים" value={r?.water_temp} unit="°C" digits={1} />

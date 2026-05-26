@@ -141,12 +141,15 @@ export function PendingTasksCard() {
               </div>
             )}
 
-            <div className="flex flex-wrap gap-1.5">
+            {/* Action buttons — bigger tap targets on mobile (py-2.5 ≈ 36px
+                tall) so iOS users hit them reliably; tighten back to
+                py-1.5 on sm+ to match desktop density. */}
+            <div className="flex flex-wrap gap-2 sm:gap-1.5">
               {isApproval ? (
                 <button
                   onClick={() => handleAction(t.id, "approve")}
                   disabled={busy === t.id}
-                  className="text-xs px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 font-medium"
+                  className="text-xs px-3 py-2.5 sm:py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 font-medium"
                 >
                   {busy === t.id ? "..." : "אשר ובצע"}
                 </button>
@@ -154,7 +157,7 @@ export function PendingTasksCard() {
                 <button
                   onClick={() => handleAction(t.id, "complete")}
                   disabled={busy === t.id}
-                  className="text-xs px-3 py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 font-medium"
+                  className="text-xs px-3 py-2.5 sm:py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 font-medium"
                 >
                   {busy === t.id ? "..." : "בוצע"}
                 </button>
@@ -162,7 +165,7 @@ export function PendingTasksCard() {
               <button
                 onClick={() => handleAction(t.id, "snooze", 60)}
                 disabled={busy === t.id}
-                className="text-xs px-2.5 py-1.5 rounded-md border border-zinc-300 dark:border-zinc-700 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50"
+                className="text-xs px-2.5 py-2.5 sm:py-1.5 rounded-md border border-zinc-300 dark:border-zinc-700 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50"
                 title="הסתר את ההודעה לשעה"
               >
                 ⏰ שעה
@@ -170,7 +173,7 @@ export function PendingTasksCard() {
               <button
                 onClick={() => handleAction(t.id, "snooze", 60 * 6)}
                 disabled={busy === t.id}
-                className="text-xs px-2.5 py-1.5 rounded-md border border-zinc-300 dark:border-zinc-700 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50"
+                className="text-xs px-2.5 py-2.5 sm:py-1.5 rounded-md border border-zinc-300 dark:border-zinc-700 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50"
                 title="הסתר את ההודעה ל-6 שעות"
               >
                 ⏰ 6ש
@@ -178,7 +181,7 @@ export function PendingTasksCard() {
               <button
                 onClick={() => handleAction(t.id, "dismiss")}
                 disabled={busy === t.id}
-                className="text-xs px-2.5 py-1.5 rounded-md text-zinc-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50 ms-auto"
+                className="text-xs px-2.5 py-2.5 sm:py-1.5 rounded-md text-zinc-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50 ms-auto"
               >
                 בטל
               </button>
