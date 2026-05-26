@@ -1,5 +1,13 @@
 @import "tailwindcss";
 
+/* TELOS is a DARK system by default — class strategy so existing
+   `dark:` utility variants throughout the codebase ALL fire when the
+   <html> tag carries the `dark` class.  This is critical because
+   removing prefers-color-scheme broke every legacy `bg-white dark:bg-zinc-900`
+   pattern (white would win, parchment text would be invisible on it).
+   Now they all fall into the dark branch and contrast is restored. */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ════════════════════════════════════════════════════════════════
    TELOS Design Tokens — mirrors src/brand/tokens.ts
    "A visual language that lives between earth and precision."

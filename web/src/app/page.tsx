@@ -2,7 +2,7 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { getActiveSystem } from "@/lib/system";
 import { StackedQuestion } from "@/components/StackedQuestion";
@@ -112,31 +112,51 @@ export default function ChatPage() {
 
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
   const didInitialScrollRef = useRef(false);
 
-  // Auto-scroll behaviour:
-  //  - On first paint after history loads → jump INSTANTLY to the bottom so
-  //    the grower sees the most-recent messages without having to scroll
-  //    through weeks of cron-pushed logs.
-  //  - On subsequent message changes (live streaming, new sends) → smooth.
-  useEffect(() => {
-    if (!scrollRef.current) return;
-    if (historyLoaded && !didInitialScrollRef.current) {
-      // Instant scroll-to-bottom on the very first render after history
-      // loaded.  Using requestAnimationFrame so the browser has painted
-      // the new message DOM before we measure scrollHeight.
-      const el = scrollRef.current;
-      requestAnimationFrame(() => {
-        el.scrollTo({ top: el.scrollHeight, behavior: "instant" as ScrollBehavior });
-        didInitialScrollRef.current = true;
+  // Initial scroll fix — earlier attempts using scrollHeight inside a
+  // single requestAnimationFrame were unreliable: ReactMarkdown inside
+  // each message bubble triggers post-paint layout shifts, so the
+  // scrollHeight measured one frame after setMessages was usually too
+  // small.  The grower would land mid-thread on the first message
+  // instead of the last.
+  //
+  // The robust pattern:
+  //  1. Sentinel <div ref={bottomRef} /> sits AFTER the last message.
+  //  2. useLayoutEffect (synchronously, post-DOM-mutation) calls
+  //     scrollIntoView on it — the browser does the math, no manual
+  //     scrollHeight measurement needed.
+  //  3. Three rAF retries afterward catch any late-binding layout
+  //     shifts (markdown image loads, font metrics swap, etc).
+  useLayoutEffect(() => {
+    if (didInitialScrollRef.current) return;
+    if (!historyLoaded || messages.length === 0) return;
+    const jump = () => {
+      bottomRef.current?.scrollIntoView({
+        block: "end",
+        behavior: "instant" as ScrollBehavior,
       });
-      return;
-    }
-    scrollRef.current.scrollTo({
-      top: scrollRef.current.scrollHeight,
-      behavior: "smooth",
+    };
+    jump();
+    didInitialScrollRef.current = true;
+    // Belt-and-suspenders: if markdown / font swap shifted layout after
+    // our first jump, three more frames catch it without the user
+    // seeing any in-between state.
+    requestAnimationFrame(() => {
+      jump();
+      requestAnimationFrame(() => {
+        jump();
+        requestAnimationFrame(jump);
+      });
     });
-  }, [messages, status, historyLoaded]);
+  }, [historyLoaded, messages.length]);
+
+  // Subsequent updates: smooth scroll on new messages or streaming chunks.
+  useEffect(() => {
+    if (!didInitialScrollRef.current) return; // initial path handled above
+    bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+  }, [messages, status]);
 
   function handleSubmit(text?: string) {
     const value = (text ?? input).trim();
@@ -258,6 +278,11 @@ export default function ChatPage() {
             </button>
           </div>
         )}
+
+        {/* Scroll sentinel — useLayoutEffect calls scrollIntoView() on
+            this element to land the grower at the bottom of the thread
+            on initial paint, and on every subsequent message change. */}
+        <div ref={bottomRef} aria-hidden="true" />
       </div>
 
       {/* Pending tasks (dose approvals, manual actions, etc.) — sticky just
@@ -274,7 +299,7 @@ export default function ChatPage() {
           e.preventDefault();
           handleSubmit();
         }}
-        className="border-t border-zinc-200 dark:border-zinc-800 pt-3 flex gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
+        className="border-t border-[rgba(238,237,232,0.07)] pt-3 flex gap-2 pb-[max(0.5rem,env(safe-area-inset-bottom))]"
       >
         <textarea
           value={input}
@@ -288,13 +313,13 @@ export default function ChatPage() {
           rows={1}
           placeholder="כתוב הודעה..."
           disabled={isStreaming}
-          className="flex-1 resize-none bg-zinc-100 dark:bg-zinc-900 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500/40 disabled:opacity-50"
+          className="flex-1 resize-none bg-[var(--c-soil)] border border-[rgba(238,237,232,0.07)] text-[var(--c-parchment)] placeholder:text-[var(--c-stone)] rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[rgba(137,168,62,0.45)] focus:ring-1 focus:ring-[rgba(137,168,62,0.25)] disabled:opacity-50"
           style={{ minHeight: 40, maxHeight: 160 }}
         />
         <button
           type="submit"
           disabled={!input.trim() || isStreaming}
-          className="px-4 py-2 sm:py-2 rounded-lg bg-emerald-600 text-white text-sm font-medium hover:bg-emerald-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed min-h-[40px] sm:min-h-0"
+          className="px-4 py-2 rounded-full bg-[var(--c-basil)] hover:brightness-110 text-[var(--c-void)] text-sm font-medium disabled:bg-[var(--c-bark)] disabled:text-[var(--c-stone)] disabled:cursor-not-allowed min-h-[40px] sm:min-h-0 tracking-wide transition-all"
         >
           שלח
         </button>

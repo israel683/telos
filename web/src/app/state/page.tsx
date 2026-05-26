@@ -168,7 +168,7 @@ export default function Dashboard() {
       <BottleLevels />
 
       <section className="grid md:grid-cols-3 gap-4">
-        <div className="md:col-span-2 bg-white dark:bg-zinc-900 rounded-lg p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
+        <div className="md:col-span-2 bg-[var(--c-soil)] rounded-md p-5 border border-[rgba(238,237,232,0.07)]">
           <div className="flex items-center justify-between mb-2">
             <h2 className="font-semibold">ניתוח אחרון</h2>
             <span className="text-xs text-zinc-500">
@@ -193,8 +193,8 @@ export default function Dashboard() {
           )}
         </div>
 
-        <div className="bg-white dark:bg-zinc-900 rounded-lg p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
-          <h2 className="font-semibold mb-3">מצב אייג&apos;נט</h2>
+        <div className="bg-[var(--c-soil)] rounded-md p-5 border border-[rgba(238,237,232,0.07)]">
+          <h2 className="font-semibold mb-3 text-[var(--c-parchment)]">מצב אייג&apos;נט</h2>
           <dl className="text-sm space-y-1.5">
             <Row label="מחזור #" value={String(state.agent.cycle_count)} />
             <Row
@@ -247,7 +247,7 @@ function TasksPanel({
     return (
       <section>
         <h2 className="font-semibold mb-3">משימות ממתינות</h2>
-        <p className="text-sm text-zinc-500 text-center py-8 bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800">
+        <p className="text-sm text-[var(--c-stone)] text-center py-8 bg-[var(--c-soil)] rounded-md border border-[rgba(238,237,232,0.07)]">
           אין משימות ממתינות. המערכת רצה אוטונומית.
         </p>
       </section>
@@ -317,7 +317,7 @@ function TaskCard({
   onDismiss: () => void;
 }) {
   return (
-    <li className="bg-white dark:bg-zinc-900 rounded-lg p-4 shadow-sm border border-zinc-200 dark:border-zinc-800">
+    <li className="bg-[var(--c-soil)] rounded-md p-4 border border-[rgba(238,237,232,0.07)]">
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1 flex-wrap">
@@ -333,7 +333,7 @@ function TaskCard({
           <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">{t.reason}</p>
           {Object.keys(t.payload).length > 0 && (
             <pre
-              className="mt-2 text-xs bg-zinc-100 dark:bg-zinc-800 rounded p-2 overflow-x-auto"
+              className="mt-2 text-xs bg-[var(--c-void)] text-[var(--c-fog)] rounded-sm p-2 overflow-x-auto border border-[rgba(238,237,232,0.07)]"
               dir="ltr"
             >
               {JSON.stringify(t.payload, null, 2)}
@@ -373,11 +373,14 @@ function Metric({
   const display =
     value === null || value === undefined ? "—" : value.toFixed(digits);
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg p-3 shadow-sm border border-zinc-200 dark:border-zinc-800">
-      <div className="text-xs text-zinc-500">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1" dir="ltr">
-        <span className="text-2xl font-semibold tabular-nums">{display}</span>
-        {unit && <span className="text-xs text-zinc-500">{unit}</span>}
+    // Sharp corners (r-none / r-sm) for data, per the TELOS spec — data
+    // is exact, sharp corners reinforce precision.  Value renders in
+    // Cormorant Italic (the .t-num utility) and in basil.
+    <div className="bg-[var(--c-soil)] rounded-sm p-3 border border-[rgba(238,237,232,0.07)]">
+      <div className="t-eyebrow">{label}</div>
+      <div className="mt-1 flex items-baseline gap-1.5" dir="ltr">
+        <span className="t-num text-3xl text-[var(--c-basil)]">{display}</span>
+        {unit && <span className="text-[10px] text-[var(--c-stone)] tracking-wider uppercase">{unit}</span>}
       </div>
     </div>
   );

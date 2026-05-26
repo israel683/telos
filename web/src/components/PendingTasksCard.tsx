@@ -118,7 +118,7 @@ export function PendingTasksCard() {
         return (
           <div
             key={t.id}
-            className="rounded-xl border-2 border-emerald-300 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/30 p-3 shadow-sm"
+            className="rounded-md border border-[rgba(137,168,62,0.25)] bg-[rgba(137,168,62,0.06)] p-3"
           >
             <div className="flex items-start justify-between gap-2 mb-1.5">
               <div className="flex items-center gap-2 flex-wrap min-w-0">
@@ -130,26 +130,30 @@ export function PendingTasksCard() {
               <span className="text-[10px] text-zinc-400 shrink-0">#{t.id}</span>
             </div>
 
-            <h3 className="text-sm font-medium leading-snug mb-1">{t.title}</h3>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed mb-2">
+            <h3 className="text-sm font-medium leading-snug mb-1 text-[var(--c-parchment)]">{t.title}</h3>
+            <p className="text-xs text-[var(--c-fog)] leading-relaxed mb-2">
               {t.reason}
             </p>
 
             {isApproval && payload?.channel && payload?.amount_ml !== undefined && (
-              <div className="mb-2 text-[11px] text-emerald-700 dark:text-emerald-300 font-mono bg-white/60 dark:bg-zinc-900/60 px-2 py-1 rounded inline-block" dir="ltr">
+              <div
+                className="mb-2 text-[11px] text-[var(--c-basil)] bg-[var(--c-void)] border border-[rgba(238,237,232,0.07)] px-2 py-1 rounded-sm inline-block t-num"
+                dir="ltr"
+              >
                 {payload.channel} · {payload.amount_ml}ml
               </div>
             )}
 
-            {/* Action buttons — bigger tap targets on mobile (py-2.5 ≈ 36px
-                tall) so iOS users hit them reliably; tighten back to
-                py-1.5 on sm+ to match desktop density. */}
+            {/* Primary action (basil pill, per brand: ONE pill per view
+                — this IS the primary action when a task surfaces).
+                Secondary buttons: small radius, dim borders, terra for
+                destruct (dismiss). */}
             <div className="flex flex-wrap gap-2 sm:gap-1.5">
               {isApproval ? (
                 <button
                   onClick={() => handleAction(t.id, "approve")}
                   disabled={busy === t.id}
-                  className="text-xs px-3 py-2.5 sm:py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 font-medium"
+                  className="text-xs px-4 py-2.5 sm:py-1.5 rounded-full bg-[var(--c-basil)] hover:brightness-110 text-[var(--c-void)] disabled:opacity-50 font-medium tracking-wide transition-all"
                 >
                   {busy === t.id ? "..." : "אשר ובצע"}
                 </button>
@@ -157,7 +161,7 @@ export function PendingTasksCard() {
                 <button
                   onClick={() => handleAction(t.id, "complete")}
                   disabled={busy === t.id}
-                  className="text-xs px-3 py-2.5 sm:py-1.5 rounded-md bg-blue-600 hover:bg-blue-700 text-white disabled:opacity-50 font-medium"
+                  className="text-xs px-4 py-2.5 sm:py-1.5 rounded-full bg-[var(--c-mineral)] hover:brightness-125 text-[var(--c-parchment)] disabled:opacity-50 font-medium tracking-wide transition-all"
                 >
                   {busy === t.id ? "..." : "בוצע"}
                 </button>
@@ -165,23 +169,23 @@ export function PendingTasksCard() {
               <button
                 onClick={() => handleAction(t.id, "snooze", 60)}
                 disabled={busy === t.id}
-                className="text-xs px-2.5 py-2.5 sm:py-1.5 rounded-md border border-zinc-300 dark:border-zinc-700 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50"
+                className="text-xs px-2.5 py-2.5 sm:py-1.5 rounded-sm border border-[rgba(238,237,232,0.12)] text-[var(--c-fog)] hover:border-[rgba(238,237,232,0.25)] hover:bg-[var(--c-earth)] disabled:opacity-50 transition-colors"
                 title="הסתר את ההודעה לשעה"
               >
-                ⏰ שעה
+                שעה
               </button>
               <button
                 onClick={() => handleAction(t.id, "snooze", 60 * 6)}
                 disabled={busy === t.id}
-                className="text-xs px-2.5 py-2.5 sm:py-1.5 rounded-md border border-zinc-300 dark:border-zinc-700 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50"
+                className="text-xs px-2.5 py-2.5 sm:py-1.5 rounded-sm border border-[rgba(238,237,232,0.12)] text-[var(--c-fog)] hover:border-[rgba(238,237,232,0.25)] hover:bg-[var(--c-earth)] disabled:opacity-50 transition-colors"
                 title="הסתר את ההודעה ל-6 שעות"
               >
-                ⏰ 6ש
+                6 שעות
               </button>
               <button
                 onClick={() => handleAction(t.id, "dismiss")}
                 disabled={busy === t.id}
-                className="text-xs px-2.5 py-2.5 sm:py-1.5 rounded-md text-zinc-500 hover:text-red-600 dark:hover:text-red-400 hover:bg-white dark:hover:bg-zinc-800 disabled:opacity-50 ms-auto"
+                className="text-xs px-2.5 py-2.5 sm:py-1.5 rounded-sm text-[var(--c-stone)] hover:text-[var(--c-terra)] hover:bg-[var(--c-earth)] disabled:opacity-50 ms-auto transition-colors"
               >
                 בטל
               </button>

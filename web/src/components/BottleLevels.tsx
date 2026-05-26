@@ -39,20 +39,23 @@ type Report = {
   doser_verified?: boolean;
 };
 
+// TELOS palette mapping: basil for "ok", terra (warm warning) for low /
+// empty.  Mineral for unknown.  No emerald / amber / red — those are
+// pre-brand defaults that read as "generic dashboard".
 const LEVEL_BAR_COLOR: Record<ChannelStatus["level"], string> = {
-  empty: "bg-red-600",
-  near_empty: "bg-red-500",
-  low: "bg-amber-500",
-  ok: "bg-emerald-500",
-  unknown: "bg-zinc-400",
+  empty:      "bg-[var(--c-terra)]",
+  near_empty: "bg-[var(--c-terra)]",
+  low:        "bg-[var(--c-terra)] opacity-80",
+  ok:         "bg-[var(--c-basil)]",
+  unknown:    "bg-[var(--c-stone)]",
 };
 
 const LEVEL_TEXT_COLOR: Record<ChannelStatus["level"], string> = {
-  empty: "text-red-700 dark:text-red-400 font-semibold",
-  near_empty: "text-red-600 dark:text-red-400 font-semibold",
-  low: "text-amber-700 dark:text-amber-400",
-  ok: "text-zinc-500",
-  unknown: "text-zinc-400",
+  empty:      "text-[var(--c-terra)] font-medium",
+  near_empty: "text-[var(--c-terra)] font-medium",
+  low:        "text-[var(--c-terra)]",
+  ok:         "text-[var(--c-stone)]",
+  unknown:    "text-[var(--c-stone)]",
 };
 
 const LEVEL_TAG_HE: Record<ChannelStatus["level"], string> = {
@@ -102,7 +105,7 @@ export function BottleLevels() {
   const noData = report.channels.length === 0;
 
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-lg p-5 shadow-sm border border-zinc-200 dark:border-zinc-800">
+    <div className="bg-[var(--c-soil)] rounded-md p-5 border border-[rgba(238,237,232,0.07)]">
       <div className="flex items-center justify-between mb-3">
         <h2 className="font-semibold">רמות בקבוקים</h2>
         <div className="flex items-center gap-2">
@@ -155,7 +158,7 @@ export function BottleLevels() {
                     )}
                   </span>
                 </div>
-                <div className="h-2 rounded-full bg-zinc-200 dark:bg-zinc-800 overflow-hidden">
+                <div className="h-2 rounded-sm bg-[var(--c-bark)] overflow-hidden">
                   <div
                     className={`h-full ${LEVEL_BAR_COLOR[c.level]} transition-all`}
                     style={{ width: `${barPct}%` }}

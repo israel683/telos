@@ -66,7 +66,7 @@ export default function RootLayout({
     <html
       lang="he"
       dir="rtl"
-      className={`${cormorant.variable} ${jakarta.variable} ${notoSerifHebrew.variable} ${rubik.variable} h-full antialiased`}
+      className={`dark ${cormorant.variable} ${jakarta.variable} ${notoSerifHebrew.variable} ${rubik.variable} h-full antialiased`}
     >
       {/* TELOS is a DARK system by default — the Warm Neutral palette IS
           the brand.  Foreground = parchment on a void background, with
