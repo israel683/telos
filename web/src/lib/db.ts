@@ -1157,6 +1157,31 @@ export async function getChatHistory(
     .reverse(); // chronological order for chat rendering
 }
 
+/**
+ * The latest cron-cycle assistant message we pushed to this system's chat.
+ * Used by the cron-cycle handler to suppress repetitive chat-pushes — if
+ * status is identical to last push AND no new task was created AND it was
+ * recent, we save the decision row but skip the chat noise.  This is the
+ * fix for the POC 0.3 failure mode where the brain pushed "pH is high"
+ * every 2 hours for 3 days while the grower already had a pending task.
+ */
+export async function getLastCronChatPush(
+  systemId: string = DEFAULT_SYSTEM_ID
+): Promise<{ ts: Date; status: string | null } | null> {
+  await ensureSchema();
+  const s = sql();
+  const rows = (await s`
+    SELECT ts, status FROM chat_messages
+    WHERE system_id = ${systemId}
+      AND source = 'cron-cycle'
+      AND role = 'assistant'
+    ORDER BY ts DESC
+    LIMIT 1
+  `) as unknown as Array<{ ts: string; status: string | null }>;
+  if (rows.length === 0) return null;
+  return { ts: new Date(rows[0].ts), status: rows[0].status };
+}
+
 export async function hasPendingTaskOfType(
   t: TaskType,
   systemId: string = DEFAULT_SYSTEM_ID
@@ -1166,6 +1191,31 @@ export async function hasPendingTaskOfType(
   const rows = (await s`
     SELECT 1 FROM human_tasks
     WHERE system_id = ${systemId} AND status = 'pending' AND type = ${t}
+    LIMIT 1
+  `) as unknown as Array<unknown>;
+  return rows.length > 0;
+}
+
+/**
+ * Has a task of this type been created in the last N hours, REGARDLESS of
+ * its current status?  Used to suppress task-creation churn: e.g. the
+ * brain spawned a manual_action #47, it expired, then 2h later spawned
+ * #48 with the same concern.  By checking the recent-creation window
+ * (not just current pending), we stop that loop.
+ */
+export async function hasRecentTaskOfType(
+  t: TaskType,
+  hoursWindow: number,
+  systemId: string = DEFAULT_SYSTEM_ID
+): Promise<boolean> {
+  await ensureSchema();
+  const s = sql();
+  const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000).toISOString();
+  const rows = (await s`
+    SELECT 1 FROM human_tasks
+    WHERE system_id = ${systemId}
+      AND type = ${t}
+      AND created_at > ${cutoff}
     LIMIT 1
   `) as unknown as Array<unknown>;
   return rows.length > 0;

@@ -28,6 +28,7 @@ import {
   saveChatMessage,
   setNextCheckAt,
   decrementBottle,
+  getLastCronChatPush,
 } from "@/lib/db";
 import { analyzeAndDecide } from "@/lib/brain";
 import { doseChannelByPhysical } from "@/lib/devices/jebao";
@@ -290,25 +291,53 @@ export async function GET(req: Request) {
             : claudeMin;
         await setNextCheckAt(sys.id, new Date(Date.now() + floored * 60_000));
 
-        // Push a chat message so the grower sees this cycle in their thread
-        // next time they open the conversation. The UI renders these as
-        // collapsible log cards — full reasoning + actions hidden by default.
-        try {
-          await saveChatMessage({
-            systemId: sys.id,
-            role: "assistant",
-            parts: [
-              {
-                type: "text",
-                text: decision.message || decision.analysis || "מחזור ניתוח אוטומטי הסתיים.",
-              },
-            ],
-            source: "cron-cycle",
-            decisionId,
-            status: decision.status,
-          });
-        } catch (e) {
-          console.error("[cron/cycle] failed to push chat message:", e);
+        // Chat-push suppression — the v0.3 POC chat history showed the
+        // brain spamming "pH is high" every 2 hours for 3 days while the
+        // grower already had a pending task.  Push ONLY when the situation
+        // materially changed:
+        //   1. status changed from last push (transition)
+        //   2. new human task was created this cycle
+        //   3. a real dose actually fired this cycle
+        //   4. periodic alive-check: last push was 8h+ ago, regardless
+        //
+        // Otherwise the decision row is still saved (audit trail intact)
+        // but the chat stays quiet so signal-to-noise stays usable.
+        const lastPush = await getLastCronChatPush(sys.id);
+        const statusChanged = lastPush?.status !== decision.status;
+        const newTaskCreated = decision.human_tasks.length > 0;
+        const dosesFired = executed.some((e) => e.success);
+        const lastPushAgeHours = lastPush
+          ? (Date.now() - lastPush.ts.getTime()) / (60 * 60 * 1000)
+          : Infinity;
+        const periodicCheckIn = lastPushAgeHours >= 8;
+
+        const shouldPush =
+          statusChanged || newTaskCreated || dosesFired || periodicCheckIn;
+
+        if (shouldPush) {
+          try {
+            await saveChatMessage({
+              systemId: sys.id,
+              role: "assistant",
+              parts: [
+                {
+                  type: "text",
+                  text: decision.message || decision.analysis || "מחזור ניתוח אוטומטי הסתיים.",
+                },
+              ],
+              source: "cron-cycle",
+              decisionId,
+              status: decision.status,
+            });
+          } catch (e) {
+            console.error("[cron/cycle] failed to push chat message:", e);
+          }
+        } else {
+          console.log(
+            `[cron/cycle] system=${sys.id} chat push suppressed ` +
+              `(status='${decision.status}' unchanged since ${lastPushAgeHours.toFixed(1)}h ago, ` +
+              `no new tasks, no doses fired)`
+          );
         }
 
         results.push({

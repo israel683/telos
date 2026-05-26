@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { Nav } from "@/components/Nav";
 import "./globals.css";
@@ -16,6 +16,21 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Telos — לוח בקרה",
   description: "מערכת הידרופונית חכמה",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    title: "Telos",
+    statusBarStyle: "black-translucent",
+  },
+};
+
+// `themeColor` + `viewport` belong on the Viewport export in Next 15+
+// (the Metadata export type no longer accepts themeColor).
+export const viewport: Viewport = {
+  themeColor: "#10b981",
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover", // notch / safe-area awareness
 };
 
 export default function RootLayout({

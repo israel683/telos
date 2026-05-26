@@ -13,7 +13,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
 import { SYSTEM_PROMPT, buildUserPrompt, type SystemProfile } from "./prompt-engine";
 import { validateCommand, type DoserChannel } from "./safety";
-import { DEFAULT_SYSTEM_ID, type WaterReading, type HumanTask, type TaskType, type TaskPriority } from "./db";
+import { DEFAULT_SYSTEM_ID, hasRecentTaskOfType, type WaterReading, type HumanTask, type TaskType, type TaskPriority } from "./db";
 import { allChannelKeys, getDosingConfig, type DosingConfig } from "./dosing-config";
 import { getProfile } from "./fertilizer-profiles";
 import { getPrimingState, type PrimingState } from "./priming";
@@ -198,7 +198,21 @@ export async function analyzeAndDecide(opts: {
     const task = t as Record<string, unknown>;
     const type = String(task.type || "");
     if (!VALID_TASK_TYPES.has(type as TaskType)) continue;
-    if (existingTaskTypes.has(type as TaskType)) continue; // dedup
+    // Layer 1 dedup: there's already a pending task of this type RIGHT NOW.
+    if (existingTaskTypes.has(type as TaskType)) continue;
+    // Layer 2 dedup: a task of this type was created within the last 24h
+    // even if it has since expired/been dismissed.  Prevents the POC 0.3
+    // failure mode where manual_action tasks were re-spawned every few
+    // hours for the same persistent concern (#37→#45→#47→#48 in 4 days).
+    // dose_approval / question types use a tighter 4h window because
+    // they're more legitimately repeatable.
+    const reuseWindowHours =
+      type === "manual_action" || type === "water_change" || type === "system_reset"
+        ? 24
+        : 4;
+    if (await hasRecentTaskOfType(type as TaskType, reuseWindowHours, systemId)) {
+      continue;
+    }
     const priority = String(task.priority || "medium");
     tasks.push({
       type: type as TaskType,

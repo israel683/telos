@@ -978,6 +978,69 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
       }),
     }),
 
+    setTargetRanges: tool({
+      description:
+        "Override the per-system tolerance bands for pH / EC / water_temp.  Use when the grower declares an 'accept this reality' constraint — e.g. 'my water temp will always be 30°C+ because the system is south-facing and I can't cool it' → widen the water_temp band so the brain stops flagging it as 'outside band' on every cycle.  " +
+        "ONLY override when the grower explicitly says it's a structural constraint they accept.  Don't override just because a value is currently high — that's drift, not a setpoint change.  " +
+        "Setting all three is optional; pass only what you want to change.  Per-metric: target (the new setpoint) + tolerance (half-width of the comfortable band) + tolerance_mode ('absolute' for pH/water_temp, 'percent' for EC).  Pass null for a metric to revert it to crop+stage defaults.",
+      inputSchema: z.object({
+        ph: z.union([
+          z.object({
+            target: z.number().min(3).max(9),
+            tolerance: z.number().min(0.1).max(2),
+            tolerance_mode: z.enum(["absolute", "percent"]),
+          }),
+          z.null(),
+        ]).optional(),
+        ec: z.union([
+          z.object({
+            target: z.number().min(100).max(4000),
+            tolerance: z.number().min(1).max(50),
+            tolerance_mode: z.enum(["absolute", "percent"]),
+          }),
+          z.null(),
+        ]).optional(),
+        water_temp: z.union([
+          z.object({
+            target: z.number().min(5).max(40),
+            tolerance: z.number().min(0.5).max(10),
+            tolerance_mode: z.enum(["absolute", "percent"]),
+          }),
+          z.null(),
+        ]).optional(),
+        reason_he: z
+          .string()
+          .describe("Hebrew note explaining WHY the override (e.g. 'מערכת חיצונית פונה דרום, טמפ' לא ניתנת לשליטה')"),
+      }),
+      execute: async (params) => {
+        const sys = await getSystem(systemId);
+        const current = (sys?.target_ranges as Record<string, unknown> | null) ?? {};
+        const next: Record<string, unknown> = { ...current };
+
+        // null → delete the override and fall back to crop+stage defaults
+        if (params.ph === null) delete next.ph;
+        else if (params.ph !== undefined) next.ph = params.ph;
+        if (params.ec === null) delete next.ec;
+        else if (params.ec !== undefined) next.ec = params.ec;
+        if (params.water_temp === null) delete next.water_temp;
+        else if (params.water_temp !== undefined) next.water_temp = params.water_temp;
+
+        await updateSystem(systemId, { target_ranges: next });
+        // Record the rationale in notes so future grower / dev sees the audit
+        // trail of "why is the band this wide here".
+        const noteLine = `[target_ranges override] ${params.reason_he}`;
+        const newNote = sys?.notes ? `${sys.notes}\n${noteLine}` : noteLine;
+        await updateSystem(systemId, { notes: newNote });
+
+        return {
+          ok: true,
+          target_ranges: next,
+          note:
+            "Bands updated. The autonomous brain and the cycle-gate will use these on the next cycle, so values that were previously flagged as 'outside band' may now be 'within' — stopping spurious alerts.",
+        };
+      },
+    }),
+
     updateSystem: tool({
       description:
         "Save what you learned about this system to its profile (name, crop, growth stage, reservoir size, location, notes). Call this whenever you've collected new info — typically right after the grower answers via askGrower. Only include the fields you want to change. The grower never sees this tool call directly; just confirm verbally what you saved.",

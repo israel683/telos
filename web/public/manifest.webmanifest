@@ -1,0 +1,19 @@
+{
+  "name": "Telos — מערכת הידרופוניקה חכמה",
+  "short_name": "Telos",
+  "description": "סוכן AI אגרונום שמנהל את מערכת ההידרופוניקה שלך 24/7",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0a0a",
+  "theme_color": "#10b981",
+  "lang": "he",
+  "dir": "rtl",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "any",
+      "type": "image/x-icon"
+    }
+  ]
+}
