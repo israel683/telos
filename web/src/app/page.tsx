@@ -180,15 +180,6 @@ export default function ChatPage() {
     setAttachedFiles((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  /**
-   * Convert a File to a FileUIPart for the AI SDK.  Vision-capable models
-   * (Claude Sonnet 4.6) accept image parts inline as base64 data URLs,
-   * and `convertToModelMessages` on the server turns them into Anthropic
-   * image content blocks automatically.  For POC scale (one grower, a
-   * handful of plant photos per session) inline base64 is fine; if we
-   * later need to handle long-running threads or larger files, this is
-   * where we'd swap to Vercel Blob and pass an external URL instead.
-   */
   function fileToDataUrl(f: File): Promise<string> {
     return new Promise((resolve, reject) => {
       const reader = new FileReader();
@@ -196,6 +187,59 @@ export default function ChatPage() {
       reader.onerror = () => reject(reader.error);
       reader.readAsDataURL(f);
     });
+  }
+
+  /**
+   * Resize + re-compress an image client-side BEFORE it hits the wire.
+   *
+   * Why: Vercel serverless functions cap the request body at 4.5MB.  Inline
+   * base64 inflates files ~33%, so a couple of phone photos (3-5MB each)
+   * blow past the limit → FUNCTION_PAYLOAD_TOO_LARGE.  Resizing to a
+   * ~1280px long edge + JPEG q0.75 brings each image down to ~150-300KB,
+   * which keeps even 4 attachments well under the cap.
+   *
+   * Bonus: Claude's vision works best (and cheapest in tokens) with images
+   * whose long edge is ≤1568px — so this also trims vision cost without
+   * hurting diagnostic quality for plant photos.
+   *
+   * Returns a JPEG data URL.  Falls back to the raw file data URL if the
+   * browser can't decode the format into a canvas (rare; e.g. some HEIC
+   * outside Safari).
+   */
+  async function compressImage(
+    f: File,
+    maxEdge = 1280,
+    quality = 0.75
+  ): Promise<{ url: string; mediaType: string }> {
+    try {
+      const dataUrl = await fileToDataUrl(f);
+      const img = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const el = new Image();
+        el.onload = () => resolve(el);
+        el.onerror = () => reject(new Error("decode failed"));
+        el.src = dataUrl;
+      });
+      const longest = Math.max(img.width, img.height);
+      const scale = Math.min(1, maxEdge / longest);
+      const w = Math.round(img.width * scale);
+      const h = Math.round(img.height * scale);
+      const canvas = document.createElement("canvas");
+      canvas.width = w;
+      canvas.height = h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("no 2d context");
+      ctx.drawImage(img, 0, 0, w, h);
+      const jpeg = canvas.toDataURL("image/jpeg", quality);
+      // Safety: if for some reason JPEG came out larger than the original
+      // (tiny source images), keep the original.
+      return jpeg.length < dataUrl.length
+        ? { url: jpeg, mediaType: "image/jpeg" }
+        : { url: dataUrl, mediaType: f.type || "image/jpeg" };
+    } catch {
+      // Couldn't canvas-process — fall back to raw.  May still be large,
+      // but better than dropping the attachment entirely.
+      return { url: await fileToDataUrl(f), mediaType: f.type || "image/jpeg" };
+    }
   }
 
   async function handleSubmit(text?: string) {
@@ -208,16 +252,30 @@ export default function ChatPage() {
     if (hasFiles) {
       try {
         fileParts = await Promise.all(
-          attachedFiles.map(async (f) => ({
-            type: "file" as const,
-            mediaType: f.type || "image/jpeg",
-            url: await fileToDataUrl(f),
-            filename: f.name,
-          }))
+          attachedFiles.map(async (f) => {
+            const { url, mediaType } = await compressImage(f);
+            return {
+              type: "file" as const,
+              mediaType,
+              url,
+              filename: f.name,
+            };
+          })
         );
+        // Guard against the 4.5MB function-payload ceiling.  Sum the
+        // base64 payloads; if still over ~4MB (leaving headroom for the
+        // rest of the request), bail with a clear message rather than a
+        // cryptic FUNCTION_PAYLOAD_TOO_LARGE.
+        const totalBytes = fileParts.reduce((sum, p) => sum + p.url.length, 0);
+        if (totalBytes > 4_000_000) {
+          alert(
+            "התמונות עדיין כבדות מדי גם אחרי כיווץ. נסה לשלוח פחות תמונות או תמונות קטנות יותר."
+          );
+          return;
+        }
       } catch (err) {
-        console.error("[chat] file read failed:", err);
-        alert("לא הצלחתי לקרוא את הקובץ. נסה שוב.");
+        console.error("[chat] file processing failed:", err);
+        alert("לא הצלחתי לעבד את התמונה. נסה שוב.");
         return;
       }
     }
