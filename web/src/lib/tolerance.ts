@@ -21,6 +21,7 @@
  *    can both reason consistently.
  */
 import type { SystemRow } from "./db";
+import { cultivarTargets } from "./cultivars";
 
 export type MetricTarget = {
   /** Setpoint we steer toward.  E.g. 6.0 for basil pH, 1900 for basil veg EC. */
@@ -90,20 +91,24 @@ const FALLBACK: TargetRanges = {
 };
 
 /**
- * Compose the effective target ranges for a system: crop+stage default,
- * shallow-merged with any per-system overrides the grower persisted via
- * the `target_ranges` JSONB column.  Always returns a fully-populated
- * object — falls back to a wide generic band if neither source covers a
- * metric.
+ * Compose the effective target ranges for a system, honouring the precedence
+ * law (NEXTGEN-ARCHITECTURE.md §2):
+ *   grower override (target_ranges) > cultivar protocol (registry) >
+ *   crop+stage default (CROP_DEFAULTS) > generic fallback.
+ * The cultivar layer is resolved from the shared registry by cultivar_id, or by
+ * crop_type when it names a registry record. Always returns a fully-populated
+ * object.
  */
-export function getEffectiveTargets(sys: Pick<SystemRow, "crop_type" | "growth_stage" | "target_ranges">): TargetRanges {
+export function getEffectiveTargets(sys: Pick<SystemRow, "crop_type" | "growth_stage" | "target_ranges" | "cultivar_id">): TargetRanges {
+  const stage = sys.growth_stage ?? "vegetative";
+  const fromRegistry = cultivarTargets(sys.cultivar_id ?? sys.crop_type, stage);
   const cropMap = CROP_DEFAULTS[sys.crop_type ?? "lettuce"] ?? CROP_DEFAULTS.lettuce;
-  const stageDefault = cropMap[sys.growth_stage ?? "vegetative"] ?? cropMap.vegetative;
+  const stageDefault = cropMap[stage] ?? cropMap.vegetative;
   const override = (sys.target_ranges ?? {}) as TargetRanges;
   return {
-    ph: override.ph ?? stageDefault.ph ?? FALLBACK.ph,
-    ec: override.ec ?? stageDefault.ec ?? FALLBACK.ec,
-    water_temp: override.water_temp ?? stageDefault.water_temp ?? FALLBACK.water_temp,
+    ph: override.ph ?? fromRegistry?.ph ?? stageDefault.ph ?? FALLBACK.ph,
+    ec: override.ec ?? fromRegistry?.ec ?? stageDefault.ec ?? FALLBACK.ec,
+    water_temp: override.water_temp ?? fromRegistry?.water_temp ?? stageDefault.water_temp ?? FALLBACK.water_temp,
   };
 }
 

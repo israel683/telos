@@ -1,0 +1,22 @@
+{
+  "id": "basil",
+  "species": "basil",
+  "cultivar": null,
+  "provenance": null,
+  "protocol_version": 1,
+  "inherits": null,
+  "stages": {
+    "seedling":   { "ph": { "target": 6.0, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1000, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 22, "tolerance": 4, "tolerance_mode": "absolute" } },
+    "vegetative": { "ph": { "target": 6.0, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1900, "tolerance": 15, "tolerance_mode": "percent" }, "water_temp": { "target": 22, "tolerance": 4, "tolerance_mode": "absolute" } },
+    "flowering":  { "ph": { "target": 6.0, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1700, "tolerance": 15, "tolerance_mode": "percent" }, "water_temp": { "target": 22, "tolerance": 4, "tolerance_mode": "absolute" } },
+    "fruiting":   { "ph": { "target": 6.0, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1700, "tolerance": 15, "tolerance_mode": "percent" }, "water_temp": { "target": 22, "tolerance": 4, "tolerance_mode": "absolute" } }
+  },
+  "stress_signatures": [
+    "Lower-leaf yellowing under sustained low EC — vegetative basil is a heavy feeder.",
+    "Flower spikes forming — pinch to hold the plant in leaf; flowering shifts flavour."
+  ],
+  "harvest_markers": [
+    "First pinch once 3-4 true-leaf pairs are set; harvest above a node to drive bushing."
+  ],
+  "story": { "he": null, "en": null }
+}

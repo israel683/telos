@@ -48,6 +48,7 @@ class TaskActionBody(BaseModel):
 
 class SystemUpdateBody(BaseModel):
     crop_type: Optional[str] = None
+    cultivar_id: Optional[str] = None
     growth_stage: Optional[str] = None
     reservoir_liters: Optional[int] = None
     system_type: Optional[str] = None
@@ -149,7 +150,7 @@ def create_app(agent: "GrowKAgent") -> FastAPI:
 
     @app.post("/api/system", dependencies=[Depends(_auth_dependency)])
     def update_system(body: SystemUpdateBody):
-        for field in ("crop_type", "growth_stage", "reservoir_liters", "system_type"):
+        for field in ("crop_type", "cultivar_id", "growth_stage", "reservoir_liters", "system_type"):
             value = getattr(body, field)
             if value is not None:
                 agent.system_profile[field] = value
