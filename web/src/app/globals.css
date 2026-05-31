@@ -9,79 +9,85 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ════════════════════════════════════════════════════════════════
-   TELOS Design Tokens — mirrors src/brand/tokens.ts
+   TELOS Design Tokens — single source of truth: design-system/tokens.json
    "A visual language that lives between earth and precision."
-   See TELOS Brand Kit v1.0 for the canonical reference.
+   The :root token block below is GENERATED. Edit tokens.json + run
+   `npm run sync:design`; never hand-edit between the DESIGN-TOKENS markers.
    ════════════════════════════════════════════════════════════════ */
+/* Fonts + legacy aliases — hand-wired here because the font vars reference the
+   next/font runtime variables injected in layout.tsx. Every other token lives
+   in the generated block below (source of truth: design-system/tokens.json). */
 :root {
-  /* Foundation — Warm Neutral dark system (R=G > B by 2-3 points) */
-  --c-void:      #0c0c0a;
-  --c-soil:      #181815;
-  --c-earth:     #232320;
-  --c-bark:      #333330;
-  --c-stone:     #606058;
-  --c-ash:       #9a9a92;
-  --c-fog:       #c6c5be;
-  --c-parchment: #eeede8;
-
-  /* Accents — used sparingly */
-  --c-basil:   #89a83e;
-  --c-moss:    #3e5230;
-  --c-terra:   #a8593a;
-  --c-mineral: #3a4d4a;
-
-  /* Semantic aliases */
-  --c-success: var(--c-basil);
-  --c-warning: var(--c-terra);
-  --c-data:    var(--c-mineral);
-
-  /* Legacy aliases so existing components keep working during the
-     incremental migration.  background = void, foreground = parchment. */
-  --background: var(--c-void);
-  --foreground: var(--c-parchment);
-
-  /* Font stacks — defined here, injected by next/font in layout.tsx */
   --f-display: var(--font-cormorant), Georgia, serif;
   --f-body:    var(--font-jakarta), 'Plus Jakarta Sans', system-ui, sans-serif;
   --f-display-he: 'Noto Serif Hebrew', var(--font-cormorant), serif;
   --f-body-he:    var(--font-rubik), 'Rubik', system-ui, sans-serif;
   --f-numbers: var(--font-cormorant), Georgia, serif;
 
+  --background: var(--c-void);
+  --foreground: var(--c-parchment);
+}
+
+/* DESIGN-TOKENS:START — generated from design-system/tokens.json by `npm run sync:design`. Do not edit between the markers. */
+:root {
+  /* Foundation — Warm Neutral dark system */
+  --c-void: #0c0c0a;
+  --c-soil: #181815;
+  --c-earth: #232320;
+  --c-bark: #333330;
+  --c-stone: #606058;
+  --c-ash: #9a9a92;
+  --c-fog: #c6c5be;
+  --c-parchment: #eeede8;
+
+  /* Accents — used sparingly */
+  --c-basil: #89a83e;
+  --c-moss: #3e5230;
+  --c-terra: #a8593a;
+  --c-mineral: #3a4d4a;
+
+  /* Semantic aliases */
+  --c-success: var(--c-basil);
+  --c-warning: var(--c-terra);
+  --c-data: var(--c-mineral);
+
   /* Type scale */
-  --t-xs:   0.58rem;
-  --t-sm:   0.75rem;
+  --t-xs: 0.58rem;
+  --t-sm: 0.75rem;
   --t-base: 0.95rem;
-  --t-md:   1.25rem;
-  --t-lg:   1.8rem;
-  --t-xl:   2.5rem;
-  --t-2xl:  4rem;
+  --t-md: 1.25rem;
+  --t-lg: 1.8rem;
+  --t-xl: 2.5rem;
+  --t-2xl: 4rem;
 
   /* Tracking */
-  --ls-tight:  0.02em;
+  --ls-tight: 0.02em;
   --ls-normal: 0.05em;
-  --ls-wide:   0.15em;
-  --ls-label:  0.28em;
-  --ls-logo:   0.18em;
+  --ls-wide: 0.15em;
+  --ls-label: 0.28em;
+  --ls-logo: 0.18em;
 
-  /* Radii — data has none, only primary CTA gets the pill */
+  /* Radii */
   --r-none: 0px;
-  --r-sm:   4px;
-  --r-md:   8px;
-  --r-lg:   14px;
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 14px;
   --r-pill: 999px;
 
-  /* Borders — fixed alphas against the dark system */
-  --border-subtle: 1px solid rgba(238, 237, 232, 0.07);
-  --border-dim:    1px solid rgba(238, 237, 232, 0.12);
-  --border-basil:  1px solid rgba(137, 168, 62, 0.25);
+  /* Borders */
+  --border-subtle: 1px solid rgba(238,237,232,0.07);
+  --border-dim: 1px solid rgba(238,237,232,0.12);
+  --border-basil: 1px solid rgba(137,168,62,0.25);
 
   /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
-  --ease-in:  cubic-bezier(0.64, 0, 0.78, 0);
+  --ease-in: cubic-bezier(0.64, 0, 0.78, 0);
   --dur-fast: 150ms;
   --dur-base: 280ms;
   --dur-slow: 600ms;
+  --dur-scene: 1400ms;
 }
+/* DESIGN-TOKENS:END */
 
 /* Map a subset of the tokens into Tailwind 4's @theme so utility
    classes can use the brand names directly (bg-basil / text-parchment
