@@ -11,6 +11,7 @@ import { AutonomousToggle } from "./AutonomousToggle";
 const LINKS = [
   { href: "/", label: "שיחה" },
   { href: "/state", label: "מצב" },
+  { href: "/grow", label: "הגידול" },
   { href: "/decisions", label: "החלטות" },
   { href: "/architecture", label: "ארכיטקטורה" },
 ];

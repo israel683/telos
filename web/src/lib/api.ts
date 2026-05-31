@@ -41,6 +41,30 @@ export async function getState(): Promise<StateResponse> {
   return fetchJson<StateResponse>("/api/state");
 }
 
+export type GrowView = {
+  system: {
+    id: string;
+    name: string;
+    crop_type: string;
+    cultivar_id: string | null;
+    growth_stage: string;
+    location: string;
+  };
+  cultivar: { id: string; name: string | null; provenance: string | null } | null;
+  grow_profile: Record<string, unknown> | null;
+  onboarding: {
+    complete: boolean;
+    total: number;
+    unanswered: Array<{ id: string; question: string; required: boolean }>;
+  };
+  memory: Array<{ id: number; ts: string; kind: string; text: string }>;
+  episodes: Array<{ id: number; ts: string; status: string | null; summary: string }>;
+};
+
+export async function getGrow(): Promise<GrowView> {
+  return fetchJson<GrowView>("/api/grow");
+}
+
 export async function getReadings(hours = 24, limit = 200) {
   return fetchJson<{ readings: WaterReading[] }>(
     `/api/readings?hours=${hours}&limit=${limit}`
