@@ -1,0 +1,23 @@
+{
+  "id": "padron-peppers",
+  "species": "pepper",
+  "cultivar": "Padrón Peppers",
+  "provenance": "Galicia, Spain",
+  "protocol_version": 1,
+  "inherits": "pepper",
+  "stages": {
+    "fruiting": { "ec": { "target": 2100, "tolerance": 15, "tolerance_mode": "percent" }, "water_temp": { "target": 23, "tolerance": 3, "tolerance_mode": "absolute" } }
+  },
+  "stress_signatures": [
+    "Picked too late or grown too hot and dry, more of the crop turns fiery — Padrón's charm is that most stay mild, an occasional one hot.",
+    "Flower drop in a cold root zone cuts the continuous small-fruit set this cultivar is grown for."
+  ],
+  "harvest_markers": [
+    "Pick small and green — 4–6 cm — for the mild, blistered-in-oil tapa; size up only if a buyer wants the hotter, riper fruit.",
+    "Harvest continuously; frequent picking keeps the plant setting new pods."
+  ],
+  "story": {
+    "he": "פלפלי פדרון — הפלפל הגלייסיאני הקטן שאוכלים מטוגן בשמן ומלח: רובם עדינים, ומדי פעם אחד חריף. נקטפים קטנים וירוקים.",
+    "en": "Padrón Peppers — the small Galician frying pepper: blistered in oil and salt, most mild with the occasional hot one. Picked small and green, sold by the handful to chefs."
+  }
+}

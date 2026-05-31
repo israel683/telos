@@ -1,0 +1,22 @@
+{
+  "id": "corn_salad",
+  "species": "corn_salad",
+  "cultivar": null,
+  "provenance": null,
+  "protocol_version": 1,
+  "inherits": null,
+  "stages": {
+    "seedling":   { "ph": { "target": 6.5, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 800,  "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 16, "tolerance": 3, "tolerance_mode": "absolute" } },
+    "vegetative": { "ph": { "target": 6.5, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1000, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 16, "tolerance": 3, "tolerance_mode": "absolute" } },
+    "flowering":  { "ph": { "target": 6.5, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1000, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 15, "tolerance": 3, "tolerance_mode": "absolute" } },
+    "fruiting":   { "ph": { "target": 6.5, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1000, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 15, "tolerance": 3, "tolerance_mode": "absolute" } }
+  },
+  "stress_signatures": [
+    "A cold-lover: above the band it bolts fast and the rosette loses its tender nutty character.",
+    "Pale, stretched leaves mean too little light or EC run too low for the cool pace it grows at."
+  ],
+  "harvest_markers": [
+    "Cut the whole rosette while tight and deep-green, before any stalk rises."
+  ],
+  "story": { "he": null, "en": null }
+}

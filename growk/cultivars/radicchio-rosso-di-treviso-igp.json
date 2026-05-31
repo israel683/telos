@@ -1,0 +1,25 @@
+{
+  "id": "radicchio-rosso-di-treviso-igp",
+  "species": "chicory",
+  "cultivar": "Radicchio Rosso di Treviso IGP",
+  "provenance": "Veneto, Italy",
+  "protocol_version": 1,
+  "inherits": "chicory",
+  "stages": {
+    "vegetative": { "ec": { "target": 1500, "tolerance": 15, "tolerance_mode": "percent" }, "water_temp": { "target": 17, "tolerance": 3, "tolerance_mode": "absolute" } },
+    "flowering":  { "water_temp": { "target": 14, "tolerance": 3, "tolerance_mode": "absolute" } },
+    "fruiting":   { "water_temp": { "target": 14, "tolerance": 3, "tolerance_mode": "absolute" } }
+  },
+  "stress_signatures": [
+    "Without a genuine cool turn at the finish the head stays green and bitter-flat — the deep wine-red and the clean edge only set in the cold.",
+    "A warm root zone late in heading gives a loose, pale head with none of the elongated Treviso form."
+  ],
+  "harvest_markers": [
+    "Ready when the elongated head is firm, deep wine-red with bright white ribs, after a cool finish (the traditional imbianchimento blanching deepens it further).",
+    "The colour is the product — a green-shouldered head is not yet Treviso."
+  ],
+  "story": {
+    "he": "רדיקיו רוסו די טרוויזו IGP — העולש האדום המוארך של ונטו, אדום-יין עם צלעות לבנות, מר-נקי. צריך סיום קר כדי לקבל את הצבע והטעם.",
+    "en": "Radicchio Rosso di Treviso IGP — the elongated red chicory of the Veneto: wine-red with white ribs and a clean bitter edge. The colour and flavour are earned only by a cold finish."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "tomato",
+  "species": "tomato",
+  "cultivar": null,
+  "provenance": null,
+  "protocol_version": 1,
+  "inherits": null,
+  "stages": {
+    "seedling":   { "ph": { "target": 6.0, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1500, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 22, "tolerance": 4, "tolerance_mode": "absolute" } },
+    "vegetative": { "ph": { "target": 6.0, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 2000, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 22, "tolerance": 4, "tolerance_mode": "absolute" } },
+    "flowering":  { "ph": { "target": 6.2, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 2500, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 22, "tolerance": 4, "tolerance_mode": "absolute" } },
+    "fruiting":   { "ph": { "target": 6.2, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 3000, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 22, "tolerance": 4, "tolerance_mode": "absolute" } }
+  },
+  "stress_signatures": [
+    "Blossom-end rot points to calcium reaching the fruit too slowly — usually erratic water or EC swings, not a calcium shortage alone.",
+    "Leaf roll and flower drop appear when root-zone water runs hot; fruit set stalls above the band."
+  ],
+  "harvest_markers": [
+    "Pick at full colour on the vine for flavour; heritage types hold quality a few days past the supermarket point."
+  ],
+  "story": { "he": null, "en": null }
+}

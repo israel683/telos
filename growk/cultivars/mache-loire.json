@@ -1,0 +1,22 @@
+{
+  "id": "mache-loire",
+  "species": "corn_salad",
+  "cultivar": "Mâche (Lamb's Lettuce)",
+  "provenance": "Loire, France",
+  "protocol_version": 1,
+  "inherits": "corn_salad",
+  "stages": {
+    "vegetative": { "ec": { "target": 1000, "tolerance": 15, "tolerance_mode": "percent" }, "water_temp": { "target": 15, "tolerance": 3, "tolerance_mode": "absolute" } }
+  },
+  "stress_signatures": [
+    "A true cold-season green: above the band the tender rosette bolts and loses its nutty, buttery character.",
+    "Loose, stretched rosettes mean too little light for the slow cool pace it sets at."
+  ],
+  "harvest_markers": [
+    "Cut the whole rosette while small, tight and deep-green — mâche is sold as a delicate whole-rosette green, not loose leaf."
+  ],
+  "story": {
+    "he": "מאש (חסת הטלה) מעמק הלואר — ירק עלים עדין וחורפי, אגוזי ובוטרי, נמכר כרוזטה שלמה. אוהב קור.",
+    "en": "Mâche (Lamb's Lettuce) from the Loire — a delicate cold-season green, nutty and buttery, sold as a whole tender rosette. A true cold-lover."
+  }
+}

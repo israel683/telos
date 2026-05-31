@@ -1,0 +1,22 @@
+{
+  "id": "pepper",
+  "species": "pepper",
+  "cultivar": null,
+  "provenance": null,
+  "protocol_version": 1,
+  "inherits": null,
+  "stages": {
+    "seedling":   { "ph": { "target": 6.0, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1200, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 23, "tolerance": 4, "tolerance_mode": "absolute" } },
+    "vegetative": { "ph": { "target": 6.0, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1800, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 23, "tolerance": 4, "tolerance_mode": "absolute" } },
+    "flowering":  { "ph": { "target": 6.2, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 2000, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 23, "tolerance": 4, "tolerance_mode": "absolute" } },
+    "fruiting":   { "ph": { "target": 6.2, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 2200, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 23, "tolerance": 4, "tolerance_mode": "absolute" } }
+  },
+  "stress_signatures": [
+    "Flower drop when the root zone runs cold or EC swings — peppers want warmth and a steady feed.",
+    "Blossom-end rot on the fruit tracks erratic watering more than a true calcium shortage."
+  ],
+  "harvest_markers": [
+    "Frying peppers are picked young and green; leave a few to redden only if the buyer wants the sweeter, riper fruit."
+  ],
+  "story": { "he": null, "en": null }
+}

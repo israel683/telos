@@ -1,0 +1,25 @@
+{
+  "id": "cuore-di-bue",
+  "species": "tomato",
+  "cultivar": "Cuore di Bue",
+  "provenance": "Liguria, Italy",
+  "protocol_version": 1,
+  "inherits": "tomato",
+  "stages": {
+    "flowering": { "ec": { "target": 2400, "tolerance": 12, "tolerance_mode": "percent" }, "water_temp": { "target": 22, "tolerance": 3, "tolerance_mode": "absolute" } },
+    "fruiting":  { "ec": { "target": 2800, "tolerance": 12, "tolerance_mode": "percent" }, "water_temp": { "target": 22, "tolerance": 3, "tolerance_mode": "absolute" } }
+  },
+  "stress_signatures": [
+    "The oxheart fruit cracks at the shoulder when water swings during fruiting — hold a steady feed, don't chase EC up and down.",
+    "Thin walls and watery flesh mean EC ran low through fruiting; the cultivar's dense, meaty character needs the higher steady band.",
+    "Blossom-end rot at the pointed tip is the classic Cuore di Bue tell of erratic water reaching the fast-swelling fruit."
+  ],
+  "harvest_markers": [
+    "Ready when the heart-shaped fruit is full red-orange with the ribbed shoulders coloured through; pick on the vine for the dense, low-seed flesh chefs want.",
+    "Hold quality a few days past the supermarket point — this is a flavour tomato, not a shipping one."
+  ],
+  "story": {
+    "he": "קואורה די בואה — עגבניית 'לב השור' ההיסטורית מליגוריה: בשרנית, מעט גרעינים, מתוקה. עגבניית שף, לא עגבניית מדף.",
+    "en": "Cuore di Bue — the Ligurian 'oxheart' tomato: large, ribbed, meaty and low-seed, with a deep sweet flesh. A chef's slicing tomato, priced on flavour, never on the shelf."
+  }
+}

@@ -1,0 +1,22 @@
+{
+  "id": "chicory",
+  "species": "chicory",
+  "cultivar": null,
+  "provenance": null,
+  "protocol_version": 1,
+  "inherits": null,
+  "stages": {
+    "seedling":   { "ph": { "target": 6.2, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1000, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 18, "tolerance": 3, "tolerance_mode": "absolute" } },
+    "vegetative": { "ph": { "target": 6.2, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1500, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 18, "tolerance": 3, "tolerance_mode": "absolute" } },
+    "flowering":  { "ph": { "target": 6.2, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1600, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 17, "tolerance": 3, "tolerance_mode": "absolute" } },
+    "fruiting":   { "ph": { "target": 6.2, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1600, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 17, "tolerance": 3, "tolerance_mode": "absolute" } }
+  },
+  "stress_signatures": [
+    "Bitterness turns harsh and leaf stays all-green when the finish is too warm — chicories need a cool turn to colour and sweeten.",
+    "Tip burn on the tight head signals EC ran high through heading."
+  ],
+  "harvest_markers": [
+    "Ready when the head is firm and the red/white contrast is full; a cool finish sets both colour and the clean bitter edge."
+  ],
+  "story": { "he": null, "en": null }
+}
