@@ -1,0 +1,68 @@
+/* TELOS Design Tokens v1.0 — /* GENERATED from design-system/tokens.json — do not edit by hand.
+   Regenerate: npm run sync:design (CSS). */
+   Portable token CSS for any consumer. The web app wires fonts via next/font in globals.css. */
+:root {
+  /* Fonts */
+  --f-display: 'Cormorant Garamond', Georgia, serif;
+  --f-body: 'Plus Jakarta Sans', system-ui, sans-serif;
+  --f-display-he: 'Noto Serif Hebrew', 'Cormorant Garamond', serif;
+  --f-body-he: 'Rubik', 'Plus Jakarta Sans', system-ui, sans-serif;
+  --f-numbers: 'Cormorant Garamond', Georgia, serif;
+
+  /* Foundation — Warm Neutral dark system */
+  --c-void: #0c0c0a;
+  --c-soil: #181815;
+  --c-earth: #232320;
+  --c-bark: #333330;
+  --c-stone: #606058;
+  --c-ash: #9a9a92;
+  --c-fog: #c6c5be;
+  --c-parchment: #eeede8;
+
+  /* Accents — used sparingly */
+  --c-basil: #89a83e;
+  --c-moss: #3e5230;
+  --c-terra: #a8593a;
+  --c-mineral: #3a4d4a;
+
+  /* Semantic aliases */
+  --c-success: var(--c-basil);
+  --c-warning: var(--c-terra);
+  --c-data: var(--c-mineral);
+
+  /* Type scale */
+  --t-xs: 0.58rem;
+  --t-sm: 0.75rem;
+  --t-base: 0.95rem;
+  --t-md: 1.25rem;
+  --t-lg: 1.8rem;
+  --t-xl: 2.5rem;
+  --t-2xl: 4rem;
+
+  /* Tracking */
+  --ls-tight: 0.02em;
+  --ls-normal: 0.05em;
+  --ls-wide: 0.15em;
+  --ls-label: 0.28em;
+  --ls-logo: 0.18em;
+
+  /* Radii */
+  --r-none: 0px;
+  --r-sm: 4px;
+  --r-md: 8px;
+  --r-lg: 14px;
+  --r-pill: 999px;
+
+  /* Borders */
+  --border-subtle: 1px solid rgba(238,237,232,0.07);
+  --border-dim: 1px solid rgba(238,237,232,0.12);
+  --border-basil: 1px solid rgba(137,168,62,0.25);
+
+  /* Motion */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in: cubic-bezier(0.64, 0, 0.78, 0);
+  --dur-fast: 150ms;
+  --dur-base: 280ms;
+  --dur-slow: 600ms;
+  --dur-scene: 1400ms;
+}

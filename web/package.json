@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "sync:cultivars": "node scripts/sync-cultivars.mjs"
+    "sync:cultivars": "node scripts/sync-cultivars.mjs",
+    "sync:design": "node ../design-system/build.mjs"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.75",
