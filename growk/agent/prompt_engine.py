@@ -481,6 +481,24 @@ def build_analysis_prompt(
         sections.append(protocol)
         sections.append("")
 
+    # --- Grow Context / Grower Memory / Episodes (optional) ---
+    # Parity with the TS production Brain. These are per-grow dynamic state; the
+    # TS dashboard owns them in Neon. When this Python agent is fed them via
+    # system_profile (e.g. pushed through /api/system, or a future Neon sync),
+    # it renders the same three layers so its reasoning matches.
+    grow_context = _render_grow_context(system_profile.get('grow_profile'))
+    if grow_context:
+        sections.append(grow_context)
+        sections.append("")
+    grower_memory = _render_grower_memory(system_profile.get('grower_memory'))
+    if grower_memory:
+        sections.append(grower_memory)
+        sections.append("")
+    episodes = _render_episodes(system_profile.get('episodes'))
+    if episodes:
+        sections.append(episodes)
+        sections.append("")
+
     # --- Recent dosing actions ---
     if recent_actions:
         sections.append("## Recent Dosing Actions (last 24h)")
@@ -563,3 +581,73 @@ def get_crop_targets(crop: str, stage: str = "vegetative") -> dict:
     if registry_targets:
         return registry_targets
     return CROP_DATABASE.get(crop, CROP_DATABASE["lettuce"])
+
+
+# ---------------------------------------------------------------------------
+# Grow Context / Grower Memory / Episodes — renderers, mirroring the TS
+# production Brain (web/src/lib/grow-profile.ts + grower-memory.ts). These take
+# plain dicts/lists pulled from system_profile so the Python agent can render
+# the same three knowledge layers when it's fed them.
+# ---------------------------------------------------------------------------
+
+def _render_grow_context(profile: Optional[dict]) -> Optional[str]:
+    if not profile:
+        return None
+    lines = ["## Grow Context — the personal Brain of this grow"]
+    known = []
+    if profile.get("water_source"):
+        known.append(f"  Water source: {profile['water_source']}")
+    wb = profile.get("water_baseline") or {}
+    if wb.get("ph") is not None or wb.get("ec") is not None:
+        parts = []
+        if wb.get("ph") is not None:
+            parts.append(f"pH {wb['ph']}")
+        if wb.get("ec") is not None:
+            parts.append(f"EC {wb['ec']} μS/cm")
+        known.append(f"  Source-water baseline (pre-nutrient): {', '.join(parts)}")
+    if profile.get("light"):
+        known.append(f"  Light: {profile['light']}")
+    if profile.get("climate"):
+        known.append(f"  Climate / exposure: {profile['climate']}")
+    if profile.get("business_goal"):
+        known.append(f"  Goal: {profile['business_goal']}")
+    if profile.get("target_buyer"):
+        known.append(f"  Target buyer: {profile['target_buyer']}")
+    practices = profile.get("practices") or []
+    if practices:
+        known.append("  Grower practices to account for:")
+        known.extend(f"    - {p}" for p in practices)
+    if not known:
+        return None
+    lines.extend(known)
+    return "\n".join(lines)
+
+
+def _render_grower_memory(entries: Optional[list]) -> Optional[str]:
+    if not entries:
+        return None
+    lines = [
+        "## Grower Memory — what the grower has taught the Brain about this grow",
+        "(Authoritative over your general knowledge for THIS grow. NEVER overrides the safety hard-limits.)",
+    ]
+    for e in entries:
+        kind = e.get("kind", "fact")
+        text = e.get("text", "")
+        lines.append(f"  - [{kind}] {text}")
+    return "\n".join(lines)
+
+
+def _render_episodes(episodes: Optional[list]) -> Optional[str]:
+    if not episodes:
+        return None
+    lines = [
+        "## Recent Episodes — what you (the Brain) did on recent cycles, newest first",
+        "(Your own continuity. Use it to avoid re-deciding the same thing and to notice whether past actions worked.)",
+    ]
+    for e in episodes:
+        ts = str(e.get("ts", ""))[:16].replace("T", " ")
+        status = e.get("status")
+        summary = e.get("summary", "")
+        tag = f"{ts} · {status}" if status else ts
+        lines.append(f"  - [{tag}] {summary}")
+    return "\n".join(lines)
