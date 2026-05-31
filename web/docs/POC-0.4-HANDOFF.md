@@ -212,7 +212,8 @@ browser→Blob; chat_messages stores only the URL.  Long-term cleaner.
 
 ## 5. Open / pending items the next session inherits
 
-- **`INGEST_SECRET` on Vercel** is empty.  HA push endpoint returns 401 until set.  Grower needs to generate one and put it on both ends.
+- **Production URL**: `https://app.telos.ag` (custom domain, added 31 May 2026).  Old `growk-one.vercel.app` still resolves and serves identical content; safe to remove once external integrations are updated.
+- **`INGEST_SECRET` on Vercel** is empty.  HA push endpoint returns 401 until set.  Grower needs to generate one and put it on both ends.  The endpoint URL is `https://app.telos.ag/api/sensor/ingest`.
 - **POC 0.3 system row** is still active in DB (`--s0bn5`).  Decide whether to archive or keep as the active rig for POC 0.4.
 - **`TUYA_ACCESS_ID`/`SECRET` rotation** — POC 0.3 burned credits on a Tuya cloud project.  New credentials for "Telos POC" with EU endpoint are deployed; should still be rotated when going past dev.
 - **Bottle levels for POC 0.3** are NOT declared.  Brain has no inventory data.  Either declare them or the autonomous loop stays in propose-only mode (which is the safe default anyway).
