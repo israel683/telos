@@ -1,0 +1,22 @@
+{
+  "id": "lettuce",
+  "species": "lettuce",
+  "cultivar": null,
+  "provenance": null,
+  "protocol_version": 1,
+  "inherits": null,
+  "stages": {
+    "seedling":   { "ph": { "target": 6.0, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 800,  "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 20, "tolerance": 4, "tolerance_mode": "absolute" } },
+    "vegetative": { "ph": { "target": 6.0, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1000, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 21, "tolerance": 4, "tolerance_mode": "absolute" } },
+    "flowering":  { "ph": { "target": 6.0, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1100, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 21, "tolerance": 4, "tolerance_mode": "absolute" } },
+    "fruiting":   { "ph": { "target": 6.0, "tolerance": 0.4, "tolerance_mode": "absolute" }, "ec": { "target": 1100, "tolerance": 20, "tolerance_mode": "percent" }, "water_temp": { "target": 21, "tolerance": 4, "tolerance_mode": "absolute" } }
+  },
+  "stress_signatures": [
+    "Tip burn on new leaves — EC too high or calcium uptake suppressed by heat.",
+    "Bolting (early flower stalk) when water rises above band in summer — bitter leaf."
+  ],
+  "harvest_markers": [
+    "Cut whole head once the rosette is full and firm, before any stalk elongates."
+  ],
+  "story": { "he": null, "en": null }
+}

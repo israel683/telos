@@ -67,6 +67,7 @@ class GrowKAgent:
             "system_type": config.system_type,
             "reservoir_liters": config.reservoir_liters,
             "crop_type": config.crop_type,
+            "cultivar_id": config.cultivar_id,  # optional registry id; "" = resolve by crop_type
             "growth_stage": "vegetative",  # TODO: track automatically
             "location": "Tel Aviv, Israel",
             "outdoor": True,
@@ -84,6 +85,8 @@ class GrowKAgent:
         logger.info(f"  Sensor: {self.sensor.name}")
         logger.info(f"  Doser:  {self.doser.name}")
         logger.info(f"  Crop:   {self.system_profile['crop_type']}")
+        if self.system_profile.get('cultivar_id'):
+            logger.info(f"  Cultivar: {self.system_profile['cultivar_id']}")
         logger.info(f"  Model:  {config.claude_model}")
         logger.info(f"  Mode:   {'MOCK' if self.use_mock else 'LIVE'}")
         logger.info("=" * 60)

@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from devices.base import WaterReading, DoserChannel
+from data import cultivars
 
 
 # ---------------------------------------------------------------------------
@@ -462,11 +463,23 @@ def build_analysis_prompt(
     sections.append("## System Instance")
     sections.append(f"  Type: {system_profile.get('system_type', 'nft_wall_mounted')}")
     sections.append(f"  Reservoir: {system_profile.get('reservoir_liters', 60)} liters")
-    sections.append(f"  Crop: {system_profile.get('crop_type', 'lettuce')}")
-    sections.append(f"  Growth stage: {system_profile.get('growth_stage', 'vegetative')}")
+    crop_type = system_profile.get('crop_type', 'lettuce')
+    growth_stage = system_profile.get('growth_stage', 'vegetative')
+    sections.append(f"  Crop: {crop_type}")
+    sections.append(f"  Growth stage: {growth_stage}")
     sections.append(f"  Location: {system_profile.get('location', 'Tel Aviv, Israel')}")
     sections.append(f"  Outdoor: {system_profile.get('outdoor', True)}")
     sections.append("")
+
+    # --- Cultivar protocol (Network Knowledge layer) ---
+    # Resolve a cultivar-specific protocol if the system declares one; otherwise the
+    # crop_type itself may match a species record. When neither resolves, the generic
+    # crop prose in the SYSTEM_PROMPT carries the knowledge (legacy fallback).
+    cultivar_id = system_profile.get('cultivar_id') or crop_type
+    protocol = cultivars.protocol_block(cultivar_id, growth_stage)
+    if protocol:
+        sections.append(protocol)
+        sections.append("")
 
     # --- Recent dosing actions ---
     if recent_actions:
@@ -541,5 +554,12 @@ CROP_DATABASE = {
 }
 
 
-def get_crop_targets(crop: str) -> dict:
+def get_crop_targets(crop: str, stage: str = "vegetative") -> dict:
+    """
+    Resolve target ranges for a crop or cultivar id. Prefers the cultivar registry
+    (cultivar > species), falling back to the legacy CROP_DATABASE, then lettuce.
+    """
+    registry_targets = cultivars.targets_for(crop, stage)
+    if registry_targets:
+        return registry_targets
     return CROP_DATABASE.get(crop, CROP_DATABASE["lettuce"])

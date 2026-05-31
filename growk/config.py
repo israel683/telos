@@ -41,6 +41,10 @@ class Config:
     system_type: str = os.getenv("SYSTEM_TYPE", "nft_wall_mounted")
     reservoir_liters: int = int(os.getenv("RESERVOIR_LITERS", "60"))
     crop_type: str = os.getenv("CROP_TYPE", "lettuce")
+    # Optional cultivar id from the registry (growk/cultivars/), e.g.
+    # "basilico-genovese-dop". When set, the Brain reasons at cultivar level; when
+    # empty, it resolves crop_type against the registry, then the legacy fallback.
+    cultivar_id: str = os.getenv("CULTIVAR_ID", "")
 
     log_level: str = os.getenv("LOG_LEVEL", "INFO")
 
