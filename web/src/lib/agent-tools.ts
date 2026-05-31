@@ -29,6 +29,12 @@ import { PRIMING_DONE_SENTINEL, PRIMING_ML_PER_CHANNEL } from "./priming";
 import { getDosingConfig, allChannelKeys, type DosingConfig } from "./dosing-config";
 import { getProfile, listProfiles } from "./fertilizer-profiles";
 import { getPrimingState } from "./priming";
+import {
+  unansweredQuestions,
+  isOnboardingComplete,
+  type GrowProfile,
+} from "./grow-profile";
+import { allCultivarIds, getCultivarRecord } from "./cultivars";
 
 export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
   // Resolve the per-system dosing layout once per chat request so all tools
@@ -1043,12 +1049,19 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
 
     updateSystem: tool({
       description:
-        "Save what you learned about this system to its profile (name, crop, growth stage, reservoir size, location, notes). Call this whenever you've collected new info — typically right after the grower answers via askGrower. Only include the fields you want to change. The grower never sees this tool call directly; just confirm verbally what you saved.",
+        "Save what you learned about this system to its profile (name, crop, cultivar, growth stage, reservoir size, location, notes). Call this whenever you've collected new info — typically right after the grower answers via askGrower. Only include the fields you want to change. The grower never sees this tool call directly; just confirm verbally what you saved. " +
+        "`cultivar_id` sets the SPECIFIC cultivar (e.g. 'basilico-genovese-dop') — prefer it over the generic `crop_type` whenever the grower names a real cultivar, because the Brain reasons at cultivar level (provenance, stage-tuned bands).",
       inputSchema: z.object({
         name: z.string().optional().describe("Display name in Hebrew"),
         crop_type: z
           .enum(["lettuce", "basil", "spinach", "strawberry", "tomato"])
           .optional(),
+        cultivar_id: z
+          .string()
+          .optional()
+          .describe(
+            `Specific cultivar id from the registry. Available: ${allCultivarIds().join(", ") || "(none)"}. Pass an empty string to clear it and fall back to crop_type.`
+          ),
         growth_stage: z
           .enum(["seedling", "vegetative", "flowering", "fruiting"])
           .optional(),
@@ -1059,19 +1072,118 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
         notes: z.string().optional(),
       }),
       execute: async (patch) => {
-        const updated = await updateSystem(systemId, patch);
+        // Validate cultivar_id against the registry before persisting.
+        if (patch.cultivar_id) {
+          if (!getCultivarRecord(patch.cultivar_id)) {
+            return {
+              ok: false,
+              error: `Unknown cultivar_id '${patch.cultivar_id}'. Available: ${allCultivarIds().join(", ") || "(none)"}.`,
+            };
+          }
+        }
+        // Normalise empty string → null (clear the cultivar).
+        const normalised = {
+          ...patch,
+          ...(patch.cultivar_id === "" ? { cultivar_id: null } : {}),
+        };
+        const updated = await updateSystem(systemId, normalised);
         return {
           ok: true,
-          applied: patch,
+          applied: normalised,
           system: updated
             ? {
                 id: updated.id,
                 name: updated.name,
                 crop_type: updated.crop_type,
+                cultivar_id: updated.cultivar_id,
                 growth_stage: updated.growth_stage,
                 reservoir_liters: updated.reservoir_liters,
               }
             : null,
+        };
+      },
+    }),
+
+    getGrowProfile: tool({
+      description:
+        "Read this grow's personal profile (Grow Context) and see which onboarding questions are still unanswered. Call this at the start of an onboarding conversation, or whenever you're about to ask the grower about their grow, so you ask only what's still missing — never re-ask what's already known. The Brand's doctrine: ask many questions, then build the personal Brain of this grow.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const sys = await getSystem(systemId);
+        const profile = sys?.grow_profile ?? null;
+        const missing = unansweredQuestions(profile);
+        return {
+          system_id: systemId,
+          grow_profile: profile,
+          onboarding_complete: isOnboardingComplete(profile),
+          unanswered_questions: missing.map((q) => ({
+            id: q.id,
+            question: q.q,
+            type: q.type,
+            choices: q.choices ?? null,
+            required: q.required ?? false,
+          })),
+          note:
+            missing.length > 0
+              ? "Ask the grower these ONE at a time (use askGrower for closed-set ones), then persist each answer with recordGrowProfile."
+              : "Onboarding is complete — the personal Brain of this grow is established.",
+        };
+      },
+    }),
+
+    recordGrowProfile: tool({
+      description:
+        "Persist the grower's onboarding answers into this grow's personal profile (Grow Context). Call this right after the grower answers an onboarding question. Pass only the fields you just learned — they deep-merge into the stored profile (water_baseline merges by key; practices append). Set mark_complete:true only once the grower has answered everything essential and you've confirmed nothing critical is missing.",
+      inputSchema: z.object({
+        water_source: z.string().optional().describe("e.g. מי ברז / אוסמוזה הפוכה / באר / מי גשם"),
+        water_baseline: z
+          .object({ ph: z.number().optional(), ec: z.number().optional() })
+          .optional()
+          .describe("Source-water values BEFORE nutrients are added"),
+        light: z.string().optional().describe("Light regime, e.g. 'שמש מלאה בחוץ' or 'LED 16h'"),
+        climate: z.string().optional().describe("Climate / exposure in the grower's words"),
+        business_goal: z.string().optional().describe("What this grow is for — cultivar + harvest target"),
+        target_buyer: z.string().optional().describe("The chef / restaurant this grow serves"),
+        practices: z
+          .array(z.string())
+          .optional()
+          .describe("Routine grower practices to ADD (append) to the profile"),
+        mark_complete: z
+          .boolean()
+          .optional()
+          .describe("Stamp onboarding as complete. Only when everything essential is answered."),
+      }),
+      execute: async (patch) => {
+        const sys = await getSystem(systemId);
+        const cur: GrowProfile = sys?.grow_profile ?? {};
+        const next: GrowProfile = { ...cur };
+
+        if (patch.water_source !== undefined) next.water_source = patch.water_source;
+        if (patch.light !== undefined) next.light = patch.light;
+        if (patch.climate !== undefined) next.climate = patch.climate;
+        if (patch.business_goal !== undefined) next.business_goal = patch.business_goal;
+        if (patch.target_buyer !== undefined) next.target_buyer = patch.target_buyer;
+        if (patch.water_baseline !== undefined) {
+          next.water_baseline = { ...(cur.water_baseline ?? {}), ...patch.water_baseline };
+        }
+        if (patch.practices && patch.practices.length) {
+          next.practices = Array.from(new Set([...(cur.practices ?? []), ...patch.practices]));
+        }
+        if (patch.mark_complete) {
+          next.onboarding_completed_at = new Date().toISOString();
+        }
+
+        await updateSystem(systemId, { grow_profile: next });
+        const stillMissing = unansweredQuestions(next);
+        return {
+          ok: true,
+          grow_profile: next,
+          onboarding_complete: isOnboardingComplete(next),
+          remaining_questions: stillMissing.map((q) => ({ id: q.id, question: q.q })),
+          note:
+            stillMissing.length > 0
+              ? "Saved. Continue with the next unanswered question."
+              : "Saved. Every essential question is answered — you can mark_complete on the next call if not already done.",
         };
       },
     }),
