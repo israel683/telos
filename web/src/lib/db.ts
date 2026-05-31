@@ -232,6 +232,13 @@ export async function ensureSchema(): Promise<void> {
   await safeDdl(() => s`
     ALTER TABLE systems ADD COLUMN IF NOT EXISTS device_source TEXT NOT NULL DEFAULT 'tuya_cloud'
   `);
+  // Optional cultivar id from the shared registry (growk/cultivars/ →
+  // lib/cultivars.generated.ts), e.g. 'basilico-genovese-dop'. When set, target
+  // resolution reasons at cultivar level; NULL → resolve by crop_type, then the
+  // crop+stage defaults in lib/tolerance.ts.  The brand sells cultivar, not crop.
+  await safeDdl(() => s`
+    ALTER TABLE systems ADD COLUMN IF NOT EXISTS cultivar_id TEXT
+  `);
   // Per-task snooze: a task with snoozed_until > NOW() is hidden from the
   // pending list (and the chat widget) until that timestamp passes.  Used
   // when the grower wants to act on a task "later today" without dismissing.
@@ -329,6 +336,12 @@ export type SystemRow = {
   created_at: Date;
   archived_at: Date | null;
   crop_type: string;
+  /**
+   * Optional cultivar id from the shared registry (lib/cultivars.ts), e.g.
+   * 'basilico-genovese-dop'.  NULL → resolve targets by crop_type.  The brand
+   * sells cultivar, not crop — this is where the dashboard reasons at that level.
+   */
+  cultivar_id: string | null;
   growth_stage: string;
   reservoir_liters: number;
   system_type: string;
@@ -413,6 +426,7 @@ function rowToSystem(row: Record<string, unknown>): SystemRow {
     created_at: new Date(row.created_at as string),
     archived_at: row.archived_at ? new Date(row.archived_at as string) : null,
     crop_type: row.crop_type as string,
+    cultivar_id: (row.cultivar_id as string | null) ?? null,
     growth_stage: row.growth_stage as string,
     reservoir_liters: Number(row.reservoir_liters),
     system_type: row.system_type as string,
@@ -647,6 +661,7 @@ export async function createSystem(input: {
   id: string;
   name: string;
   crop_type?: string;
+  cultivar_id?: string | null;
   growth_stage?: string;
   reservoir_liters?: number;
   system_type?: string;
@@ -660,12 +675,13 @@ export async function createSystem(input: {
   await ensureSchema();
   const s = sql();
   const rows = (await s`
-    INSERT INTO systems (id, name, crop_type, growth_stage, reservoir_liters,
+    INSERT INTO systems (id, name, crop_type, cultivar_id, growth_stage, reservoir_liters,
                          system_type, location, outdoor, ai_cycle_minutes,
                          tuya_device_id, notes, dosing_config)
     VALUES (
       ${input.id}, ${input.name},
       ${input.crop_type ?? "lettuce"},
+      ${input.cultivar_id ?? null},
       ${input.growth_stage ?? "vegetative"},
       ${input.reservoir_liters ?? 60},
       ${input.system_type ?? "nft_wall_mounted"},
@@ -693,6 +709,7 @@ export async function updateSystem(
   if (patch.name !== undefined) fields.push(["name", patch.name]);
   if (patch.status !== undefined) fields.push(["status", patch.status]);
   if (patch.crop_type !== undefined) fields.push(["crop_type", patch.crop_type]);
+  if (patch.cultivar_id !== undefined) fields.push(["cultivar_id", patch.cultivar_id]);
   if (patch.growth_stage !== undefined) fields.push(["growth_stage", patch.growth_stage]);
   if (patch.reservoir_liters !== undefined) fields.push(["reservoir_liters", patch.reservoir_liters]);
   if (patch.system_type !== undefined) fields.push(["system_type", patch.system_type]);
