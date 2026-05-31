@@ -1139,11 +1139,12 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
       description:
         "Persist something the grower TAUGHT you about this grow into Grower Memory — a fact, a correction, or a preference that should inform every future cycle. " +
         "Use this whenever the grower tells you something durable that isn't a fixed onboarding field: 'the east row always reads 0.3 pH higher', 'I never dose on Shabbat', 'last summer this cultivar bolted at 28°C here', or corrects the Brain ('that EC is normal for me, stop flagging it'). " +
+        "Also use it for an `observation` — an OUTCOME the grower reports after something happened ('the basil perked up the morning after that dose', 'the radicchio finally coloured once it cooled'). Observations give the Brain feedback on whether past actions worked. " +
         "This is the memory that makes the Brain THIS grower's Brain over time. It is authoritative over general knowledge but never over safety. Phrase `text` in the grower's language (Hebrew).",
       inputSchema: z.object({
         kind: z
-          .enum(["fact", "correction", "preference"])
-          .describe("fact = something true about this grow; correction = fixing the Brain's wrong assumption; preference = how the grower wants things done"),
+          .enum(["fact", "correction", "preference", "observation"])
+          .describe("fact = something true about this grow; correction = fixing the Brain's wrong assumption; preference = how the grower wants things done; observation = an outcome the grower saw after an action/event"),
         text: z.string().describe("The thing to remember, in Hebrew, in the grower's words"),
       }),
       execute: async ({ kind, text }) => {

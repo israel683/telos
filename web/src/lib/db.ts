@@ -14,7 +14,7 @@
  */
 import { neon, NeonQueryFunction } from "@neondatabase/serverless";
 import type { GrowProfile } from "./grow-profile";
-import type { GrowerMemoryEntry, GrowerMemoryKind } from "./grower-memory";
+import type { GrowerMemoryEntry, GrowerMemoryKind, GrowEpisode } from "./grower-memory";
 
 const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
 
@@ -271,6 +271,22 @@ export async function ensureSchema(): Promise<void> {
     )
   `);
   await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_memory_active ON grower_memory(system_id, active, ts DESC)`);
+
+  // Episodic memory — a compact narrative log of what the autonomous Brain did
+  // each cycle (status + one-line summary), so future cycles have continuity
+  // beyond the 24h action window.  Distinct from grower_memory (what the GROWER
+  // taught); this is what the BRAIN did.  See lib/grower-memory.ts render.
+  await safeDdl(() => s`
+    CREATE TABLE IF NOT EXISTS grow_episodes (
+      id          BIGSERIAL PRIMARY KEY,
+      system_id   TEXT NOT NULL DEFAULT 'default',
+      ts          TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+      status      TEXT,
+      summary     TEXT NOT NULL,
+      decision_id BIGINT REFERENCES ai_decisions(id)
+    )
+  `);
+  await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_episodes_ts ON grow_episodes(system_id, ts DESC)`);
 
   // NOTE: we used to auto-create a 'default' row on every bootstrap so the
   // single-system POC always had a parent for incoming readings.  That made
@@ -819,6 +835,43 @@ export async function deactivateGrowerMemory(
   await ensureSchema();
   const s = sql();
   await s`UPDATE grower_memory SET active = FALSE WHERE id = ${id} AND system_id = ${systemId}`;
+}
+
+// === Episodic memory ===
+
+export async function addEpisode(
+  systemId: string,
+  episode: { status?: string | null; summary: string; decision_id?: number | null }
+): Promise<number> {
+  await ensureSchema();
+  const s = sql();
+  const rows = (await s`
+    INSERT INTO grow_episodes (system_id, status, summary, decision_id)
+    VALUES (${systemId}, ${episode.status ?? null}, ${episode.summary}, ${episode.decision_id ?? null})
+    RETURNING id
+  `) as unknown as Array<{ id: number }>;
+  return Number(rows[0].id);
+}
+
+export async function getRecentEpisodes(
+  systemId: string,
+  limit = 8
+): Promise<GrowEpisode[]> {
+  await ensureSchema();
+  const s = sql();
+  const rows = (await s`
+    SELECT id, ts, status, summary
+    FROM grow_episodes
+    WHERE system_id = ${systemId}
+    ORDER BY ts DESC
+    LIMIT ${limit}
+  `) as unknown as Array<Record<string, unknown>>;
+  return rows.map((r) => ({
+    id: Number(r.id),
+    ts: new Date(r.ts as string),
+    status: (r.status as string | null) ?? null,
+    summary: r.summary as string,
+  }));
 }
 
 export async function archiveSystem(id: string): Promise<void> {

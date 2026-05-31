@@ -16,7 +16,7 @@ import type { ChannelBottleStatus } from "./bottle-status";
 import type { TargetRanges } from "./tolerance";
 import { evaluateMetric, bandWidth } from "./tolerance";
 import { renderGrowContext, type GrowProfile } from "./grow-profile";
-import { renderGrowerMemory, type GrowerMemoryEntry } from "./grower-memory";
+import { renderGrowerMemory, renderEpisodes, type GrowerMemoryEntry, type GrowEpisode } from "./grower-memory";
 import { TELOS_VOICE_PROMPT } from "../brand/voice";
 
 export const SYSTEM_PROMPT = TELOS_VOICE_PROMPT + `
@@ -389,6 +389,8 @@ export function buildUserPrompt(opts: {
   growProfile?: GrowProfile | null;
   /** Grower Memory — facts/corrections/preferences the grower has taught the Brain. */
   growerMemory?: GrowerMemoryEntry[] | null;
+  /** Episodic memory — the Brain's own recent-cycle narrative log. */
+  episodes?: GrowEpisode[] | null;
   pendingTasks: Pick<HumanTask, "id" | "type" | "priority" | "title" | "created_at">[];
 }): string {
   const {
@@ -405,6 +407,7 @@ export function buildUserPrompt(opts: {
     diurnal,
     growProfile,
     growerMemory,
+    episodes,
     pendingTasks,
   } = opts;
   const sections: string[] = [];
@@ -434,6 +437,13 @@ export function buildUserPrompt(opts: {
   const memorySection = renderGrowerMemory(growerMemory);
   if (memorySection) {
     sections.push(memorySection);
+    sections.push("");
+  }
+
+  // Episodic memory — the Brain's own recent-cycle log (omitted when empty).
+  const episodeSection = renderEpisodes(episodes);
+  if (episodeSection) {
+    sections.push(episodeSection);
     sections.push("");
   }
 

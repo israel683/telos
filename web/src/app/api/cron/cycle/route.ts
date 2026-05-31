@@ -29,6 +29,7 @@ import {
   setNextCheckAt,
   decrementBottle,
   getLastCronChatPush,
+  addEpisode,
 } from "@/lib/db";
 import { analyzeAndDecide } from "@/lib/brain";
 import { doseChannelByPhysical } from "@/lib/devices/jebao";
@@ -278,6 +279,35 @@ export async function GET(req: Request) {
               success: r.success,
               error: r.error,
             });
+          }
+        }
+
+        // Episodic memory — log a compact narrative line for this cycle so
+        // future cycles have continuity beyond the 24h action window.  Skip
+        // the boring healthy-no-op cycles to keep the log meaningful.
+        const successes = executed.filter((e) => e.success);
+        const noteworthy =
+          decision.status !== "healthy" ||
+          executed.length > 0 ||
+          decision.human_tasks.length > 0;
+        if (noteworthy) {
+          const actionText =
+            successes.length > 0
+              ? ` · dosed ${successes.map((e) => `${e.channel} ${e.amount_ml}ml`).join(", ")}`
+              : executed.length > 0
+              ? ` · proposed ${executed.length} dose(s) (queued for approval)`
+              : decision.human_tasks.length > 0
+              ? ` · raised ${decision.human_tasks.length} task(s)`
+              : "";
+          const base = (decision.message || decision.analysis || "cycle").slice(0, 220);
+          try {
+            await addEpisode(sys.id, {
+              status: decision.status,
+              summary: `${base}${actionText}`,
+              decision_id: decisionId,
+            });
+          } catch (e) {
+            console.error(`[cron/cycle] addEpisode failed: ${e}`);
           }
         }
 

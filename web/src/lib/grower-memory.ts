@@ -11,7 +11,7 @@
  * overrides the safety hard-limits.
  */
 
-export type GrowerMemoryKind = "fact" | "correction" | "preference";
+export type GrowerMemoryKind = "fact" | "correction" | "preference" | "observation";
 
 export type GrowerMemoryEntry = {
   id: number;
@@ -23,7 +23,38 @@ export type GrowerMemoryEntry = {
   source: string;
 };
 
-export const GROWER_MEMORY_KINDS: GrowerMemoryKind[] = ["fact", "correction", "preference"];
+export const GROWER_MEMORY_KINDS: GrowerMemoryKind[] = [
+  "fact",
+  "correction",
+  "preference",
+  "observation",
+];
+
+/**
+ * One episode of the autonomous Brain's narrative log — what it did on a cycle
+ * and the status it judged. Distinct from grower-taught memory; this is the
+ * Brain's own continuity across cycles (episodic memory).
+ */
+export type GrowEpisode = {
+  id: number;
+  ts: Date;
+  status: string | null;
+  summary: string;
+};
+
+/** Render recent episodes as a compact prompt section. "" when none. */
+export function renderEpisodes(episodes: GrowEpisode[] | null | undefined): string {
+  if (!episodes || episodes.length === 0) return "";
+  const lines: string[] = [
+    "## Recent Episodes — what you (the Brain) did on recent cycles, newest first",
+    "(Your own continuity. Use it to avoid re-deciding the same thing and to notice whether past actions worked.)",
+  ];
+  for (const e of episodes) {
+    const day = e.ts.toISOString().slice(0, 16).replace("T", " ");
+    lines.push(`  - [${day}${e.status ? ` · ${e.status}` : ""}] ${e.summary}`);
+  }
+  return lines.join("\n");
+}
 
 /**
  * Render the active memory as a prompt section. Returns "" when there's nothing
