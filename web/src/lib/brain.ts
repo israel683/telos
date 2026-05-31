@@ -115,6 +115,7 @@ export async function analyzeAndDecide(opts: {
     bottleReport,
     targets,
     diurnal,
+    growProfile: sysRow?.grow_profile ?? null,
     pendingTasks: opts.pendingTasks.map((t) => ({
       id: t.id,
       type: t.type,

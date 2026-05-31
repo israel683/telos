@@ -13,6 +13,7 @@
  * invoke from any cron/API handler.
  */
 import { neon, NeonQueryFunction } from "@neondatabase/serverless";
+import type { GrowProfile } from "./grow-profile";
 
 const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
 
@@ -239,6 +240,13 @@ export async function ensureSchema(): Promise<void> {
   await safeDdl(() => s`
     ALTER TABLE systems ADD COLUMN IF NOT EXISTS cultivar_id TEXT
   `);
+  // The personal Brain of this grow (Grow Context layer) — typed answers to the
+  // onboarding questions: water source + baseline, light, climate, business
+  // goal, grower practices.  Shape parsed by lib/grow-profile.ts.  NULL = grow
+  // not yet onboarded.  Per-grow dynamic state, so it lives here (Neon).
+  await safeDdl(() => s`
+    ALTER TABLE systems ADD COLUMN IF NOT EXISTS grow_profile JSONB
+  `);
   // Per-task snooze: a task with snoozed_until > NOW() is hidden from the
   // pending list (and the chat widget) until that timestamp passes.  Used
   // when the grower wants to act on a task "later today" without dismissing.
@@ -342,6 +350,11 @@ export type SystemRow = {
    * sells cultivar, not crop — this is where the dashboard reasons at that level.
    */
   cultivar_id: string | null;
+  /**
+   * The personal Brain of this grow (Grow Context) — typed onboarding answers.
+   * NULL = not yet onboarded.  Shape in lib/grow-profile.ts.
+   */
+  grow_profile: GrowProfile | null;
   growth_stage: string;
   reservoir_liters: number;
   system_type: string;
@@ -427,6 +440,7 @@ function rowToSystem(row: Record<string, unknown>): SystemRow {
     archived_at: row.archived_at ? new Date(row.archived_at as string) : null,
     crop_type: row.crop_type as string,
     cultivar_id: (row.cultivar_id as string | null) ?? null,
+    grow_profile: (row.grow_profile as GrowProfile | null) ?? null,
     growth_stage: row.growth_stage as string,
     reservoir_liters: Number(row.reservoir_liters),
     system_type: row.system_type as string,
@@ -728,6 +742,13 @@ export async function updateSystem(
     const blob = patch.dosing_config === null ? null : JSON.stringify(patch.dosing_config);
     await s.query(
       `UPDATE systems SET dosing_config = $1::jsonb WHERE id = $2`,
+      [blob, id]
+    );
+  }
+  if (patch.grow_profile !== undefined) {
+    const blob = patch.grow_profile === null ? null : JSON.stringify(patch.grow_profile);
+    await s.query(
+      `UPDATE systems SET grow_profile = $1::jsonb WHERE id = $2`,
       [blob, id]
     );
   }

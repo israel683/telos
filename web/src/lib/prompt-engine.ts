@@ -15,6 +15,7 @@ import type { PrimingState } from "./priming";
 import type { ChannelBottleStatus } from "./bottle-status";
 import type { TargetRanges } from "./tolerance";
 import { evaluateMetric, bandWidth } from "./tolerance";
+import { renderGrowContext, type GrowProfile } from "./grow-profile";
 import { TELOS_VOICE_PROMPT } from "../brand/voice";
 
 export const SYSTEM_PROMPT = TELOS_VOICE_PROMPT + `
@@ -383,6 +384,8 @@ export function buildUserPrompt(opts: {
   targets?: TargetRanges;
   /** Diurnal context — period + expected pH drift for the current time of day. */
   diurnal?: { period: string; expected_ph_drift: string };
+  /** The personal Brain of this grow (Grow Context layer) — onboarding answers. */
+  growProfile?: GrowProfile | null;
   pendingTasks: Pick<HumanTask, "id" | "type" | "priority" | "title" | "created_at">[];
 }): string {
   const {
@@ -397,6 +400,7 @@ export function buildUserPrompt(opts: {
     bottleReport,
     targets,
     diurnal,
+    growProfile,
     pendingTasks,
   } = opts;
   const sections: string[] = [];
@@ -415,6 +419,11 @@ export function buildUserPrompt(opts: {
   sections.push(`  Growth stage: ${systemProfile.growth_stage ?? "vegetative"}`);
   sections.push(`  Location: ${systemProfile.location ?? "Tel Aviv, Israel"}`);
   sections.push(`  Outdoor: ${systemProfile.outdoor ?? true}`);
+  sections.push("");
+
+  // Grow Context — the personal Brain of this grow (onboarding answers + what's
+  // still unknown so the brain asks rather than guesses).
+  sections.push(renderGrowContext(growProfile));
   sections.push("");
 
   // CRITICAL safety context — the brain must know whether its proposals
