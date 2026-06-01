@@ -18,6 +18,9 @@ const LINKS = [
 
 export function Nav() {
   const pathname = usePathname();
+  // The marketing homepage (/site) is standalone — it carries its own nav +
+  // footer and its own chrome, so the dashboard nav must not render over it.
+  if (pathname?.startsWith("/site")) return null;
   return (
     <nav className="border-b border-[rgba(238,237,232,0.07)] bg-[rgba(12,12,10,0.85)] backdrop-blur sticky top-0 z-30">
       {/* Two visual rows on mobile, one row on sm+.  Row 1 = brand + page

@@ -1,0 +1,205 @@
+/* ============================================================================
+   TELOS marketing homepage — scoped under .telos-site.
+   Recreates the Claude Design "telos-website" bundle. Consumes the global
+   design tokens (design-system/tokens.json → globals.css): neutrals --c-*,
+   the Light Layer (--amber, --ground-warm, --beam-blur …), and --f-display/
+   --f-body. The alias block below lets the bundle's bare token names resolve.
+   ========================================================================== */
+@import url("https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css");
+
+.telos-site {
+  /* bare-name aliases → the app's global tokens (single source of truth) */
+  --void: var(--c-void); --soil: var(--c-soil); --earth: var(--c-earth);
+  --bark: var(--c-bark); --stone: var(--c-stone); --ash: var(--c-ash);
+  --fog: var(--c-fog); --parchment: var(--c-parchment);
+  --basil: var(--c-basil); --moss: var(--c-moss); --terra: var(--c-terra);
+  --mineral: var(--c-mineral);
+  /* layout + motion vars the bundle uses that aren't global */
+  --gutter: 7vw;
+  --track-logo: 0.22em; --track-label: 0.3em; --track-tight: -0.015em;
+  --ease: cubic-bezier(0.4, 0, 0.2, 1);
+
+  background: var(--ground-warm);
+  color: var(--fog);
+  font-family: var(--f-body);
+  font-weight: 300;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+  min-height: 100vh;
+}
+.telos-site *, .telos-site *::before, .telos-site *::after { box-sizing: border-box; }
+
+/* ── type primitives ───────────────────────────────────────────────────── */
+.telos-site .eyebrow{ font-family:var(--f-body);font-weight:500;font-size:.62rem;letter-spacing:var(--track-label);text-transform:uppercase;color:var(--amber);display:inline-block; }
+.telos-site .eyebrow.basil{ color:var(--basil); }
+.telos-site .display{ font-family:var(--f-display);font-weight:300;letter-spacing:var(--track-tight);line-height:1.02;color:var(--parchment);text-wrap:balance; }
+.telos-site .display em{ font-style:italic;font-weight:500;color:var(--parchment); }
+.telos-site .h-hero{ font-size:clamp(2.8rem,7.4vw,6rem); }
+.telos-site .h-section{ font-size:clamp(2.2rem,5.2vw,4rem); }
+.telos-site .h-gate{ font-size:clamp(1.7rem,2.6vw,2.5rem); }
+.telos-site .subline{ font-family:var(--f-body);font-weight:300;font-size:clamp(1.05rem,1.5vw,1.35rem);line-height:1.65;color:var(--fog);text-wrap:pretty;max-width:30ch; }
+.telos-site .subline b{ font-weight:500;color:var(--parchment); }
+.telos-site .subline em{ font-style:italic;color:var(--parchment); }
+.telos-site .coda{ font-family:var(--f-display);font-style:italic;font-weight:300;font-size:1.1rem;color:var(--ash); }
+
+/* ── CTAs ──────────────────────────────────────────────────────────────── */
+.telos-site .cta{ display:inline-flex;align-items:baseline;gap:.55em;font-family:var(--f-body);font-weight:500;font-size:.82rem;letter-spacing:.16em;text-transform:uppercase;color:var(--basil);text-decoration:none;transition:color .5s var(--ease),gap .5s var(--ease); }
+.telos-site .cta .arrow{ transition:transform .5s var(--ease);font-weight:400; }
+.telos-site .cta:hover{ color:var(--parchment);gap:.85em; }
+.telos-site .cta:hover .arrow{ transform:translateX(3px); }
+.telos-site .cta-solid{ display:inline-flex;align-items:center;gap:.7em;font-family:var(--f-body);font-weight:500;font-size:.78rem;letter-spacing:.16em;text-transform:uppercase;background:var(--basil);color:#10130a;text-decoration:none;padding:1.05rem 2.1rem;border-radius:6px;transition:background .5s var(--ease),color .5s var(--ease); }
+.telos-site .cta-solid:hover{ background:var(--parchment);color:var(--void); }
+
+/* ── nav ───────────────────────────────────────────────────────────────── */
+.telos-site .nav{ position:fixed;top:0;left:0;right:0;z-index:200;display:flex;align-items:center;justify-content:space-between;padding:1.6rem var(--gutter);transition:background .6s var(--ease),padding .6s var(--ease),border-color .6s var(--ease);border-bottom:1px solid transparent; }
+.telos-site .nav.scrolled{ background:color-mix(in srgb,var(--ground-warm) 82%,transparent);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);padding-top:1.05rem;padding-bottom:1.05rem;border-bottom-color:color-mix(in srgb,var(--parchment) 7%,transparent); }
+.telos-site .wordmark{ font-family:var(--f-display);font-weight:300;font-size:1.35rem;letter-spacing:var(--track-logo);text-indent:var(--track-logo);color:var(--parchment);text-decoration:none; }
+.telos-site .nav-cta{ font-family:var(--f-body);font-weight:500;font-size:.66rem;letter-spacing:.2em;text-transform:uppercase;color:var(--fog);text-decoration:none;transition:color .5s var(--ease); }
+.telos-site .nav-cta:hover{ color:var(--basil); }
+
+/* ── section shell ─────────────────────────────────────────────────────── */
+.telos-site .section{ position:relative;min-height:100vh;display:flex;flex-direction:column;justify-content:center;padding:9rem var(--gutter) 7rem; }
+.telos-site .section-inner{ width:100%;max-width:1180px;margin-inline:auto; }
+.telos-site .measure{ max-width:760px; }
+.telos-site .warm-pool{ position:relative; }
+.telos-site .warm-pool::before{ content:"";position:absolute;z-index:0;pointer-events:none;width:60vw;height:60vw;max-width:760px;max-height:760px;left:-12vw;top:50%;transform:translateY(-50%);background:radial-gradient(ellipse 60% 60% at 40% 40%, color-mix(in srgb,var(--amber) 9%,transparent), transparent 64%); }
+.telos-site .warm-pool>*{ position:relative;z-index:1; }
+
+/* ── the light: glow + beam + vignette + dust ──────────────────────────── */
+.telos-site .lit{ position:relative;overflow:hidden; }
+.telos-site .lit .glow{ position:absolute;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 70% 90% at 30% 25%, color-mix(in srgb,var(--tint,var(--amber)) 20%,transparent), transparent 62%); }
+.telos-site .lit.standard .glow{ opacity:.5; }
+.telos-site .lit.quiet .glow{ opacity:0; }
+.telos-site .beam{ position:absolute;top:-12%;left:24%;width:42%;height:150%;z-index:0;pointer-events:none;--lit-c:color-mix(in srgb,var(--tint,var(--amber)) 56%,var(--lit-white));background:linear-gradient(168deg, color-mix(in srgb,var(--lit-c) 40%,transparent) 0%, color-mix(in srgb,var(--lit-c) 13%,transparent) 32%, transparent 60%);transform:rotate(var(--beam-angle));filter:blur(var(--beam-blur)); }
+.telos-site .vignette{ position:absolute;inset:0;z-index:0;pointer-events:none;background:radial-gradient(ellipse 96% 96% at 46% 36%, transparent 36%, rgba(0,0,0,.55) 100%); }
+.telos-site .dust{ position:absolute;inset:0;z-index:0;pointer-events:none;mix-blend-mode:overlay;opacity:.14;background-image:url('/brand/grain.svg');background-size:170px; }
+
+@keyframes site-beam-reveal{ from{opacity:0} to{opacity:.72} }
+@keyframes site-glow-reveal{ from{opacity:0} to{opacity:.72} }
+@keyframes site-breathe{ 0%,100%{opacity:.72} 50%{opacity:1} }
+@keyframes site-drift{ 0%,100%{transform:rotate(var(--beam-angle)) translateX(0)} 50%{transform:rotate(calc(var(--beam-angle) - .8deg)) translateX(3px)} }
+.telos-site .breathing .beam{ opacity:.72;animation:site-beam-reveal var(--reveal) var(--ease) both, site-breathe var(--breathe-glow) var(--ease) var(--reveal) infinite, site-drift var(--drift) var(--ease) var(--reveal) infinite; }
+.telos-site .breathing .glow{ opacity:.72;animation:site-glow-reveal var(--reveal) var(--ease) both, site-breathe var(--breathe-glow) var(--ease) var(--reveal) infinite; }
+
+/* ── annotation pill ───────────────────────────────────────────────────── */
+.telos-site .annotation{ display:inline-flex;align-items:center;gap:8px;background:color-mix(in srgb,var(--basil) 12%,transparent);border:1px solid color-mix(in srgb,var(--basil) 40%,transparent);border-radius:20px;padding:5px 13px;font-family:var(--f-body);font-size:.6rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#b9cd83; }
+.telos-site .annotation .dot{ width:6px;height:6px;border-radius:50%;background:var(--basil);box-shadow:0 0 9px rgba(137,168,62,.9); }
+@keyframes site-pulse-dot{ 0%,100%{opacity:1} 50%{opacity:.45} }
+.telos-site .breathing .annotation .dot{ animation:site-pulse-dot var(--breathe-glow) var(--ease) infinite; }
+
+/* ── cgi window ────────────────────────────────────────────────────────── */
+.telos-site .cgi{ position:relative;overflow:hidden;border-radius:var(--radius-soft);background:var(--surface-warm);display:flex;align-items:flex-end;min-height:340px; }
+.telos-site .cgi-tag{ font-family:var(--f-body);font-weight:500;font-size:.54rem;letter-spacing:.2em;text-transform:uppercase;color:color-mix(in srgb,var(--parchment) 50%,transparent);background:color-mix(in srgb,var(--void) 42%,transparent);backdrop-filter:blur(5px);-webkit-backdrop-filter:blur(5px);padding:6px 11px;border-radius:5px;display:inline-flex;align-items:center;gap:8px; }
+.telos-site .cgi-tag i{ color:var(--stone);font-size:.9rem; }
+
+/* ── scroll reveal ─────────────────────────────────────────────────────── */
+.telos-site .reveal{ opacity:0;transform:translateY(22px);transition:opacity 1.5s var(--ease),transform 1.5s var(--ease); }
+.telos-site .reveal.in{ opacity:1;transform:none; }
+.telos-site .reveal.d1{ transition-delay:.12s } .telos-site .reveal.d2{ transition-delay:.26s }
+.telos-site .reveal.d3{ transition-delay:.42s } .telos-site .reveal.d4{ transition-delay:.58s }
+
+/* ── footer ────────────────────────────────────────────────────────────── */
+.telos-site .footer{ position:relative;padding:5rem var(--gutter) 3.5rem;border-top:1px solid color-mix(in srgb,var(--parchment) 6%,transparent); }
+.telos-site .footer-inner{ max-width:1180px;margin-inline:auto;display:flex;flex-wrap:wrap;gap:2.4rem 4rem;align-items:flex-start;justify-content:space-between; }
+.telos-site .footer .wordmark{ font-size:1.5rem; }
+.telos-site .footer-tag{ font-family:var(--f-display);font-style:italic;font-weight:500;font-size:.95rem;color:var(--basil);margin-top:.7rem; }
+.telos-site .footer-nav{ display:flex;gap:2.6rem;flex-wrap:wrap; }
+.telos-site .footer-col{ display:flex;flex-direction:column;gap:.7rem; }
+.telos-site .footer-col .col-h{ font-size:.56rem;letter-spacing:.24em;text-transform:uppercase;color:var(--stone);margin-bottom:.3rem; }
+.telos-site .footer-col a{ font-size:.88rem;color:var(--ash);text-decoration:none;transition:color .4s var(--ease); }
+.telos-site .footer-col a:hover{ color:var(--basil); }
+.telos-site .footer-soon{ font-size:.62rem;color:var(--stone);letter-spacing:.04em; }
+.telos-site .footer-base{ max-width:1180px;margin:3rem auto 0;padding-top:1.6rem;border-top:1px solid color-mix(in srgb,var(--parchment) 5%,transparent);display:flex;flex-wrap:wrap;gap:1rem;justify-content:space-between;font-size:.72rem;color:var(--stone);letter-spacing:.03em; }
+
+/* ── section-specific layout ───────────────────────────────────────────── */
+.telos-site .section-hero{ min-height:100vh;justify-content:flex-end;padding-bottom:clamp(4rem,9vh,8rem);background:var(--void); }
+.telos-site .hero-img{ position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:58% center;z-index:0; }
+.telos-site .hero-glow{ background:radial-gradient(ellipse 48% 60% at 30% 18%, color-mix(in srgb,var(--amber) 26%,transparent), transparent 60%); }
+.telos-site .hero-vignette{ background:radial-gradient(ellipse 120% 100% at 60% 42%, transparent 30%, rgba(6,6,4,.86) 100%); }
+.telos-site .hero-cgi{ position:absolute;top:auto;bottom:1.4rem;right:1.6rem;z-index:3; }
+.telos-site .hero-content{ position:relative;z-index:2;width:100%;max-width:1180px;margin-inline:auto; }
+.telos-site .hero-content .h-hero{ margin-bottom:1.6rem;text-shadow:0 2px 40px rgba(0,0,0,.5); }
+.telos-site .hero-sub{ max-width:34ch;margin-bottom:2.3rem;color:var(--parchment);opacity:.92; }
+.telos-site .scroll-hint{ position:absolute;left:50%;bottom:2rem;transform:translateX(-50%);z-index:2; }
+.telos-site .scroll-line{ display:block;width:1px;height:54px;background:linear-gradient(to bottom, transparent, color-mix(in srgb,var(--amber) 70%,transparent));transform-origin:bottom;animation:site-scroll-breathe 4.5s var(--ease) infinite; }
+@keyframes site-scroll-breathe{ 0%,100%{opacity:.3;transform:scaleY(.7)} 50%{opacity:1;transform:scaleY(1)} }
+
+.telos-site .problem-sub{ max-width:46ch;margin-top:2rem; }
+.telos-site .problem-coda{ margin-top:2.4rem;max-width:40ch; }
+
+.telos-site .brain-grid{ display:grid;grid-template-columns:1fr 0.92fr;gap:clamp(2.5rem,6vw,6rem);align-items:center; }
+.telos-site .brain-copy .h-section{ margin-bottom:2rem; }
+.telos-site .brain-sub{ max-width:48ch; }
+.telos-site .brain-sub.soft{ color:var(--ash);margin-top:1.5rem; }
+.telos-site .brain-window{ min-height:clamp(340px,46vh,500px);display:flex;align-items:center;justify-content:center; }
+.telos-site .brain-window .beam{ left:30%;width:46%; }
+.telos-site .empty-cue{ position:relative;z-index:1;text-align:center;color:var(--stone);margin:auto;padding:2rem; }
+.telos-site .empty-cue i{ font-size:2.4rem;color:color-mix(in srgb,var(--amber) 55%,var(--stone));display:block;margin-bottom:.8rem; }
+.telos-site .empty-cue .n{ font-family:var(--f-body);font-weight:500;font-size:.58rem;letter-spacing:.2em;text-transform:uppercase;color:var(--stone); }
+.telos-site .empty-cue .d{ font-size:.74rem;color:color-mix(in srgb,var(--stone) 75%,transparent);margin-top:.45rem;letter-spacing:.02em; }
+.telos-site .brain-annotation{ position:absolute;z-index:3;top:1.4rem;left:1.4rem; }
+
+.telos-site .section-impact{ text-align:center;align-items:center; }
+.telos-site .measure-wide{ max-width:880px;margin-inline:auto; }
+.telos-site .section-impact .h-section{ margin-bottom:2.2rem; }
+.telos-site .impact-sub{ max-width:54ch;margin-inline:auto;font-size:clamp(1.15rem,1.7vw,1.45rem); }
+.telos-site .impact-coda{ margin-top:2.6rem;color:var(--basil);font-size:1.25rem; }
+
+.telos-site .gates-head{ text-align:center;margin-bottom:clamp(2.5rem,6vh,4.5rem); }
+.telos-site .gates{ display:grid;grid-template-columns:1.5fr 1fr 1fr;gap:18px;align-items:stretch; }
+.telos-site .gate{ position:relative;display:flex;flex-direction:column;text-decoration:none;border-radius:var(--radius-soft);background:var(--surface-warm);overflow:hidden;min-height:clamp(420px,52vh,560px);transition:transform .6s var(--ease),box-shadow .6s var(--ease); }
+.telos-site .gate-farm{ box-shadow:var(--glow-shadow); }
+.telos-site a.gate:hover{ transform:translateY(-4px); }
+.telos-site a.gate.gate-farm:hover{ box-shadow:0 26px 60px rgba(0,0,0,.6); }
+.telos-site .gate-window{ position:relative;flex:1;display:flex;align-items:center;justify-content:center;min-height:0; }
+.telos-site .gate-window .empty-cue{ padding:1.4rem; }
+.telos-site .gate-window .empty-cue i{ font-size:2rem; }
+.telos-site .gate-body{ position:relative;z-index:2;padding:1.6rem 1.7rem 1.8rem; }
+.telos-site .gate-body .h-gate{ color:var(--parchment);margin-bottom:.5rem; }
+.telos-site .gate-line{ font-family:var(--f-body);font-weight:300;font-size:.98rem;line-height:1.5;color:var(--ash);max-width:24ch; }
+.telos-site .gate-line em{ font-style:italic;color:var(--fog); }
+.telos-site .gate-cta{ margin-top:1.1rem;font-size:.74rem; }
+.telos-site .gate-garden{ opacity:.78; }
+.telos-site .gate-garden .gate-body .h-gate{ color:var(--fog); }
+.telos-site .gate-status{ position:absolute;top:1.2rem;left:1.2rem;z-index:3; }
+.telos-site .gate-status.soon{ font-family:var(--f-body);font-weight:500;font-size:.56rem;letter-spacing:.2em;text-transform:uppercase;color:var(--stone);background:color-mix(in srgb,var(--void) 40%,transparent);backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);padding:5px 11px;border-radius:20px;border:1px solid color-mix(in srgb,var(--parchment) 10%,transparent); }
+.telos-site .gate-home .gate-window .beam{ display:none; }
+
+.telos-site .start-grid{ display:grid;grid-template-columns:1.05fr 1fr;gap:clamp(2.5rem,6vw,5.5rem);align-items:start; }
+.telos-site .start-head{ grid-column:1;line-height:1.08; }
+.telos-site .start-list{ grid-column:2;list-style:none;display:flex;flex-direction:column;gap:1.9rem;margin-top:.6rem; }
+.telos-site .start-item{ display:flex;flex-direction:column;gap:.5rem;padding-left:1.4rem;position:relative; }
+.telos-site .start-item::before{ content:"";position:absolute;left:0;top:.55em;width:6px;height:6px;border-radius:50%;background:var(--basil);box-shadow:0 0 8px color-mix(in srgb,var(--basil) 70%,transparent); }
+.telos-site .start-desc{ font-family:var(--f-display);font-weight:300;font-size:clamp(1.3rem,2vw,1.7rem);line-height:1.3;color:var(--parchment);text-wrap:pretty; }
+.telos-site .start-name{ font-family:var(--f-body);font-weight:500;font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;color:var(--stone); }
+.telos-site .start-close{ grid-column:1 / -1;max-width:60ch;margin-top:1rem;padding-top:2.2rem;border-top:1px solid color-mix(in srgb,var(--parchment) 7%,transparent); }
+
+.telos-site .section-invitation{ min-height:100vh;text-align:center;align-items:center;justify-content:center;background:var(--void);overflow:hidden; }
+.telos-site .invite-glow{ background:radial-gradient(ellipse 50% 55% at 50% 34%, color-mix(in srgb,var(--amber) 20%,transparent), transparent 62%); }
+.telos-site .invite-beam{ left:36%;width:34%;top:-18%; }
+.telos-site .invite-inner{ position:relative;z-index:2;max-width:720px;margin-inline:auto; }
+.telos-site .invite-head{ margin-bottom:1.6rem; }
+.telos-site .invite-sub{ max-width:38ch;margin:0 auto 2.6rem; }
+
+@media (max-width:900px){
+  .telos-site .brain-grid{ grid-template-columns:1fr;gap:2.5rem; }
+  .telos-site .brain-window{ min-height:320px; }
+  .telos-site .gates{ grid-template-columns:1fr;gap:16px; }
+  .telos-site .gate{ min-height:360px; }
+  .telos-site .gate-farm{ min-height:420px; }
+  .telos-site .start-grid{ grid-template-columns:1fr;gap:2.2rem; }
+  .telos-site .start-head,.telos-site .start-list,.telos-site .start-close{ grid-column:1; }
+}
+@media (max-width:560px){
+  .telos-site .section{ padding-left:6vw;padding-right:6vw; }
+  .telos-site .hero-content .h-hero br{ display:none; }
+  .telos-site .nav{ padding-left:6vw;padding-right:6vw; }
+}
+@media (prefers-reduced-motion: reduce){
+  .telos-site .breathing .beam,.telos-site .breathing .glow{ animation:none!important;opacity:1!important; }
+  .telos-site .breathing .annotation .dot{ animation:none!important; }
+  .telos-site .scroll-line{ animation:none!important; }
+  .telos-site .reveal{ opacity:1!important;transform:none!important;transition:none!important; }
+}
