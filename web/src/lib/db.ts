@@ -12,11 +12,31 @@
  * Idempotent schema bootstrap runs on first call to `ensureSchema()`; safe to
  * invoke from any cron/API handler.
  */
-import { neon, NeonQueryFunction } from "@neondatabase/serverless";
+import { neon, neonConfig, NeonQueryFunction } from "@neondatabase/serverless";
 import type { GrowProfile } from "./grow-profile";
 import type { GrowerMemoryEntry, GrowerMemoryKind, GrowEpisode } from "./grower-memory";
 
 const DATABASE_URL = process.env.DATABASE_URL || process.env.POSTGRES_URL || "";
+
+// --- Fail-fast DB I/O -------------------------------------------------------
+// The Neon HTTP driver issues each query as a plain fetch() with NO timeout.
+// When the Neon endpoint goes unreachable (e.g. the 2026-06-01 ~1h outage,
+// connection status -1), every handler would otherwise hang on that fetch
+// until Vercel kills the function at its maxDuration — turning a transient DB
+// blip into a wall of 504s and a pile-up of doomed, still-billed function
+// invocations (the 5–15s frontend pollers spawn a new doomed one each tick).
+//
+// Aborting each query well under the function budget converts that into fast,
+// cheap errors the pollers already tolerate (they return null and retry), and
+// makes recovery instant the moment Neon comes back. Tunable via env without a
+// redeploy. Set once at module load — neonConfig is process-global.
+const DB_FETCH_TIMEOUT_MS = Number(process.env.DB_FETCH_TIMEOUT_MS) || 8000;
+neonConfig.fetchFunction = (input: Parameters<typeof fetch>[0], init?: RequestInit) => {
+  const timeout = AbortSignal.timeout(DB_FETCH_TIMEOUT_MS);
+  // Respect a caller-supplied signal if one is ever passed, else just our timeout.
+  const signal = init?.signal ? AbortSignal.any([init.signal, timeout]) : timeout;
+  return fetch(input, { ...init, signal });
+};
 
 let _sql: NeonQueryFunction<false, false> | null = null;
 let _schemaReady = false;
