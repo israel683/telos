@@ -52,17 +52,36 @@ export type GrowView = {
   };
   cultivar: { id: string; name: string | null; provenance: string | null } | null;
   grow_profile: Record<string, unknown> | null;
-  onboarding: {
-    complete: boolean;
-    total: number;
-    unanswered: Array<{ id: string; question: string; required: boolean }>;
-  };
+  onboarding: OnboardingView;
   memory: Array<{ id: number; ts: string; kind: string; text: string }>;
   episodes: Array<{ id: number; ts: string; status: string | null; summary: string }>;
 };
 
+export type OnboardingView = {
+  complete: boolean;
+  total: number;
+  unanswered: Array<{
+    id: string;
+    question: string;
+    required: boolean;
+    type: "text" | "number" | "choice";
+    choices: string[] | null;
+  }>;
+};
+
 export async function getGrow(): Promise<GrowView> {
   return fetchJson<GrowView>("/api/grow");
+}
+
+/**
+ * Answer one onboarding question straight from the Grow screen. Merges into
+ * grow_profile and returns the refreshed onboarding summary.
+ */
+export async function answerOnboarding(id: string, value: string) {
+  return fetchJson<{ ok: true; onboarding: OnboardingView }>("/api/grow/answer", {
+    method: "POST",
+    body: JSON.stringify({ id, value }),
+  });
 }
 
 export async function getReadings(hours = 24, limit = 200) {

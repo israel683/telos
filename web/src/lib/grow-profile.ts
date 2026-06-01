@@ -122,6 +122,54 @@ export function unansweredQuestions(
   return ONBOARDING_CATALOG.filter((q) => !isAnswered(getPath(p, q.field)));
 }
 
+/**
+ * Apply a single grower-supplied answer (by catalog question id) into a profile.
+ * Coerces by the question's declared type and follows the SAME merge rules as
+ * the Brain's `recordGrowProfile` tool: `water_baseline` merges by key, and
+ * `practices` appends + dedupes. Returns the next profile (does not mutate the
+ * input). Throws on an unknown id, an empty answer, or a non-numeric answer to
+ * a number question.
+ *
+ * This is what lets the grower self-answer onboarding questions straight from
+ * the Grow screen when they never went through (or skipped) the chat kickoff —
+ * writing to the same `grow_profile` store the Brain reads.
+ */
+export function applyOnboardingAnswer(
+  profile: GrowProfile | null | undefined,
+  questionId: string,
+  rawValue: string
+): GrowProfile {
+  const q = ONBOARDING_CATALOG.find((x) => x.id === questionId);
+  if (!q) throw new Error(`unknown onboarding question: ${questionId}`);
+  const value = rawValue.trim();
+  if (!value) throw new Error("answer is empty");
+
+  const next: GrowProfile = { ...(profile ?? {}) };
+
+  // practices: append to the list, never replace.
+  if (q.field === "practices") {
+    next.practices = Array.from(new Set([...(next.practices ?? []), value]));
+    return next;
+  }
+
+  if (q.type === "number") {
+    const num = Number(value);
+    if (!Number.isFinite(num)) throw new Error("expected a number");
+    // Nested baseline path (water_baseline.ph / water_baseline.ec) merges by key.
+    const [root, key] = q.field.split(".");
+    if (key && root === "water_baseline") {
+      next.water_baseline = { ...(next.water_baseline ?? {}), [key]: num };
+      return next;
+    }
+    (next as Record<string, unknown>)[q.field] = num;
+    return next;
+  }
+
+  // text / choice → a top-level string field.
+  (next as Record<string, unknown>)[q.field] = value;
+  return next;
+}
+
 /** True once every required question is answered (or onboarding was marked done). */
 export function isOnboardingComplete(
   profile: GrowProfile | null | undefined

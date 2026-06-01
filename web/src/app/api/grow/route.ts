@@ -49,6 +49,8 @@ export async function GET(req: Request) {
           id: q.id,
           question: q.q,
           required: q.required ?? false,
+          type: q.type,
+          choices: q.choices ?? null,
         })),
       },
       memory: memory.map((m) => ({
