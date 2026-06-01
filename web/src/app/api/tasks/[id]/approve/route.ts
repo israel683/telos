@@ -72,13 +72,40 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const cfg = await getDosingConfig(systemId);
   const assignment = cfg.assignments[channel];
   if (!assignment) {
-    return NextResponse.json(
-      {
-        error: `channel '${channel}' not configured on system '${systemId}'`,
-        valid_channels: Object.keys(cfg.assignments),
-      },
-      { status: 400 }
-    );
+    // No physical doser channel maps to this input — dosing for it is MANUAL
+    // (e.g. a single-bottle nutrient added by hand). The dose_approval is a
+    // recommendation the grower performs themselves, so "approve" here means
+    // "I did it": record a manual dose (keeps the audit + EC history honest and
+    // stops the brain re-recommending immediately) and mark the task done.
+    // There is no pump to fire.
+    try {
+      await saveAction(
+        {
+          channel,
+          amount_ml: amountMl,
+          reason: `manual dose confirmed via dashboard (task #${taskId}) — no doser channel for '${channel}'`,
+          success: true,
+          ai_status: "manual",
+          ai_analysis: `Grower confirmed a manual dose from dashboard task #${taskId}`,
+        },
+        systemId
+      );
+    } catch (e) {
+      console.error("[task/approve] failed to log manual action:", e);
+    }
+    try {
+      await completeTask(taskId, "confirmed done (manual dose)", systemId);
+    } catch (e) {
+      console.error("[task/approve] failed to complete manual task:", e);
+    }
+    return NextResponse.json({
+      ok: true,
+      task_id: taskId,
+      channel,
+      amount_ml: amountMl,
+      manual: true,
+      note: `No doser channel for '${channel}' on this system — recorded as a manual dose and marked done (no pump fired).`,
+    });
   }
 
   // Safety check against the latest reading.
