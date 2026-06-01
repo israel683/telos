@@ -12,13 +12,18 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
   unknown: "לא ידוע",
 };
 
-const STATUS_BG: Record<AgentStatus, string> = {
-  healthy: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
-  attention: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
-  warning: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
-  critical: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
-  unknown: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-400",
+const STATUS_COLOR: Record<AgentStatus, string> = {
+  healthy: "var(--c-basil)",
+  attention: "var(--amber)",
+  warning: "#c97a3a",
+  critical: "var(--c-terra)",
+  unknown: "var(--c-stone)",
 };
+/** A token-based status pill — color-mix tint so it reads on warm grounds. */
+function statusPill(status: AgentStatus): React.CSSProperties {
+  const c = STATUS_COLOR[status] ?? "var(--c-stone)";
+  return { color: c, background: `color-mix(in srgb, ${c} 16%, transparent)` };
+}
 
 export default function DecisionsPage() {
   const [decisions, setDecisions] = useState<DecisionRow[]>([]);
@@ -61,21 +66,23 @@ export default function DecisionsPage() {
   }
 
   if (loading) {
-    return <main className="flex-1 grid place-items-center text-zinc-500">טוען...</main>;
+    return <main className="flex-1 grid place-items-center text-[var(--c-ash)]">טוען...</main>;
   }
   if (error) {
     return (
       <main className="flex-1 grid place-items-center p-8">
-        <p className="text-sm text-zinc-500 break-words">{error}</p>
+        <p className="text-sm text-[var(--c-ash)] break-words">{error}</p>
       </main>
     );
   }
 
   return (
     <main className="flex-1 max-w-6xl w-full mx-auto p-6">
-      <header className="mb-4">
-        <h1 className="text-2xl font-bold">היסטוריית החלטות</h1>
-        <p className="text-sm text-zinc-500">
+      <header className="mb-5">
+        <h1 style={{ fontFamily: "var(--f-display)", fontWeight: 300, fontSize: "clamp(1.9rem,3.5vw,2.6rem)", color: "var(--c-parchment)", lineHeight: 1, letterSpacing: "-.01em" }}>
+          היסטוריית החלטות
+        </h1>
+        <p className="text-sm text-[var(--c-ash)]" style={{ marginTop: 8 }}>
           {decisions.length} ניתוחים אחרונים. כל שורה ניתנת להרחבה לתצוגת פירוט מלאה.
         </p>
       </header>
@@ -104,32 +111,32 @@ export default function DecisionsPage() {
           return (
             <article
               key={d.id}
-              className="bg-white dark:bg-zinc-900 rounded-lg border border-zinc-200 dark:border-zinc-800 overflow-hidden"
+              className="bg-[var(--surface-warm)] rounded-lg border border-[rgba(238,237,232,0.08)] overflow-hidden"
             >
               <button
                 onClick={() => toggle(d.id)}
-                className="w-full text-right p-4 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors"
+                className="w-full text-right p-4 hover:bg-[var(--c-earth)] transition-colors"
               >
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <div className="flex items-center gap-3 flex-wrap">
-                    <span className={`text-xs px-2 py-0.5 rounded ${STATUS_BG[status]}`}>
+                    <span className="text-xs px-2 py-0.5 rounded-full" style={statusPill(status)}>
                       {STATUS_LABEL[status]}
                     </span>
-                    <span className="text-sm text-zinc-500" dir="ltr">
+                    <span className="text-sm text-[var(--c-ash)]" dir="ltr">
                       #{d.id} · {new Date(d.timestamp).toLocaleString("he-IL")}
                     </span>
                     {actions.length > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-blue-100 text-blue-800 dark:bg-blue-900/40 dark:text-blue-300">
+                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: "var(--c-basil)", background: "color-mix(in srgb, var(--c-basil) 14%, transparent)" }}>
                         {actions.length} פעולות
                       </span>
                     )}
                     {tasks.length > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-900/40 dark:text-purple-300">
+                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: "var(--c-mineral-text, #7fa8a2)", background: "color-mix(in srgb, var(--c-mineral) 22%, transparent)" }}>
                         {tasks.length} משימות
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-zinc-400" dir="ltr">
+                  <span className="text-xs text-[var(--c-stone)]" dir="ltr">
                     {d.tokens_input + d.cache_creation_tokens + d.cache_read_tokens} → {d.tokens_output}t
                     {cacheRatio > 0 && ` · cache ${(cacheRatio * 100).toFixed(0)}%`}
                   </span>
@@ -140,10 +147,10 @@ export default function DecisionsPage() {
               </button>
 
               {isOpen && (
-                <div className="p-4 border-t border-zinc-200 dark:border-zinc-800 space-y-4 bg-zinc-50/50 dark:bg-zinc-950/30">
+                <div className="p-4 border-t border-[rgba(238,237,232,0.08)] space-y-4 bg-[var(--c-void)]">
                   {d.analysis && (
                     <div>
-                      <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">
+                      <h3 className="text-xs font-semibold text-[var(--c-ash)] uppercase tracking-wide mb-1">
                         Analysis
                       </h3>
                       <p className="text-sm leading-relaxed" dir="ltr">
@@ -154,17 +161,17 @@ export default function DecisionsPage() {
 
                   {actions.length > 0 && (
                     <div>
-                      <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">
+                      <h3 className="text-xs font-semibold text-[var(--c-ash)] uppercase tracking-wide mb-1">
                         Actions
                       </h3>
                       <ul className="space-y-1.5">
                         {actions.map((a, i) => (
                           <li key={i} className="text-sm" dir="ltr">
-                            <span className="font-mono bg-zinc-200 dark:bg-zinc-800 px-1.5 py-0.5 rounded text-xs">
+                            <span className="font-mono bg-[var(--c-bark)] px-1.5 py-0.5 rounded text-xs">
                               {a.channel}
                             </span>{" "}
                             <span className="font-semibold">{a.amount_ml} ml</span>
-                            <p className="text-xs text-zinc-500 mt-0.5">{a.reason}</p>
+                            <p className="text-xs text-[var(--c-ash)] mt-0.5">{a.reason}</p>
                           </li>
                         ))}
                       </ul>
@@ -173,13 +180,13 @@ export default function DecisionsPage() {
 
                   {tasks.length > 0 && (
                     <div>
-                      <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">
+                      <h3 className="text-xs font-semibold text-[var(--c-ash)] uppercase tracking-wide mb-1">
                         משימות שנוצרו
                       </h3>
                       <ul className="space-y-1.5">
                         {tasks.map((t, i) => (
                           <li key={i} className="text-sm">
-                            <span className="text-xs px-1.5 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 mr-2">
+                            <span className="text-xs px-1.5 py-0.5 rounded bg-[var(--c-bark)] mr-2">
                               {t.priority}
                             </span>
                             {t.title}
@@ -191,12 +198,12 @@ export default function DecisionsPage() {
 
                   {concerns.length > 0 && (
                     <div>
-                      <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wide mb-1">
+                      <h3 className="text-xs font-semibold text-[var(--c-ash)] uppercase tracking-wide mb-1">
                         Concerns
                       </h3>
                       <ul className="space-y-1 list-disc pr-4" dir="ltr">
                         {concerns.map((c, i) => (
-                          <li key={i} className="text-sm text-zinc-600 dark:text-zinc-400">
+                          <li key={i} className="text-sm text-[var(--c-fog)] dark:text-[var(--c-stone)]">
                             {c}
                           </li>
                         ))}
@@ -204,7 +211,7 @@ export default function DecisionsPage() {
                     </div>
                   )}
 
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-zinc-500" dir="ltr">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-[var(--c-ash)]" dir="ltr">
                     <div>
                       <span className="block text-[10px] uppercase">Input</span>
                       {d.tokens_input}
@@ -229,7 +236,7 @@ export default function DecisionsPage() {
         })}
 
         {decisions.length === 0 && (
-          <p className="text-center py-8 text-sm text-zinc-500">
+          <p className="text-center py-8 text-sm text-[var(--c-ash)]">
             עדיין אין החלטות שנשמרו. הרץ את האייג'נט וחזור בעוד דקה.
           </p>
         )}
