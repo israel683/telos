@@ -5,7 +5,10 @@
  */
 import { NextResponse } from "next/server";
 import { answerTask } from "@/lib/db";
+import { reevalSystem } from "@/lib/cycle";
 import { systemIdFromRequest } from "@/lib/system-ctx";
+
+export const maxDuration = 30;
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -25,5 +28,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "answer is required" }, { status: 400 });
   }
   await answerTask(taskId, answer, systemId);
-  return NextResponse.json({ ok: true });
+  // The grower just gave the Brain new information — re-derive its state so the
+  // analysis + chat reflect the answer immediately instead of next cron tick.
+  const reeval = await reevalSystem(systemId, "grower-answer");
+  return NextResponse.json({ ok: true, reeval_status: (reeval?.status as string) ?? null });
 }

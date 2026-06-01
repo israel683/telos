@@ -12,6 +12,7 @@
  */
 import { NextResponse } from "next/server";
 import { completeTask, saveAction, sql, ensureSchema } from "@/lib/db";
+import { reevalSystem } from "@/lib/cycle";
 import { systemIdFromRequest } from "@/lib/system-ctx";
 import { getDosingConfig } from "@/lib/dosing-config";
 import { doseChannelByPhysical } from "@/lib/devices/jebao";
@@ -98,12 +99,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     } catch (e) {
       console.error("[task/approve] failed to complete manual task:", e);
     }
+    // Re-derive the Brain's state now that the grower has dosed — so the
+    // dashboard analysis + chat reflect "dose recorded, EC recovering"
+    // instead of the stale "needs food now" from the last cron tick.
+    const reeval = await reevalSystem(systemId, "grower-dose");
     return NextResponse.json({
       ok: true,
       task_id: taskId,
       channel,
       amount_ml: amountMl,
       manual: true,
+      reeval_status: (reeval?.status as string) ?? null,
       note: `No doser channel for '${channel}' on this system — recorded as a manual dose and marked done (no pump fired).`,
     });
   }
@@ -156,6 +162,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     console.error("[task/approve] failed to mark task complete:", e);
   }
 
+  // Re-derive the Brain's state now that a dose actually fired, so every
+  // surface reflects the post-dose reality rather than the last cron snapshot.
+  const reeval = r.success ? await reevalSystem(systemId, "grower-dose") : null;
+
   return NextResponse.json({
     ok: r.success,
     task_id: taskId,
@@ -163,6 +173,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     physical_channel: assignment.physical,
     amount_ml: amountMl,
     runtime_seconds: r.runtime_seconds,
+    reeval_status: (reeval?.status as string) ?? null,
     error: r.error,
   });
 }
