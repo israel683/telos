@@ -651,7 +651,7 @@ export default function ArchitecturePage() {
     <main className="flex-1 max-w-7xl w-full mx-auto px-4 py-6 space-y-6" dir="rtl">
       <header className="space-y-1">
         <h1 className="text-3xl font-bold">ארכיטקטורת Telos</h1>
-        <p className="text-zinc-500 text-sm leading-relaxed max-w-3xl">
+        <p className="text-[var(--c-ash)] text-sm leading-relaxed max-w-3xl">
           מפת המערכת המלאה — חומרה, ענן, שירותי שרת, מוח AI, שכבות בקרה ובטיחות,
           ממשק משתמש.  לחיצה על כל בלוק תפתח פאנל מפורט עם קונספטים מרכזיים,
           קבצים רלוונטיים, ותלויות.
@@ -659,7 +659,7 @@ export default function ArchitecturePage() {
       </header>
 
       {/* Top-level flow diagram */}
-      <section className="bg-white dark:bg-zinc-900 rounded-xl p-5 border border-zinc-200 dark:border-zinc-800">
+      <section className="bg-[var(--surface-warm)] rounded-xl p-5 border border-[rgba(238,237,232,0.08)]">
         <h2 className="font-semibold mb-3">תרשים זרימה ברמת-על</h2>
         <FlowDiagram onSelect={setSelectedId} />
       </section>
@@ -671,10 +671,10 @@ export default function ArchitecturePage() {
             byLayer[layer].length === 0 ? null : (
               <div key={layer}>
                 <div className="flex items-baseline gap-2 mb-2">
-                  <h2 className="font-semibold text-sm uppercase tracking-wide text-zinc-500">
+                  <h2 className="font-semibold text-sm uppercase tracking-wide text-[var(--c-ash)]">
                     {LAYER_LABELS[layer].he}
                   </h2>
-                  <span className="text-xs text-zinc-400">
+                  <span className="text-xs text-[var(--c-stone)]">
                     ({byLayer[layer].length})
                   </span>
                 </div>
@@ -695,7 +695,7 @@ export default function ArchitecturePage() {
                         <span className="text-lg">{b.icon}</span>
                         <span className="font-medium text-sm flex-1">{b.title_he}</span>
                       </div>
-                      <p className="text-xs text-zinc-500 mt-1 leading-snug line-clamp-2">
+                      <p className="text-xs text-[var(--c-ash)] mt-1 leading-snug line-clamp-2">
                         {b.summary_he}
                       </p>
                     </button>
@@ -707,11 +707,11 @@ export default function ArchitecturePage() {
         </section>
 
         {/* Detail panel */}
-        <aside className="lg:sticky lg:top-20 bg-white dark:bg-zinc-900 rounded-xl p-5 border border-zinc-200 dark:border-zinc-800 max-h-[calc(100vh-6rem)] overflow-y-auto">
+        <aside className="lg:sticky lg:top-20 bg-[var(--surface-warm)] rounded-xl p-5 border border-[rgba(238,237,232,0.08)] max-h-[calc(100vh-6rem)] overflow-y-auto">
           {!selected ? (
-            <div className="text-sm text-zinc-500 leading-relaxed">
+            <div className="text-sm text-[var(--c-ash)] leading-relaxed">
               <p className="mb-2">לחץ על בלוק כדי להציג כאן את הפרטים המלאים שלו.</p>
-              <ul className="text-xs space-y-1 text-zinc-400">
+              <ul className="text-xs space-y-1 text-[var(--c-stone)]">
                 <li>📐 קונספטים מרכזיים + הסבר טכני קצר על כל אחד</li>
                 <li>📁 הקבצים הרלוונטיים בפועל</li>
                 <li>🔗 תלויות ותפוקות (אילו בלוקים מזינים את זה ולמי הוא מזין)</li>
@@ -724,7 +724,7 @@ export default function ArchitecturePage() {
         </aside>
       </div>
 
-      <footer className="text-xs text-zinc-400 text-center pt-4 border-t border-zinc-200 dark:border-zinc-800">
+      <footer className="text-xs text-[var(--c-stone)] text-center pt-4 border-t border-[rgba(238,237,232,0.08)]">
         Architecture as of v0.3 • {BLOCKS.length} blocks • לחץ + לאיתחול הבחירה
       </footer>
     </main>
@@ -754,7 +754,7 @@ function FlowDiagram({ onSelect }: { onSelect: (id: string) => void }) {
             <span>{s.label_he}</span>
           </button>
           {i < STAGES.length - 1 && (
-            <span className="px-1 text-zinc-400 text-lg" aria-hidden="true">
+            <span className="px-1 text-[var(--c-stone)] text-lg" aria-hidden="true">
               ←
             </span>
           )}
@@ -780,7 +780,7 @@ function DetailPanel({
           <span className="text-2xl">{block.icon}</span>
           <h2 className="text-lg font-bold">{block.title_he}</h2>
         </div>
-        <p className="text-xs text-zinc-500 mt-0.5" dir="ltr">{block.title_en}</p>
+        <p className="text-xs text-[var(--c-ash)] mt-0.5" dir="ltr">{block.title_en}</p>
         <span
           className={`inline-block mt-2 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded border ${
             LAYER_LABELS[block.layer].color
@@ -791,22 +791,22 @@ function DetailPanel({
       </header>
 
       <section>
-        <h3 className="font-semibold text-zinc-700 dark:text-zinc-300 mb-1">תקציר</h3>
-        <p className="text-zinc-600 dark:text-zinc-400 leading-relaxed">
+        <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">תקציר</h3>
+        <p className="text-[var(--c-fog)] dark:text-[var(--c-stone)] leading-relaxed">
           {block.summary_he}
         </p>
       </section>
 
       {block.concepts.length > 0 && (
         <section>
-          <h3 className="font-semibold text-zinc-700 dark:text-zinc-300 mb-1">קונספטים</h3>
+          <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">קונספטים</h3>
           <ul className="space-y-2">
             {block.concepts.map((c) => (
               <li key={c.he} className="border-r-2 border-emerald-500 pr-3 py-0.5">
                 <div className="font-medium text-xs text-emerald-700 dark:text-emerald-400">
                   {c.he}
                 </div>
-                <div className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed mt-0.5">
+                <div className="text-xs text-[var(--c-fog)] dark:text-[var(--c-stone)] leading-relaxed mt-0.5">
                   {c.detail}
                 </div>
               </li>
@@ -817,12 +817,12 @@ function DetailPanel({
 
       {block.files.length > 0 && (
         <section>
-          <h3 className="font-semibold text-zinc-700 dark:text-zinc-300 mb-1">קבצים</h3>
+          <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">קבצים</h3>
           <ul className="space-y-1">
             {block.files.map((f) => (
               <li
                 key={f}
-                className="text-[11px] font-mono bg-zinc-100 dark:bg-zinc-800 rounded px-2 py-1"
+                className="text-[11px] font-mono bg-[var(--c-bark)] rounded px-2 py-1"
                 dir="ltr"
               >
                 {f}
@@ -834,7 +834,7 @@ function DetailPanel({
 
       {block.depends_on.length > 0 && (
         <section>
-          <h3 className="font-semibold text-zinc-700 dark:text-zinc-300 mb-1">תלוי ב</h3>
+          <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">תלוי ב</h3>
           <div className="flex flex-wrap gap-1">
             {block.depends_on.map((id) => {
               const target = byId[id];
@@ -843,7 +843,7 @@ function DetailPanel({
                 <button
                   key={id}
                   onClick={() => onSelect(id)}
-                  className="text-[11px] px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-emerald-200 dark:hover:bg-emerald-900 transition-colors"
+                  className="text-[11px] px-2 py-0.5 rounded bg-[var(--c-bark)] hover:bg-emerald-200 dark:hover:bg-emerald-900 transition-colors"
                 >
                   {target.icon} {target.title_he}
                 </button>
@@ -855,7 +855,7 @@ function DetailPanel({
 
       {block.produces_for.length > 0 && (
         <section>
-          <h3 className="font-semibold text-zinc-700 dark:text-zinc-300 mb-1">מזין ל</h3>
+          <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">מזין ל</h3>
           <div className="flex flex-wrap gap-1">
             {block.produces_for.map((id) => {
               const target = byId[id];
@@ -864,7 +864,7 @@ function DetailPanel({
                 <button
                   key={id}
                   onClick={() => onSelect(id)}
-                  className="text-[11px] px-2 py-0.5 rounded bg-zinc-200 dark:bg-zinc-800 hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors"
+                  className="text-[11px] px-2 py-0.5 rounded bg-[var(--c-bark)] hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors"
                 >
                   {target.icon} {target.title_he}
                 </button>
@@ -876,12 +876,12 @@ function DetailPanel({
 
       {block.gotchas_he && block.gotchas_he.length > 0 && (
         <section>
-          <h3 className="font-semibold text-zinc-700 dark:text-zinc-300 mb-1">⚠️ Gotchas</h3>
+          <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">⚠️ Gotchas</h3>
           <ul className="space-y-1">
             {block.gotchas_he.map((g, i) => (
               <li
                 key={i}
-                className="text-xs text-zinc-600 dark:text-zinc-400 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded p-2 leading-relaxed"
+                className="text-xs text-[var(--c-fog)] dark:text-[var(--c-stone)] bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded p-2 leading-relaxed"
               >
                 {g}
               </li>
@@ -892,8 +892,8 @@ function DetailPanel({
 
       {block.ux_note_he && (
         <section>
-          <h3 className="font-semibold text-zinc-700 dark:text-zinc-300 mb-1">💡 UX Note</h3>
-          <p className="text-xs text-zinc-600 dark:text-zinc-400 bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-900 rounded p-2 leading-relaxed">
+          <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">💡 UX Note</h3>
+          <p className="text-xs text-[var(--c-fog)] dark:text-[var(--c-stone)] bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-900 rounded p-2 leading-relaxed">
             {block.ux_note_he}
           </p>
         </section>
