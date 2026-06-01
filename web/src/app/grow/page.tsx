@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { getGrow, type GrowView } from "@/lib/api";
+import { getGrow, answerOnboarding, type GrowView, type OnboardingView } from "@/lib/api";
 import { startVisibilityAwarePolling } from "@/lib/poll";
 import { useLang, statusLabel } from "@/lib/i18n";
 
@@ -55,34 +55,142 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+/**
+ * The unanswered onboarding questions, answerable inline. The Brain asks these
+ * in the chat kickoff for a fresh system — but a grower who joined mid-way (or
+ * skipped) never got asked, so each question is clickable here: tap it to open
+ * an input (choice → chips, number → numeric, text → free text), answer, and it
+ * merges straight into grow_profile. `onAnswered` refetches the Grow view.
+ */
+function OnboardingChecklist({
+  unanswered,
+  onAnswered,
+}: {
+  unanswered: OnboardingView["unanswered"];
+  onAnswered: () => void | Promise<void>;
+}) {
+  const { t } = useLang();
+  const [openId, setOpenId] = useState<string | null>(null);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  async function submit(id: string, value: string) {
+    const v = value.trim();
+    if (!v || busy) return;
+    setBusy(id);
+    setErr(null);
+    try {
+      await answerOnboarding(id, v);
+      setOpenId(null);
+      setDraft("");
+      await onAnswered();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  const pill: React.CSSProperties = {
+    fontSize: ".8rem",
+    padding: "8px 16px",
+    borderRadius: 999,
+    background: "var(--c-basil)",
+    color: "var(--c-void)",
+    fontWeight: 500,
+    border: "none",
+    cursor: "pointer",
+  };
+  const inputStyle: React.CSSProperties = {
+    flex: 1,
+    fontSize: ".9rem",
+    borderRadius: 8,
+    padding: "8px 12px",
+    background: "var(--c-void)",
+    border: "1px solid color-mix(in srgb, var(--c-parchment) 12%, transparent)",
+    color: "var(--c-parchment)",
+  };
+
+  return (
+    <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+      {unanswered.map((q) => {
+        const open = openId === q.id;
+        const working = busy === q.id;
+        return (
+          <li key={q.id} style={{ fontSize: ".9rem", color: "var(--c-fog)", lineHeight: 1.5 }}>
+            <button
+              onClick={() => { setOpenId(open ? null : q.id); setDraft(""); setErr(null); }}
+              style={{
+                display: "flex", alignItems: "baseline", gap: 8, width: "100%", textAlign: "start",
+                background: "none", border: "none", padding: 0, cursor: "pointer",
+                color: open ? "var(--c-parchment)" : "var(--c-fog)", font: "inherit",
+              }}
+            >
+              <span style={{ color: "var(--amber)" }}>{open ? "▾" : "•"}</span>
+              <span>
+                {q.question}
+                {q.required ? <span style={{ color: "var(--amber)" }}> *</span> : null}
+              </span>
+            </button>
+
+            {open && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8, paddingInlineStart: 16 }}>
+                {q.type === "choice" && q.choices ? (
+                  q.choices.map((c) => (
+                    <button key={c} onClick={() => submit(q.id, c)} disabled={working} style={{ ...pill, opacity: working ? 0.5 : 1 }}>
+                      {working ? "…" : c}
+                    </button>
+                  ))
+                ) : (
+                  <>
+                    <input
+                      type={q.type === "number" ? "number" : "text"}
+                      value={draft}
+                      onChange={(e) => setDraft(e.target.value)}
+                      onKeyDown={(e) => { if (e.key === "Enter") submit(q.id, draft); }}
+                      placeholder={t("Type your answer…", "כתוב את התשובה כאן…")}
+                      autoFocus
+                      disabled={working}
+                      style={inputStyle}
+                    />
+                    <button onClick={() => submit(q.id, draft)} disabled={working || !draft.trim()} style={{ ...pill, opacity: working || !draft.trim() ? 0.45 : 1 }}>
+                      {working ? "…" : t("Answer", "ענה")}
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </li>
+        );
+      })}
+      {err ? <li style={{ fontSize: ".82rem", color: "var(--c-terra)" }}>{t("Error", "שגיאה")}: {err}</li> : null}
+    </ul>
+  );
+}
+
 export default function GrowPage() {
   const { t, lang } = useLang();
   const [data, setData] = useState<GrowView | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    let alive = true;
-    async function refresh() {
-      try {
-        const g = await getGrow();
-        if (alive) {
-          setData(g);
-          setError(null);
-        }
-      } catch (e) {
-        if (alive) setError(e instanceof Error ? e.message : String(e));
-      } finally {
-        if (alive) setLoading(false);
-      }
+  const load = useCallback(async () => {
+    try {
+      const g = await getGrow();
+      setData(g);
+      setError(null);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
     }
-    refresh();
-    const stop = startVisibilityAwarePolling(refresh, REFRESH_MS);
-    return () => {
-      alive = false;
-      stop();
-    };
   }, []);
+
+  useEffect(() => {
+    load();
+    return startVisibilityAwarePolling(load, REFRESH_MS);
+  }, [load]);
 
   if (loading) return <div style={{ maxWidth: 1180, margin: "0 auto", padding: "3rem 1.5rem", color: "var(--c-ash)" }}>{t("Loading…", "טוען…")}</div>;
   if (error) return <div style={{ maxWidth: 1180, margin: "0 auto", padding: "3rem 1.5rem", color: "var(--c-terra)" }}>{t("Error", "שגיאה")}: {error}</div>;
@@ -137,16 +245,9 @@ export default function GrowPage() {
           ) : (
             <>
               <p style={{ fontSize: ".9rem", color: "var(--c-fog)", marginBottom: 12 }}>
-                {t(`${data.onboarding.unanswered.length} of ${data.onboarding.total} questions left. The Brain will ask them in chat.`, `נותרו ${data.onboarding.unanswered.length} מתוך ${data.onboarding.total} שאלות. המוח ישאל אותן בשיחה.`)}
+                {t(`${data.onboarding.unanswered.length} of ${data.onboarding.total} questions left. Tap a question to answer it here, or the Brain will ask in chat.`, `נותרו ${data.onboarding.unanswered.length} מתוך ${data.onboarding.total} שאלות. הקש על שאלה כדי לענות כאן, או שהמוח ישאל בשיחה.`)}
               </p>
-              <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
-                {data.onboarding.unanswered.map((q) => (
-                  <li key={q.id} style={{ fontSize: ".9rem", color: "var(--c-fog)", lineHeight: 1.5 }}>
-                    <span style={{ color: "var(--amber)" }}>•</span> {q.question}
-                    {q.required ? <span style={{ color: "var(--amber)" }}> *</span> : null}
-                  </li>
-                ))}
-              </ul>
+              <OnboardingChecklist unanswered={data.onboarding.unanswered} onAnswered={load} />
             </>
           )}
         </Card>
