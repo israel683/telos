@@ -526,12 +526,12 @@ const BLOCKS: Block[] = [
   {
     id: "chat-ui",
     title_he: "Chat UI",
-    title_en: "/ page — chat interface",
+    title_en: "/chat page — chat interface",
     layer: "ui",
     icon: "💭",
     summary_he:
-      "ה-default page של האפליקציה.  useChat hook של AI SDK + DefaultChatTransport.  טוען היסטוריה ב-mount, מציג fresh-system CTA או starters רגילים.  Streaming responses, tool-call rendering, StackedQuestion על askGrower.",
-    files: ["src/app/page.tsx", "src/components/StackedQuestion.tsx"],
+      "מסך השיחה (/chat).  useChat hook של AI SDK + DefaultChatTransport.  טוען היסטוריה ב-mount, מציג fresh-system CTA או starters רגילים.  Streaming responses, tool-call rendering, StackedQuestion על askGrower.",
+    files: ["src/app/chat/page.tsx", "src/components/StackedQuestion.tsx"],
     concepts: [
       {
         he: "Fresh-system detection",
@@ -551,13 +551,13 @@ const BLOCKS: Block[] = [
   },
   {
     id: "dashboard",
-    title_he: "Dashboard (/state)",
-    title_en: "/state — operational metrics dashboard",
+    title_he: "Dashboard (/)",
+    title_en: "/ — operational metrics dashboard (home)",
     layer: "ui",
     icon: "📊",
     summary_he:
       "כרטיסי מטריקות (pH/EC/temp/ORP/TDS/salinity/SG/CF), גרף חיישנים, BottleLevels, ניתוח אחרון, מצב agent, ושני בלוקי משימות נפרדים: 'ממתין לאישור שלך' + 'צריך ידיים שלך'.",
-    files: ["src/app/state/page.tsx", "src/components/SensorChart.tsx", "src/components/BottleLevels.tsx"],
+    files: ["src/app/page.tsx", "src/components/SensorChart.tsx", "src/components/BottleLevels.tsx"],
     concepts: [
       {
         he: "Split tasks panel",

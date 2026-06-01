@@ -13,7 +13,7 @@
  *   - 0 pending → component renders nothing (no chrome)
  *   - 1 pending → single card, expanded
  *   - 2-3 pending → stack of cards
- *   - >3 pending → top 3 + a "+N נוספות" link to /state
+ *   - >3 pending → top 3 + a "+N נוספות" link to the dashboard (/)
  *
  * Polls every 15s so a cron-cycle that creates a new dose_approval shows
  * up in chat within seconds without page reload.
@@ -245,7 +245,7 @@ export function PendingTasksCard() {
 
       {overflow > 0 && (
         <Link
-          href="/state"
+          href="/"
           className="block text-center text-xs text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300 py-1"
         >
           +{overflow} משימות נוספות → לוח בקרה
