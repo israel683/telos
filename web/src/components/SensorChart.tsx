@@ -12,6 +12,7 @@ import {
   ReferenceArea,
 } from "recharts";
 import { getReadings } from "@/lib/api";
+import { startVisibilityAwarePolling } from "@/lib/poll";
 import type { WaterReading } from "@/lib/types";
 
 type MetricKey = "ph" | "ec" | "water_temp" | "orp";
@@ -52,7 +53,7 @@ export function SensorChart() {
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
-    const interval = setInterval(() => {
+    const stop = startVisibilityAwarePolling(() => {
       getReadings(hours, hours <= 6 ? 600 : 1500)
         .then((r) => {
           if (!cancelled) setReadings(r.readings);
@@ -61,7 +62,7 @@ export function SensorChart() {
     }, 30_000);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      stop();
     };
   }, [hours]);
 

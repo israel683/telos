@@ -12,9 +12,12 @@ import {
 import type { StateResponse, HumanTask, AgentStatus } from "@/lib/types";
 import { SensorChart } from "@/components/SensorChart";
 import { BottleLevels } from "@/components/BottleLevels";
+import { startVisibilityAwarePolling } from "@/lib/poll";
 import { useLang, statusLabel } from "@/lib/i18n";
 
-const REFRESH_MS = 5_000;
+// Sensor data lands at most every few minutes (the poll cron), so a tight
+// dashboard refresh just re-queries the same rows and wakes Neon for nothing.
+const REFRESH_MS = 10_000;
 
 const STATUS_DOT: Record<AgentStatus, string> = {
   healthy: "var(--c-basil)", attention: "var(--c-terra)", warning: "var(--c-terra)",
@@ -53,8 +56,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     refresh();
-    const interval = setInterval(refresh, REFRESH_MS);
-    return () => clearInterval(interval);
+    return startVisibilityAwarePolling(refresh, REFRESH_MS);
   }, []);
 
   async function handleComplete(id: number) { await completeTask(id, "marked done from dashboard"); refresh(); }

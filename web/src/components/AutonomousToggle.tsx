@@ -11,6 +11,7 @@
 import { useEffect, useState } from "react";
 import { listSystems, setAutonomousDosing, type SystemSummary } from "@/lib/api";
 import { getActiveSystem } from "@/lib/system";
+import { startVisibilityAwarePolling } from "@/lib/poll";
 import { useLang } from "@/lib/i18n";
 
 const POLL_MS = 15_000;
@@ -34,8 +35,7 @@ export function AutonomousToggle() {
 
   useEffect(() => {
     load();
-    const i = setInterval(load, POLL_MS);
-    return () => clearInterval(i);
+    return startVisibilityAwarePolling(load, POLL_MS);
   }, []);
 
   if (!sys || err) return null;

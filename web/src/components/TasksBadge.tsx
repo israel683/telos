@@ -17,6 +17,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getTasks } from "@/lib/api";
+import { startVisibilityAwarePolling } from "@/lib/poll";
 import { useLang } from "@/lib/i18n";
 
 const POLL_MS = 15_000;
@@ -43,10 +44,10 @@ export function TasksBadge() {
       }
     }
     load();
-    const i = setInterval(load, POLL_MS);
+    const stop = startVisibilityAwarePolling(load, POLL_MS);
     return () => {
       stopped = true;
-      clearInterval(i);
+      stop();
     };
   }, []);
 

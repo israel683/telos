@@ -29,6 +29,7 @@ import {
   snoozeTask,
   answerTask,
 } from "@/lib/api";
+import { startVisibilityAwarePolling } from "@/lib/poll";
 import type { HumanTask } from "@/lib/types";
 
 const POLL_MS = 15_000;
@@ -95,8 +96,7 @@ export function PendingTasksCard() {
 
   useEffect(() => {
     load();
-    const i = setInterval(load, POLL_MS);
-    return () => clearInterval(i);
+    return startVisibilityAwarePolling(load, POLL_MS);
   }, []);
 
   if (err) return null;

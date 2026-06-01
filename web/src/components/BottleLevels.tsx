@@ -16,6 +16,7 @@
 
 import { useEffect, useState } from "react";
 import { getActiveSystem } from "@/lib/system";
+import { startVisibilityAwarePolling } from "@/lib/poll";
 
 const POLL_MS = 30_000;
 
@@ -94,10 +95,10 @@ export function BottleLevels() {
       }
     }
     load();
-    const i = setInterval(load, POLL_MS);
+    const stop = startVisibilityAwarePolling(load, POLL_MS);
     return () => {
       stopped = true;
-      clearInterval(i);
+      stop();
     };
   }, []);
 

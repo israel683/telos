@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getActiveSystem } from "@/lib/system";
+import { startVisibilityAwarePolling } from "@/lib/poll";
 import { useLang, statusLabel } from "@/lib/i18n";
 
 type StatusInfo = {
@@ -47,8 +48,7 @@ export function StatusChip({ onRequestStatus }: { onRequestStatus?: () => void }
 
   useEffect(() => {
     load();
-    const interval = setInterval(load, 30_000);
-    return () => clearInterval(interval);
+    return startVisibilityAwarePolling(load, 30_000);
   }, []);
 
   if (!info) {

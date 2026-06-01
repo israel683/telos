@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getDecisions } from "@/lib/api";
+import { startVisibilityAwarePolling } from "@/lib/poll";
 import type { DecisionRow, AgentStatus } from "@/lib/types";
 import { useLang, statusLabel } from "@/lib/i18n";
 
@@ -43,10 +44,10 @@ export default function DecisionsPage() {
         });
     }
     load();
-    const interval = setInterval(load, 15_000);
+    const stop = startVisibilityAwarePolling(load, 15_000);
     return () => {
       cancelled = true;
-      clearInterval(interval);
+      stop();
     };
   }, []);
 

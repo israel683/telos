@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { getGrow, type GrowView } from "@/lib/api";
+import { startVisibilityAwarePolling } from "@/lib/poll";
 import { useLang, statusLabel } from "@/lib/i18n";
 
 const REFRESH_MS = 15_000;
@@ -76,10 +77,10 @@ export default function GrowPage() {
       }
     }
     refresh();
-    const tmr = setInterval(refresh, REFRESH_MS);
+    const stop = startVisibilityAwarePolling(refresh, REFRESH_MS);
     return () => {
       alive = false;
-      clearInterval(tmr);
+      stop();
     };
   }, []);
 
