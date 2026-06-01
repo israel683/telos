@@ -37,6 +37,16 @@ export const PRE_VERIFY_DAILY_TOTAL_ML = 30;
 /** Hard cap on total ml dosed in a 24h window after doser_verified. */
 export const VERIFIED_DAILY_TOTAL_ML = 250;
 
+/**
+ * pH is a once-a-day decision. After ANY pH correction (either direction), no
+ * further pH dose is allowed for this many hours — the hard backstop against
+ * the pH-up/pH-down oscillation that has emptied a bottle overnight in this
+ * system. ~20h ≈ "once per day" while tolerating a slightly-early next-day
+ * window. Overridden only by an explicit grower action after a real change
+ * (water swap / top-off), via command.ph_override.
+ */
+export const PH_DECISION_COOLDOWN_HOURS = 20;
+
 export const SAFETY_LIMITS = {
   // pH absolute bounds — outside this range, only the corrective channel allowed
   ph_min: 4.5,
@@ -85,6 +95,13 @@ export type DosingCommand = {
    * safety, which we've seen in production.
    */
   is_priming?: boolean;
+  /**
+   * Set TRUE only by an explicit grower action (chat) after a real disruption
+   * such as a water change / top-off — lifts the once-a-day pH cooldown for
+   * this single dose. The autonomous cron path NEVER sets this, so the
+   * autonomous brain can't bypass the once-a-day pH discipline.
+   */
+  ph_override?: boolean;
 };
 
 export type SafetyValidation =
@@ -305,6 +322,42 @@ export async function validateCommand(
           `Too soon: last dose on ${command.channel} was ${elapsed.toFixed(0)}s ago ` +
           `(min ${SAFETY_LIMITS.min_dose_interval_seconds}s)`,
       };
+    }
+  }
+
+  // 9. pH discipline — pH is a ONCE-A-DAY decision; never fight yourself.
+  // Block any pH dose if EITHER pH channel already corrected within the
+  // cooldown. This is the hard backstop against the pH-up/pH-down oscillation
+  // that emptied a bottle overnight (8 pH-down doses + a simultaneous pH-up
+  // seen in production). The prompt asks for restraint; this enforces it.
+  if ((isPhUp || isPhDown) && !command.is_priming && !command.ph_override) {
+    const roleOf = (ch: string) => cfg.assignments[ch]?.role;
+    const phRecent = recent.filter(
+      (a) =>
+        a.success &&
+        !isPrimingAction(a) &&
+        (roleOf(a.channel) === "ph_up" || roleOf(a.channel) === "ph_down")
+    );
+    if (phRecent.length > 0) {
+      const last = phRecent.reduce((l, a) =>
+        a.ts.getTime() > l.ts.getTime() ? a : l
+      );
+      const hrs = (Date.now() - last.ts.getTime()) / 3_600_000;
+      if (hrs < PH_DECISION_COOLDOWN_HOURS) {
+        const lastRole = roleOf(last.channel);
+        const opposite =
+          (isPhUp && lastRole === "ph_down") || (isPhDown && lastRole === "ph_up");
+        return {
+          ok: false,
+          reason:
+            `pH is a once-a-day decision: last pH correction (${last.channel}) was ` +
+            `${hrs.toFixed(1)}h ago (min ${PH_DECISION_COOLDOWN_HOURS}h between pH corrections).` +
+            (opposite
+              ? ` Dosing the OPPOSITE direction now would be fighting yourself — refused.`
+              : ` Wait for tomorrow's pH window.`) +
+            ` After a real water change the grower can override.`,
+        };
+      }
     }
   }
 
