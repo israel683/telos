@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Noto_Serif_Hebrew, Rubik } from "next/font/google";
 import localFont from "next/font/local";
 import { Nav } from "@/components/Nav";
+import { LanguageProvider } from "@/lib/i18n";
 import "./globals.css";
 import "./telos-ui.css";
 
@@ -69,16 +70,18 @@ export default function RootLayout({
 }>) {
   return (
     <html
-      lang="he"
-      dir="rtl"
+      lang="en"
+      dir="ltr"
       className={`dark ${souvenir.variable} ${jakarta.variable} ${notoSerifHebrew.variable} ${rubik.variable} h-full antialiased`}
     >
       {/* TELOS is a DARK system by default — the Warm Neutral palette IS
           the brand.  Foreground = parchment on a void background, with
           the body font selected by html[lang] in globals.css. */}
       <body className="min-h-full flex flex-col bg-[var(--ground-warm)] text-[var(--c-parchment)]">
-        <Nav />
-        {children}
+        <LanguageProvider>
+          <Nav />
+          {children}
+        </LanguageProvider>
       </body>
     </html>
   );

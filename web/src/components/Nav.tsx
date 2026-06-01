@@ -8,13 +8,15 @@ import { StatusChip } from "./StatusChip";
 import { MaintenanceToggle } from "./MaintenanceToggle";
 import { TasksBadge } from "./TasksBadge";
 import { AutonomousToggle } from "./AutonomousToggle";
+import { LanguageToggle } from "./LanguageToggle";
+import { useLang } from "@/lib/i18n";
 
 const LINKS = [
-  { href: "/", label: "שיחה", icon: "ph-chat-circle" },
-  { href: "/state", label: "מצב", icon: "ph-squares-four" },
-  { href: "/grow", label: "הגידול", icon: "ph-plant" },
-  { href: "/decisions", label: "החלטות", icon: "ph-list-checks" },
-  { href: "/architecture", label: "ארכיטקטורה", icon: "ph-tree-structure" },
+  { href: "/", en: "Chat", he: "שיחה", icon: "ph-chat-circle" },
+  { href: "/state", en: "Status", he: "מצב", icon: "ph-squares-four" },
+  { href: "/grow", en: "The Grow", he: "הגידול", icon: "ph-plant" },
+  { href: "/decisions", en: "Decisions", he: "החלטות", icon: "ph-list-checks" },
+  { href: "/architecture", en: "Architecture", he: "ארכיטקטורה", icon: "ph-tree-structure" },
 ];
 
 /** Overflow (⋯) menu — holds the quieter controls (pause/resume, …). */
@@ -33,7 +35,7 @@ function OverflowMenu() {
     <div className="relative" ref={ref}>
       <button
         onClick={() => setOpen((v) => !v)}
-        aria-label="עוד"
+        aria-label="more"
         aria-expanded={open}
         className="flex items-center justify-center w-8 h-8 rounded-md transition-colors"
         style={{ border: "1px solid color-mix(in srgb, var(--c-parchment) 8%, transparent)", background: "var(--surface-warm)", color: "var(--c-fog)" }}
@@ -44,9 +46,9 @@ function OverflowMenu() {
         <div
           className="absolute end-0 mt-2 w-52 rounded-lg overflow-hidden z-40"
           style={{ background: "var(--surface-warm)", border: "1px solid var(--c-bark)", boxShadow: "var(--glow-shadow)" }}
-          onClick={() => setOpen(false)}
         >
           <MaintenanceToggle />
+          <LanguageToggle />
         </div>
       )}
     </div>
@@ -55,6 +57,7 @@ function OverflowMenu() {
 
 export function Nav() {
   const pathname = usePathname();
+  const { t } = useLang();
   // The marketing homepage (/site) is standalone — it carries its own chrome.
   if (pathname?.startsWith("/site")) return null;
 
@@ -109,7 +112,7 @@ export function Nav() {
                       className={"ph-light " + l.icon}
                       style={{ fontSize: "1.05rem", color: active ? "var(--c-basil)" : "var(--c-stone)" }}
                     />
-                    {l.label}
+                    {t(l.en, l.he)}
                   </Link>
                 </li>
               );
