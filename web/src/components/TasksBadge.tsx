@@ -10,7 +10,7 @@
  *   - HANDS    (🙋): physical-world todos (refill bottle, water change,
  *     replace sensor, calibrate).  No expiry by default; ack when done.
  *
- * Clicking the badge jumps to /state where the full task panel lives.
+ * Clicking the badge jumps to the dashboard (/) where the full task panel lives.
  * Refreshes every 15s so a freshly-created approval becomes visible
  * without a page reload.
  */
@@ -54,7 +54,7 @@ export function TasksBadge() {
 
   return (
     <Link
-      href="/state"
+      href="/"
       title={`משימות ממתינות: ${approval} לאישור · ${hands} פיזי`}
       className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs px-1.5 sm:px-2 py-1 rounded-md transition-colors"
       style={{ border: "1px solid color-mix(in srgb, var(--c-parchment) 8%, transparent)", background: "var(--surface-warm)" }}

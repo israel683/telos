@@ -123,7 +123,7 @@ export default function GrowPage() {
             <div className="tk-fs"><div className="v">{stage}</div><div className="l">{t("growth stage", "שלב גידול")}</div></div>
           </div>
           <div className="tk-focus-actions">
-            <Link href="/" className="tk-btn">{t("Open chat", "פתח שיחה")} <span aria-hidden="true">→</span></Link>
+            <Link href="/chat" className="tk-btn">{t("Open chat", "פתח שיחה")} <span aria-hidden="true">→</span></Link>
             <Link href="/decisions" className="tk-btn-ghost">{t("Decisions", "ההחלטות")}</Link>
           </div>
         </div>
