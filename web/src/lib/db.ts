@@ -1303,7 +1303,7 @@ export async function expireOldTasks(
 // === Chat history ===
 
 export type ChatMessageRole = "user" | "assistant" | "system";
-export type ChatMessageSource = "chat" | "cron-cycle" | "cron-poll" | "system";
+export type ChatMessageSource = "chat" | "cron-cycle" | "cron-poll" | "system" | "reeval";
 
 export type ChatMessageRow = {
   id: number;
