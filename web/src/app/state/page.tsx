@@ -15,41 +15,21 @@ import { BottleLevels } from "@/components/BottleLevels";
 const REFRESH_MS = 5_000;
 
 const STATUS_LABEL: Record<AgentStatus, string> = {
-  healthy: "תקין",
-  attention: "לב",
-  warning: "אזהרה",
-  critical: "קריטי",
-  unknown: "לא ידוע",
+  healthy: "תקין", attention: "לב", warning: "אזהרה", critical: "קריטי", unknown: "לא ידוע",
 };
-
-const STATUS_COLOR: Record<AgentStatus, string> = {
-  healthy: "bg-emerald-500",
-  attention: "bg-amber-500",
-  warning: "bg-orange-500",
-  critical: "bg-red-600",
-  unknown: "bg-zinc-400",
+const STATUS_DOT: Record<AgentStatus, string> = {
+  healthy: "var(--c-basil)", attention: "var(--amber)", warning: "#c97a3a",
+  critical: "var(--c-terra)", unknown: "var(--c-stone)",
 };
-
-const PRIORITY_COLOR: Record<HumanTask["priority"], string> = {
-  urgent: "bg-red-600 text-white",
-  high: "bg-orange-500 text-white",
-  medium: "bg-amber-400 text-zinc-900",
-  low: "bg-zinc-400 text-white",
-};
-
 const PRIORITY_LABEL: Record<HumanTask["priority"], string> = {
-  urgent: "דחוף",
-  high: "גבוה",
-  medium: "בינוני",
-  low: "נמוך",
+  urgent: "דחוף", high: "גבוה", medium: "בינוני", low: "נמוך",
 };
-
 const TASK_TYPE_LABEL: Record<HumanTask["type"], string> = {
-  water_change: "החלפת מים",
-  dose_approval: "אישור מינון",
-  system_reset: "ריסט מערכת",
-  question: "שאלה",
-  manual_action: "פעולה ידנית",
+  water_change: "החלפת מים", dose_approval: "אישור מינון", system_reset: "ריסט מערכת",
+  question: "שאלה", manual_action: "פעולה ידנית",
+};
+const STAGE_LABEL: Record<string, string> = {
+  seedling: "שתיל", vegetative: "וגטטיבי", flowering: "פריחה", fruiting: "פרי",
 };
 
 export default function Dashboard() {
@@ -77,52 +57,25 @@ export default function Dashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  async function handleComplete(id: number) {
-    await completeTask(id, "marked done from dashboard");
-    refresh();
-  }
-
-  async function handleDismiss(id: number) {
-    await dismissTask(id, "dismissed from dashboard");
-    refresh();
-  }
-
+  async function handleComplete(id: number) { await completeTask(id, "marked done from dashboard"); refresh(); }
+  async function handleDismiss(id: number) { await dismissTask(id, "dismissed from dashboard"); refresh(); }
   async function handleApproveDose(id: number) {
-    // dose_approval tasks need to actually FIRE the pump on approval, not
-    // just flip status='done'.  The dedicated /approve endpoint handles
-    // validate + execute + log + complete in one call.
     try {
       const r = await approveDoseTask(id);
-      if (!r.ok) {
-        const why = r.reason || r.error || "unknown failure";
-        alert(`לא בוצע: ${why}`);
-      }
+      if (!r.ok) alert(`לא בוצע: ${r.reason || r.error || "unknown failure"}`);
     } catch (e) {
       alert(`שגיאה: ${e instanceof Error ? e.message : String(e)}`);
     }
     refresh();
   }
 
-  if (loading) {
-    return (
-      <main className="flex-1 grid place-items-center text-zinc-500">
-        טוען נתונים...
-      </main>
-    );
-  }
-
+  if (loading) return <main style={{ flex: 1, display: "grid", placeItems: "center", color: "var(--c-ash)" }}>טוען נתונים…</main>;
   if (error || !state) {
     return (
-      <main className="flex-1 grid place-items-center p-8">
-        <div className="max-w-md text-center">
-          <h2 className="text-xl font-semibold mb-2">שגיאת חיבור ל-Agent</h2>
-          <p className="text-sm text-zinc-500 break-words">{error}</p>
-          <p className="mt-4 text-xs text-zinc-400">
-            ודא שהאייג&apos;נט רץ:{" "}
-            <code className="bg-zinc-200 dark:bg-zinc-800 px-1 rounded">
-              ./Code/dev.sh --mock
-            </code>
-          </p>
+      <main style={{ flex: 1, display: "grid", placeItems: "center", padding: 32 }}>
+        <div style={{ maxWidth: 420, textAlign: "center" }}>
+          <h2 style={{ fontFamily: "var(--f-display)", fontSize: "1.5rem", color: "var(--c-parchment)", marginBottom: 8 }}>שגיאת חיבור</h2>
+          <p style={{ fontSize: ".85rem", color: "var(--c-ash)", wordBreak: "break-word" }}>{error}</p>
         </div>
       </main>
     );
@@ -131,109 +84,131 @@ export default function Dashboard() {
   const r = state.current_reading;
   const d = state.last_decision;
   const status: AgentStatus = (d?.status as AgentStatus) || "unknown";
+  const sp = state.system_profile;
+  const stage = STAGE_LABEL[sp.growth_stage] ?? sp.growth_stage;
 
   return (
-    <main className="flex-1 max-w-6xl w-full mx-auto p-3 sm:p-6 space-y-4 sm:space-y-6 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-      <header className="flex items-baseline justify-between">
+    <main dir="rtl" style={{ maxWidth: 1180, width: "100%", margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}>
+      {/* Topbar */}
+      <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>
-          <h1 className="text-2xl font-bold">לוח בקרה</h1>
-          <p className="text-sm text-zinc-500">
-            {state.system_profile.crop_type} · {state.system_profile.reservoir_liters}L · {state.system_profile.location}
-            {state.agent.mock_mode && (
-              <span className="mx-2 px-2 py-0.5 text-xs bg-purple-200 text-purple-900 rounded dark:bg-purple-900 dark:text-purple-200">
-                MOCK
-              </span>
-            )}
+          <h1 style={{ fontFamily: "var(--f-display)", fontWeight: 300, fontSize: "clamp(1.9rem,3.5vw,2.6rem)", color: "var(--c-parchment)", lineHeight: 1, letterSpacing: "-.01em" }}>
+            לוח בקרה
+          </h1>
+          <p style={{ fontSize: ".82rem", color: "var(--c-ash)", marginTop: 8 }}>
+            {sp.crop_type} · {sp.reservoir_liters}L · {sp.location} · שלב {stage}
+            {state.agent.mock_mode ? <span className="tk-tag" style={{ marginInlineStart: 8 }}>MOCK</span> : null}
           </p>
         </div>
-        <div className="flex items-center gap-2">
-          <span className={`inline-block w-3 h-3 rounded-full ${STATUS_COLOR[status]}`} />
-          <span className="text-sm font-medium">{STATUS_LABEL[status]}</span>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, fontSize: ".62rem", letterSpacing: ".16em", textTransform: "uppercase", color: "var(--c-ash)" }}>
+          <span style={{ width: 8, height: 8, borderRadius: "50%", background: STATUS_DOT[status], boxShadow: `0 0 0 3px ${STATUS_DOT[status]}22` }} />
+          {STATUS_LABEL[status]}
         </div>
       </header>
 
-      <section className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-3">
-        <Metric label="pH" value={r?.ph} unit="" digits={2} />
-        <Metric label="EC" value={r?.ec} unit="μS/cm" digits={0} />
-        <Metric label="טמפ' מים" value={r?.water_temp} unit="°C" digits={1} />
-        <Metric label="ORP" value={r?.orp} unit="mV" digits={0} />
-        <Metric label="TDS" value={r?.tds} unit="ppm" digits={0} />
-        <Metric label="מליחות" value={r?.salinity} unit="PPM" digits={0} />
-        <Metric label="S.G." value={r?.sg} unit="" digits={3} />
-        <Metric label="CF" value={r?.cf} unit="" digits={2} />
+      {/* Primary readings */}
+      <div className="tk-readings">
+        <Reading label="pH" icon="ph-flask" value={r?.ph} digits={2} />
+        <Reading label="EC" icon="ph-lightning" value={r?.ec} unit="μS/cm" digits={0} />
+        <Reading label="טמפ' מים" icon="ph-drop" value={r?.water_temp} unit="°C" digits={1} />
+        <Reading label="ORP" icon="ph-pulse" value={r?.orp} unit="mV" digits={0} />
+      </div>
+
+      {/* Expression / readings chart — the one Standard-glow card */}
+      <section className="tk-card glow" style={{ padding: 20 }}>
+        <div className="tk-card-h"><span className="ct" style={{ color: "var(--c-fog)" }}>קריאות · אחרונות</span></div>
+        <SensorChart />
       </section>
 
-      <SensorChart />
-
-      <BottleLevels />
-
-      <section className="grid md:grid-cols-3 gap-4">
-        <div className="md:col-span-2 bg-[var(--c-soil)] rounded-md p-5 border border-[rgba(238,237,232,0.07)]">
-          <div className="flex items-center justify-between mb-2">
-            <h2 className="font-semibold">ניתוח אחרון</h2>
-            <span className="text-xs text-zinc-500">
-              {d ? new Date(d.timestamp).toLocaleString("he-IL") : "—"}
-            </span>
+      {/* Secondary readings + bottles */}
+      <div className="tk-grid-2">
+        <section className="tk-card" style={{ padding: 20 }}>
+          <div className="tk-card-h"><span className="ct">קריאות נוספות</span></div>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 18px" }}>
+            <MiniReading label="TDS" value={r?.tds} unit="ppm" digits={0} />
+            <MiniReading label="מליחות" value={r?.salinity} unit="PPM" digits={0} />
+            <MiniReading label="S.G." value={r?.sg} digits={3} />
+            <MiniReading label="CF" value={r?.cf} digits={2} />
           </div>
-          <p className="text-sm leading-relaxed mb-3 font-medium" dir="rtl">
-            {d?.message || "ממתין לניתוח ראשון..."}
+        </section>
+        <section className="tk-card" style={{ padding: 20 }}>
+          <div className="tk-card-h"><span className="ct">מלאי בקבוקים</span></div>
+          <BottleLevels />
+        </section>
+      </div>
+
+      {/* The Brain · analysis + status */}
+      <div className="tk-grid-2" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
+        <section className="tk-card" style={{ padding: 22 }}>
+          <div className="tk-card-h">
+            <span className="ct" style={{ color: "var(--c-fog)", display: "flex", alignItems: "center", gap: 8 }}>
+              <i className="ph-light ph-brain" style={{ color: "var(--amber)" }} />ניתוח המוח
+            </span>
+            <span className="more">{d ? new Date(d.timestamp).toLocaleString("he-IL") : "—"}</span>
+          </div>
+          <p style={{ fontFamily: "var(--f-display)", fontStyle: "italic", fontWeight: 300, fontSize: "1.15rem", lineHeight: 1.5, color: "var(--c-parchment)" }}>
+            {d?.message || "ממתין לניתוח ראשון…"}
           </p>
-          {d?.analysis && (
-            <details className="text-xs text-zinc-600 dark:text-zinc-400">
-              <summary className="cursor-pointer select-none">פירוט טכני</summary>
-              <p className="mt-2 leading-relaxed" dir="ltr">{d.analysis}</p>
-              {d.raw_response?.concerns && (
-                <ul className="mt-2 space-y-1 list-disc pr-4" dir="ltr">
-                  {d.raw_response.concerns.map((c: string, i: number) => (
-                    <li key={i}>{c}</li>
-                  ))}
-                </ul>
-              )}
+          {d?.analysis ? (
+            <details style={{ fontSize: ".8rem", color: "var(--c-ash)", marginTop: 14 }}>
+              <summary style={{ cursor: "pointer", color: "var(--c-stone)", letterSpacing: ".04em" }}>פירוט טכני</summary>
+              <p style={{ marginTop: 8, lineHeight: 1.6 }} dir="ltr">{d.analysis}</p>
             </details>
-          )}
-        </div>
-
-        <div className="bg-[var(--c-soil)] rounded-md p-5 border border-[rgba(238,237,232,0.07)]">
-          <h2 className="font-semibold mb-3 text-[var(--c-parchment)]">מצב אייג&apos;נט</h2>
-          <dl className="text-sm space-y-1.5">
+          ) : null}
+        </section>
+        <section className="tk-card" style={{ padding: 22 }}>
+          <div className="tk-card-h"><span className="ct">מצב המוח</span></div>
+          <dl style={{ display: "flex", flexDirection: "column", gap: 10 }}>
             <Row label="מחזור #" value={String(state.agent.cycle_count)} />
-            <Row
-              label="ניתוח הבא בעוד"
-              value={`${Math.round(state.agent.next_ai_seconds / 60)} דק'`}
-            />
+            <Row label="ניתוח הבא" value={`בעוד ${Math.round(state.agent.next_ai_seconds / 60)} ד'`} />
             <Row label="מודל" value={state.agent.model || "claude-sonnet-4-6"} />
-            <Row label="שלב גידול" value={state.system_profile.growth_stage} />
+            <Row label="שלב גידול" value={stage} />
           </dl>
-        </div>
-      </section>
+        </section>
+      </div>
 
-      <TasksPanel
-        tasks={tasks}
-        onApprove={handleApproveDose}
-        onComplete={handleComplete}
-        onDismiss={handleDismiss}
-      />
+      <TasksPanel tasks={tasks} onApprove={handleApproveDose} onComplete={handleComplete} onDismiss={handleDismiss} />
 
-      <footer className="text-xs text-zinc-400 text-center pt-4">
+      <footer style={{ fontSize: ".7rem", color: "var(--c-stone)", textAlign: "center", paddingTop: 8 }}>
         מתעדכן כל {REFRESH_MS / 1000} שניות
       </footer>
     </main>
   );
 }
 
-/**
- * Split pending tasks into two visually distinct buckets:
- *  - Approval-needed (dose_approval): the agent suggested a dose while
- *    the grower wasn't in the chat. One click here actually FIRES the
- *    pump (see /api/tasks/:id/approve), not just marks the task done.
- *  - Hands-needed (water_change, manual_action, system_reset, question):
- *    things only a human can do; clicking "בוצע" just records that you did it.
- */
+function Reading({ label, value, unit, digits, icon }: { label: string; value: number | null | undefined; unit?: string; digits: number; icon?: string }) {
+  const display = value === null || value === undefined ? "—" : value.toFixed(digits);
+  return (
+    <div className="tk-card hover" style={{ padding: 18 }}>
+      <div className="tk-reading">
+        <div className="l">{icon ? <i className={"ph-light " + icon} /> : null}{label}</div>
+        <div className="v" dir="ltr">{display}{unit ? <span className="u">{unit}</span> : null}</div>
+      </div>
+    </div>
+  );
+}
+
+function MiniReading({ label, value, unit, digits }: { label: string; value: number | null | undefined; unit?: string; digits: number }) {
+  const display = value === null || value === undefined ? "—" : value.toFixed(digits);
+  return (
+    <div className="tk-reading">
+      <div className="l">{label}</div>
+      <div className="v" dir="ltr" style={{ fontSize: "1.4rem" }}>{display}{unit ? <span className="u">{unit}</span> : null}</div>
+    </div>
+  );
+}
+
+function Row({ label, value }: { label: string; value: string }) {
+  return (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: ".88rem" }}>
+      <dt style={{ color: "var(--c-ash)" }}>{label}</dt>
+      <dd style={{ color: "var(--c-parchment)" }}>{value}</dd>
+    </div>
+  );
+}
+
 function TasksPanel({
-  tasks,
-  onApprove,
-  onComplete,
-  onDismiss,
+  tasks, onApprove, onComplete, onDismiss,
 }: {
   tasks: HumanTask[];
   onApprove: (id: number) => void;
@@ -246,8 +221,8 @@ function TasksPanel({
   if (tasks.length === 0) {
     return (
       <section>
-        <h2 className="font-semibold mb-3">משימות ממתינות</h2>
-        <p className="text-sm text-[var(--c-stone)] text-center py-8 bg-[var(--c-soil)] rounded-md border border-[rgba(238,237,232,0.07)]">
+        <div className="tk-card-h"><span className="ct">משימות ממתינות</span></div>
+        <p className="tk-card" style={{ fontSize: ".88rem", color: "var(--c-stone)", textAlign: "center", padding: "2rem" }}>
           אין משימות ממתינות. המערכת רצה אוטונומית.
         </p>
       </section>
@@ -255,142 +230,66 @@ function TasksPanel({
   }
 
   return (
-    <section className="space-y-5">
-      {approval.length > 0 && (
+    <section style={{ display: "flex", flexDirection: "column", gap: 18 }}>
+      {approval.length > 0 ? (
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-lg">⚡</span>
-            <h2 className="font-semibold">ממתין לאישור שלך ({approval.length})</h2>
-            <span className="text-xs text-zinc-500">— לחיצה על "אשר ובצע" תפעיל את המשאבה ישירות</span>
+          <div className="tk-card-h" style={{ alignItems: "baseline" }}>
+            <span className="ct" style={{ color: "var(--c-fog)", display: "flex", alignItems: "center", gap: 8 }}>
+              <i className="ph-light ph-lightning" style={{ color: "var(--amber)" }} />ממתין לאישורך ({approval.length})
+            </span>
+            <span className="more">לחיצה על &quot;אשר ובצע&quot; מפעילה את המשאבה</span>
           </div>
-          <ul className="space-y-3">
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 12 }}>
             {approval.map((t) => (
-              <TaskCard
-                key={t.id}
-                t={t}
-                primaryLabel="אשר ובצע"
-                primaryColor="bg-emerald-600 hover:bg-emerald-700"
-                onPrimary={() => onApprove(t.id)}
-                onDismiss={() => onDismiss(t.id)}
-              />
+              <TaskCard key={t.id} t={t} primaryLabel="אשר ובצע" onPrimary={() => onApprove(t.id)} onDismiss={() => onDismiss(t.id)} />
             ))}
           </ul>
         </div>
-      )}
+      ) : null}
 
-      {hands.length > 0 && (
+      {hands.length > 0 ? (
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <span className="text-lg">🙋</span>
-            <h2 className="font-semibold">צריך ידיים שלך ({hands.length})</h2>
-            <span className="text-xs text-zinc-500">— פעולות פיזיות / שאלות לסוכן</span>
+          <div className="tk-card-h">
+            <span className="ct" style={{ color: "var(--c-fog)", display: "flex", alignItems: "center", gap: 8 }}>
+              <i className="ph-light ph-hand-pointing" style={{ color: "var(--amber)" }} />צריך ידיים שלך ({hands.length})
+            </span>
           </div>
-          <ul className="space-y-3">
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 12 }}>
             {hands.map((t) => (
-              <TaskCard
-                key={t.id}
-                t={t}
-                primaryLabel="בוצע"
-                primaryColor="bg-blue-600 hover:bg-blue-700"
-                onPrimary={() => onComplete(t.id)}
-                onDismiss={() => onDismiss(t.id)}
-              />
+              <TaskCard key={t.id} t={t} primaryLabel="בוצע" onPrimary={() => onComplete(t.id)} onDismiss={() => onDismiss(t.id)} />
             ))}
           </ul>
         </div>
-      )}
+      ) : null}
     </section>
   );
 }
 
 function TaskCard({
-  t,
-  primaryLabel,
-  primaryColor,
-  onPrimary,
-  onDismiss,
+  t, primaryLabel, onPrimary, onDismiss,
 }: {
   t: HumanTask;
   primaryLabel: string;
-  primaryColor: string;
   onPrimary: () => void;
   onDismiss: () => void;
 }) {
   return (
-    <li className="bg-[var(--c-soil)] rounded-md p-4 border border-[rgba(238,237,232,0.07)]">
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1 flex-wrap">
-            <span className={`text-xs px-2 py-0.5 rounded ${PRIORITY_COLOR[t.priority]}`}>
-              {PRIORITY_LABEL[t.priority]}
-            </span>
-            <span className="text-xs text-zinc-500">{TASK_TYPE_LABEL[t.type]}</span>
-            <span className="text-xs text-zinc-400">
-              #{t.id} · {new Date(t.created_at).toLocaleString("he-IL")}
-            </span>
+    <li className="tk-card" style={{ padding: 18 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+        <div style={{ flex: 1, minWidth: 200 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap", fontSize: ".58rem", letterSpacing: ".1em", textTransform: "uppercase" }}>
+            <span style={{ color: "var(--c-basil)" }}>{PRIORITY_LABEL[t.priority]}</span>
+            <span style={{ color: "var(--c-stone)" }}>· {TASK_TYPE_LABEL[t.type]}</span>
+            <span style={{ color: "var(--c-stone)", textTransform: "none", letterSpacing: 0 }}>#{t.id}</span>
           </div>
-          <h3 className="font-medium leading-snug mb-1">{t.title}</h3>
-          <p className="text-sm text-zinc-600 dark:text-zinc-400 leading-relaxed">{t.reason}</p>
-          {Object.keys(t.payload).length > 0 && (
-            <pre
-              className="mt-2 text-xs bg-[var(--c-void)] text-[var(--c-fog)] rounded-sm p-2 overflow-x-auto border border-[rgba(238,237,232,0.07)]"
-              dir="ltr"
-            >
-              {JSON.stringify(t.payload, null, 2)}
-            </pre>
-          )}
+          <h3 style={{ fontFamily: "var(--f-display)", fontWeight: 500, fontSize: "1.05rem", color: "var(--c-parchment)", lineHeight: 1.3, marginBottom: 5 }}>{t.title}</h3>
+          <p style={{ fontSize: ".88rem", color: "var(--c-fog)", lineHeight: 1.5 }}>{t.reason}</p>
         </div>
-        <div className="flex flex-col gap-2 shrink-0">
-          <button
-            onClick={onPrimary}
-            className={`text-xs px-3 py-1.5 rounded text-white ${primaryColor}`}
-          >
-            {primaryLabel}
-          </button>
-          <button
-            onClick={onDismiss}
-            className="text-xs px-3 py-1.5 rounded bg-zinc-300 hover:bg-zinc-400 dark:bg-zinc-700 dark:hover:bg-zinc-600"
-          >
-            בטל
-          </button>
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: "none" }}>
+          <button className="tk-btn" onClick={onPrimary}>{primaryLabel}</button>
+          <button className="tk-btn-ghost" onClick={onDismiss}>בטל</button>
         </div>
       </div>
     </li>
-  );
-}
-
-function Metric({
-  label,
-  value,
-  unit,
-  digits,
-}: {
-  label: string;
-  value: number | null | undefined;
-  unit: string;
-  digits: number;
-}) {
-  const display =
-    value === null || value === undefined ? "—" : value.toFixed(digits);
-  return (
-    // Sharp corners (r-none / r-sm) for data, per the TELOS spec — data
-    // is exact, sharp corners reinforce precision.  Value renders in
-    // Cormorant Italic (the .t-num utility) and in basil.
-    <div className="bg-[var(--c-soil)] rounded-sm p-3 border border-[rgba(238,237,232,0.07)]">
-      <div className="t-eyebrow">{label}</div>
-      <div className="mt-1 flex items-baseline gap-1.5" dir="ltr">
-        <span className="t-num text-3xl text-[var(--c-basil)]">{display}</span>
-        {unit && <span className="text-[10px] text-[var(--c-stone)] tracking-wider uppercase">{unit}</span>}
-      </div>
-    </div>
-  );
-}
-
-function Row({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex justify-between gap-2">
-      <dt className="text-zinc-500">{label}</dt>
-      <dd className="font-medium">{value}</dd>
-    </div>
   );
 }
