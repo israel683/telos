@@ -19,21 +19,37 @@ const STATUS_LABEL: Record<string, string> = {
   critical: "קריטי",
 };
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+/** A design-system card (tone, not borders; 14px soft; optional standard glow). */
+function Card({
+  title,
+  icon,
+  glow,
+  children,
+}: {
+  title: string;
+  icon?: string;
+  glow?: boolean;
+  children: React.ReactNode;
+}) {
   return (
-    <section className="rounded-xl border border-[rgba(238,237,232,0.08)] bg-[rgba(20,20,17,0.6)] p-4 sm:p-5">
-      <h2 className="text-sm tracking-wide text-[var(--c-stone)] mb-3">{title}</h2>
+    <section className={"tk-card" + (glow ? " glow" : "")}>
+      <div className="tk-card-h">
+        <span className="ct">
+          {icon ? <i className={"ph-light " + icon} style={{ marginInlineEnd: 8, color: "var(--amber)" }} /> : null}
+          {title}
+        </span>
+      </div>
       {children}
     </section>
   );
 }
 
-function Row({ label, value }: { label: string; value: React.ReactNode }) {
+function Field({ label, value }: { label: string; value: React.ReactNode }) {
   if (value === null || value === undefined || value === "") return null;
   return (
-    <div className="flex gap-3 py-1 text-sm">
-      <span className="text-[var(--c-stone)] min-w-28 shrink-0">{label}</span>
-      <span className="text-[var(--c-parchment)]">{value}</span>
+    <div style={{ display: "flex", gap: 12, padding: "5px 0", fontSize: ".88rem" }}>
+      <span style={{ color: "var(--c-stone)", minWidth: 96, flex: "none" }}>{label}</span>
+      <span style={{ color: "var(--c-parchment)" }}>{value}</span>
     </div>
   );
 }
@@ -67,10 +83,10 @@ export default function GrowPage() {
   }, []);
 
   if (loading) {
-    return <div className="max-w-3xl mx-auto px-4 py-10 text-[var(--c-stone)]">טוען…</div>;
+    return <div style={{ maxWidth: 860, margin: "0 auto", padding: "3rem 1.5rem", color: "var(--c-stone)" }}>טוען…</div>;
   }
   if (error) {
-    return <div className="max-w-3xl mx-auto px-4 py-10 text-red-400">שגיאה: {error}</div>;
+    return <div style={{ maxWidth: 860, margin: "0 auto", padding: "3rem 1.5rem", color: "var(--c-terra)" }}>שגיאה: {error}</div>;
   }
   if (!data) return null;
 
@@ -79,110 +95,114 @@ export default function GrowPage() {
   const practices = (p.practices as string[] | undefined) ?? [];
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-6 space-y-4" dir="rtl">
-      {/* Header — the cultivar this grow is becoming */}
-      <header className="space-y-1">
-        <h1 className="t-display text-2xl text-[var(--c-parchment)]">
+    <div dir="rtl" style={{ maxWidth: 860, margin: "0 auto", padding: "2.5rem 1.25rem 4rem", display: "flex", flexDirection: "column", gap: 14 }}>
+      {/* Hero header — the cultivar this grow is becoming. Souvenir, basil eyebrow. */}
+      <header style={{ marginBottom: 6 }}>
+        <span className="tk-tag">הגידול</span>
+        <h1
+          style={{
+            fontFamily: "var(--f-display)",
+            fontWeight: 300,
+            fontSize: "clamp(2.1rem,5vw,3.2rem)",
+            lineHeight: 1.04,
+            color: "var(--c-parchment)",
+            margin: ".5rem 0 .4rem",
+            letterSpacing: "-.01em",
+          }}
+        >
           {data.cultivar?.name ?? data.system.crop_type}
         </h1>
-        <p className="text-sm text-[var(--c-stone)]">
+        <p style={{ fontSize: ".82rem", letterSpacing: ".04em", color: "var(--c-stone)" }}>
           {data.cultivar?.provenance ? `${data.cultivar.provenance} · ` : ""}
           {data.system.growth_stage} · {data.system.location}
         </p>
       </header>
 
-      {/* Onboarding progress */}
-      <Card title="היכרות עם הגידול">
+      {/* Onboarding */}
+      <Card title="היכרות עם הגידול" icon="ph-clipboard-text" glow={!data.onboarding.complete}>
         {data.onboarding.complete ? (
-          <p className="text-sm text-[var(--c-basil)]">
-            ✓ ההיכרות הושלמה — המוח האישי של הגידול הזה מגובש.
-          </p>
+          <p style={{ fontSize: ".88rem", color: "var(--c-basil)" }}>✓ ההיכרות הושלמה — המוח האישי של הגידול מגובש.</p>
         ) : (
-          <div className="space-y-2">
-            <p className="text-sm text-[var(--c-fog)]">
-              נותרו {data.onboarding.unanswered.length} מתוך {data.onboarding.total} שאלות.
-              המוח ישאל אותן בשיחה.
+          <>
+            <p style={{ fontSize: ".85rem", color: "var(--c-fog)", marginBottom: 10 }}>
+              נותרו {data.onboarding.unanswered.length} מתוך {data.onboarding.total} שאלות. המוח ישאל אותן בשיחה.
             </p>
-            <ul className="space-y-1">
+            <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 6 }}>
               {data.onboarding.unanswered.map((q) => (
-                <li key={q.id} className="text-sm text-[var(--c-stone)]">
+                <li key={q.id} style={{ fontSize: ".85rem", color: "var(--c-stone)" }}>
                   • {q.question}
-                  {q.required ? <span className="text-amber-400"> *</span> : null}
+                  {q.required ? <span style={{ color: "var(--amber)" }}> *</span> : null}
                 </li>
               ))}
             </ul>
-          </div>
+          </>
         )}
       </Card>
 
-      {/* Grow Context — the personal Brain of this grow */}
-      <Card title="הקשר הגידול">
-        <div className="space-y-0.5">
-          <Row label="מקור מים" value={p.water_source as string} />
-          <Row
-            label="בסיס מים"
-            value={
-              wb && (wb.ph != null || wb.ec != null)
-                ? [wb.ph != null ? `pH ${wb.ph}` : null, wb.ec != null ? `EC ${wb.ec}` : null]
-                    .filter(Boolean)
-                    .join(" · ")
-                : null
-            }
-          />
-          <Row label="תאורה" value={p.light as string} />
-          <Row label="אקלים" value={p.climate as string} />
-          <Row label="יעד" value={p.business_goal as string} />
-          <Row label="לקוח" value={p.target_buyer as string} />
-          {practices.length > 0 ? (
-            <div className="pt-1">
-              <span className="text-[var(--c-stone)] text-sm">פרקטיקות:</span>
-              <ul className="mt-1 space-y-0.5">
-                {practices.map((pr, i) => (
-                  <li key={i} className="text-sm text-[var(--c-parchment)]">• {pr}</li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
-          {!p.water_source && !p.light && !p.business_goal && practices.length === 0 ? (
-            <p className="text-sm text-[var(--c-stone)]">עדיין לא נאסף מידע — ההיכרות טרם החלה.</p>
-          ) : null}
-        </div>
+      {/* Grow Context */}
+      <Card title="הקשר הגידול" icon="ph-plant">
+        <Field label="מקור מים" value={p.water_source as string} />
+        <Field
+          label="בסיס מים"
+          value={
+            wb && (wb.ph != null || wb.ec != null)
+              ? [wb.ph != null ? `pH ${wb.ph}` : null, wb.ec != null ? `EC ${wb.ec}` : null].filter(Boolean).join(" · ")
+              : null
+          }
+        />
+        <Field label="תאורה" value={p.light as string} />
+        <Field label="אקלים" value={p.climate as string} />
+        <Field label="יעד" value={p.business_goal as string} />
+        <Field label="לקוח" value={p.target_buyer as string} />
+        {practices.length > 0 ? (
+          <div style={{ paddingTop: 6 }}>
+            <span style={{ color: "var(--c-stone)", fontSize: ".85rem" }}>פרקטיקות:</span>
+            <ul style={{ listStyle: "none", padding: 0, margin: "6px 0 0", display: "flex", flexDirection: "column", gap: 4 }}>
+              {practices.map((pr, i) => (
+                <li key={i} style={{ fontSize: ".85rem", color: "var(--c-parchment)" }}>• {pr}</li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
+        {!p.water_source && !p.light && !p.business_goal && practices.length === 0 ? (
+          <p style={{ fontSize: ".85rem", color: "var(--c-stone)" }}>עדיין לא נאסף מידע — ההיכרות טרם החלה.</p>
+        ) : null}
       </Card>
 
-      {/* Grower Memory — what the grower has taught the Brain */}
-      <Card title="זיכרון המגדל">
+      {/* Grower Memory */}
+      <Card title="זיכרון המגדל" icon="ph-brain">
         {data.memory.length === 0 ? (
-          <p className="text-sm text-[var(--c-stone)]">המגדל עדיין לא לימד את המוח דבר על הגידול הזה.</p>
+          <p style={{ fontSize: ".85rem", color: "var(--c-stone)" }}>המגדל עדיין לא לימד את המוח דבר על הגידול הזה.</p>
         ) : (
-          <ul className="space-y-2">
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 9 }}>
             {data.memory.map((m) => (
-              <li key={m.id} className="text-sm flex gap-2">
-                <span className="text-[10px] uppercase tracking-wide text-[var(--c-basil)] mt-0.5 shrink-0">
+              <li key={m.id} style={{ fontSize: ".85rem", display: "flex", gap: 9 }}>
+                <span style={{ fontSize: ".58rem", letterSpacing: ".12em", textTransform: "uppercase", color: "var(--c-basil)", marginTop: 2, flex: "none" }}>
                   {MEMORY_KIND_LABEL[m.kind] ?? m.kind}
                 </span>
-                <span className="text-[var(--c-parchment)]">{m.text}</span>
+                <span style={{ color: "var(--c-parchment)" }}>{m.text}</span>
               </li>
             ))}
           </ul>
         )}
       </Card>
 
-      {/* Recent Episodes — the Brain's own narrative log */}
-      <Card title="אפיזודות אחרונות">
+      {/* Recent Episodes */}
+      <Card title="אפיזודות אחרונות" icon="ph-pulse">
         {data.episodes.length === 0 ? (
-          <p className="text-sm text-[var(--c-stone)]">אין עדיין אפיזודות.</p>
+          <p style={{ fontSize: ".85rem", color: "var(--c-stone)" }}>אין עדיין אפיזודות.</p>
         ) : (
-          <ul className="space-y-2">
+          <div>
             {data.episodes.map((e) => (
-              <li key={e.id} className="text-sm">
-                <span className="text-[var(--c-stone)]">
-                  {e.ts.slice(0, 16).replace("T", " ")}
-                  {e.status ? ` · ${STATUS_LABEL[e.status] ?? e.status}` : ""}
+              <div className="tk-le" key={e.id}>
+                <span className="lt">{e.ts.slice(5, 16).replace("T", " ")}</span>
+                <span className="lx">
+                  {e.status ? <b>{STATUS_LABEL[e.status] ?? e.status} · </b> : null}
+                  {e.summary}
                 </span>
-                <div className="text-[var(--c-parchment)]">{e.summary}</div>
-              </li>
+              </div>
             ))}
-          </ul>
+          </div>
         )}
       </Card>
     </div>

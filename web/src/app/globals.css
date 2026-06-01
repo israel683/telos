@@ -157,7 +157,7 @@
 /* TELOS is a DARK system by default.  We don't auto-switch on
    prefers-color-scheme — the Warm Neutral palette IS the brand. */
 body {
-  background: var(--c-void);
+  background: var(--ground-warm);
   color: var(--c-parchment);
   font-family: var(--f-body);
   font-weight: 300;

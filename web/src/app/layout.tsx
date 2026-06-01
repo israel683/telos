@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, Noto_Serif_Hebrew, Rubik } from "next/font/google";
 import localFont from "next/font/local";
 import { Nav } from "@/components/Nav";
 import "./globals.css";
+import "./telos-ui.css";
 
 // TELOS typographic stack — see design-system/tokens.json (single source of
 // truth).  ITC Souvenir is the canonical display + numbers face (warm humanist
@@ -75,7 +76,7 @@ export default function RootLayout({
       {/* TELOS is a DARK system by default — the Warm Neutral palette IS
           the brand.  Foreground = parchment on a void background, with
           the body font selected by html[lang] in globals.css. */}
-      <body className="min-h-full flex flex-col bg-[var(--c-void)] text-[var(--c-parchment)]">
+      <body className="min-h-full flex flex-col bg-[var(--ground-warm)] text-[var(--c-parchment)]">
         <Nav />
         {children}
       </body>

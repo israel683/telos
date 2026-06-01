@@ -1,0 +1,87 @@
+/* ============================================================================
+   TELOS dashboard UI layer — the design-system components, app-wide.
+   Ported from the Claude Design "telos-agent" kit (Focus/Bed/Brain), wired to
+   the global tokens (design-system/tokens.json → globals.css). Class names are
+   prefixed `tk-` (telos-kit) to avoid collisions. Surfaces lift by TONE, not
+   borders; 14px softness; Basil stays rare; one lit hero per screen.
+   ========================================================================== */
+@import url("https://unpkg.com/@phosphor-icons/web@2.1.1/src/light/style.css");
+
+/* ── primitives: card ──────────────────────────────────────────────────── */
+.tk-card{
+  background:var(--surface-warm);
+  border-radius:var(--r-card);
+  padding:18px;
+  display:flex;flex-direction:column;min-height:0;
+}
+.tk-card.hover:hover{ background:var(--c-earth); }
+/* Standard glow tier — a soft amber pool, fades to transparent */
+.tk-card.glow{ position:relative;overflow:hidden; }
+.tk-card.glow::before{
+  content:"";position:absolute;inset:0;z-index:0;pointer-events:none;
+  background:radial-gradient(ellipse 72% 92% at 26% 20%, color-mix(in srgb,var(--amber) 13%,transparent), transparent 60%);
+}
+.tk-card.glow>*{ position:relative;z-index:1; }
+.tk-card-h{ display:flex;justify-content:space-between;align-items:center;margin-bottom:14px; }
+.tk-card-h .ct{ font-family:var(--f-body);font-weight:500;font-size:.62rem;letter-spacing:.18em;text-transform:uppercase;color:var(--c-ash); }
+.tk-card-h .more{ font-size:.6rem;color:var(--c-stone);letter-spacing:.1em; }
+
+/* ── reading (metric) ──────────────────────────────────────────────────── */
+.tk-reading{ display:flex;flex-direction:column;gap:6px; }
+.tk-reading .v{ font-family:var(--f-display);font-weight:300;font-size:2rem;color:var(--c-parchment);line-height:.95; }
+.tk-reading .v .u{ font-family:var(--f-body);font-size:.8rem;color:var(--c-stone);font-weight:400;margin-inline-start:4px; }
+.tk-reading .l{ font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--c-stone);display:flex;align-items:center;gap:7px; }
+.tk-reading .l i{ font-size:1rem;color:var(--amber);letter-spacing:0; }
+.tk-reading .d{ font-size:.64rem;color:var(--c-basil); }
+.tk-reading .d.warn{ color:var(--c-terra); }
+
+/* ── chart ─────────────────────────────────────────────────────────────── */
+.tk-chart{ flex:1;min-height:0;position:relative; }
+.tk-chart svg{ width:100%;height:100%;display:block;overflow:visible; }
+.tk-xlab{ display:flex;justify-content:space-between;font-size:.55rem;color:var(--c-stone);letter-spacing:.06em;margin-top:8px; }
+
+/* ── task ──────────────────────────────────────────────────────────────── */
+.tk-task{ display:flex;gap:12px;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--c-bark);cursor:pointer; }
+.tk-task:last-child{ border-bottom:none; }
+.tk-check{ width:16px;height:16px;border-radius:4px;border:1px solid var(--c-stone);flex:none;margin-top:2px;display:flex;align-items:center;justify-content:center;font-size:.62rem;color:var(--c-void);transition:all .18s; }
+.tk-task.done .tk-check{ background:var(--c-basil);border-color:var(--c-basil); }
+.tk-task.done .tx{ color:var(--c-stone);text-decoration:line-through;text-decoration-color:var(--c-bark); }
+.tk-task .tx{ font-size:.82rem;color:var(--c-fog);line-height:1.35; }
+.tk-task .tm{ font-size:.6rem;color:var(--c-stone);margin-top:3px;letter-spacing:.04em; }
+
+/* ── log entry ─────────────────────────────────────────────────────────── */
+.tk-le{ display:grid;grid-template-columns:64px 1fr;gap:12px;padding:9px 0;border-bottom:1px solid var(--c-bark);align-items:baseline; }
+.tk-le:last-child{ border-bottom:none; }
+.tk-le .lt{ font-size:.6rem;color:var(--c-stone);font-variant-numeric:tabular-nums;letter-spacing:.02em; }
+.tk-le .lx{ font-size:.78rem;color:var(--c-ash);line-height:1.4; }
+.tk-le .lx b{ color:var(--c-fog);font-weight:500; }
+.tk-le .lx .by{ color:var(--c-basil); }
+
+/* ── buttons ───────────────────────────────────────────────────────────── */
+.tk-btn,.tk-btn-ghost{ font-family:var(--f-body);font-weight:500;font-size:.6rem;letter-spacing:.2em;text-transform:uppercase;padding:.85rem 1.5rem;border-radius:6px;cursor:pointer;display:inline-flex;align-items:center;gap:.6rem;transition:all .25s var(--ease-out); }
+.tk-btn{ background:var(--c-basil);color:var(--c-void);border:1px solid var(--c-basil); }
+.tk-btn:hover{ background:var(--c-parchment);border-color:var(--c-parchment); }
+.tk-btn-ghost{ background:transparent;color:var(--c-parchment);border:1px solid var(--c-bark); }
+.tk-btn-ghost:hover{ border-color:var(--c-basil);color:var(--c-basil); }
+
+/* ── eyebrow / tag ─────────────────────────────────────────────────────── */
+.tk-tag{ font-family:var(--f-body);font-weight:500;font-size:.56rem;letter-spacing:.26em;text-transform:uppercase;color:var(--c-basil); }
+
+/* ── annotation pill (sharp object in soft light) ──────────────────────── */
+.tk-annotation{ display:inline-flex;align-items:center;gap:8px;background:color-mix(in srgb,var(--c-basil) 12%,transparent);border:1px solid color-mix(in srgb,var(--c-basil) 40%,transparent);border-radius:20px;padding:5px 13px;font-family:var(--f-body);font-size:.6rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#b9cd83; }
+.tk-annotation .dot{ width:6px;height:6px;border-radius:50%;background:var(--c-basil);box-shadow:0 0 9px rgba(137,168,62,.9); }
+
+/* ── chat ──────────────────────────────────────────────────────────────── */
+.tk-msg{ display:flex;flex-direction:column;max-width:62%; }
+.tk-msg.brain{ align-self:flex-start;align-items:flex-start; }
+.tk-msg.me{ align-self:flex-end;align-items:flex-end; }
+.tk-msg .who{ font-size:.56rem;letter-spacing:.2em;text-transform:uppercase;margin-bottom:7px; }
+.tk-msg.brain .who{ color:var(--c-basil); }
+.tk-msg.me .who{ color:var(--c-stone); }
+.tk-bubble{ border-radius:14px;padding:14px 18px;font-size:.92rem;line-height:1.55; }
+.tk-msg.brain .tk-bubble{ background:var(--surface-warm);color:var(--c-fog);border-bottom-left-radius:3px; }
+.tk-msg.me .tk-bubble{ background:color-mix(in srgb,var(--c-basil) 12%,transparent);color:var(--c-parchment);border:1px solid color-mix(in srgb,var(--c-basil) 30%,transparent);border-bottom-right-radius:3px; }
+.tk-bubble .em{ font-family:var(--f-display);font-style:italic;color:var(--c-parchment); }
+.tk-bubble .num{ font-family:var(--f-display);color:var(--c-parchment); }
+.tk-chip{ font-size:.68rem;letter-spacing:.04em;color:var(--c-ash);background:transparent;border:1px solid var(--c-bark);border-radius:999px;padding:7px 14px;cursor:pointer;transition:all .2s; }
+.tk-chip:hover{ border-color:var(--c-basil);color:var(--c-basil); }
