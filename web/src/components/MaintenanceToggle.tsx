@@ -4,6 +4,11 @@ import { useEffect, useState } from "react";
 import { getActiveSystem } from "@/lib/system";
 import { patchSystem } from "@/lib/api";
 
+/**
+ * Pause / resume the system (maintenance mode). Rendered as a row inside the
+ * nav overflow menu — an icon + label, palette-correct. When paused the agent
+ * stops taking autonomous decisions until resumed.
+ */
 export function MaintenanceToggle() {
   const [status, setStatus] = useState<"active" | "paused" | "archived" | "loading">("loading");
   const [busy, setBusy] = useState(false);
@@ -27,7 +32,6 @@ export function MaintenanceToggle() {
   async function toggle() {
     if (busy || status === "loading" || status === "archived") return;
     const next = status === "paused" ? "active" : "paused";
-
     const confirmText =
       next === "paused"
         ? "להעביר את המערכת לתחזוקה? האייג'נט יפסיק לקבל החלטות אוטונומיות עד שתשחרר."
@@ -39,7 +43,6 @@ export function MaintenanceToggle() {
       const sys = getActiveSystem();
       await patchSystem(sys, { status: next });
       setStatus(next);
-      // Soft reload so the chat history picks up the new system message
       window.location.reload();
     } catch (e) {
       window.alert(`שגיאה: ${e instanceof Error ? e.message : String(e)}`);
@@ -47,27 +50,18 @@ export function MaintenanceToggle() {
     }
   }
 
-  if (status === "loading") return null;
-  if (status === "archived") return null;
+  if (status === "loading" || status === "archived") return null;
 
   const isPaused = status === "paused";
   return (
     <button
       onClick={toggle}
       disabled={busy}
-      title={isPaused ? "חזרה לפעולה רגילה" : "מעבר למצב תחזוקה"}
-      className={`text-[11px] sm:text-xs px-1.5 sm:px-2.5 py-1 rounded-md border whitespace-nowrap transition-colors disabled:opacity-50 ${
-        isPaused
-          ? "border-emerald-300 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300"
-          : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300 dark:hover:bg-zinc-800"
-      }`}
+      className="w-full flex items-center gap-2.5 px-3 py-2 text-sm transition-colors text-right disabled:opacity-50"
+      style={{ color: isPaused ? "var(--c-basil)" : "var(--c-fog)" }}
     >
-      <span aria-hidden="true">{isPaused ? "▶" : "🛠"}</span>
-      {/* Hide the verbose label on mobile — the icon carries the meaning,
-          and the title attribute still surfaces the long form on hover/long-press. */}
-      <span className="ms-1 hidden sm:inline">
-        {isPaused ? "חזור לפעולה" : "השהה"}
-      </span>
+      <i className={"ph-light " + (isPaused ? "ph-play" : "ph-pause")} style={{ fontSize: "1.05rem", color: isPaused ? "var(--c-basil)" : "var(--amber)" }} />
+      {isPaused ? "חזרה לפעולה" : "השהיית המערכת"}
     </button>
   );
 }

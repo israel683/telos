@@ -1,15 +1,11 @@
 "use client";
 
 /**
- * Master safety toggle for autonomous dosing.
- *
- * Visible in the nav.  Reflects the per-system `autonomous_dosing_enabled`
- * flag.  Refuses to flip ON if `doser_verified` is FALSE — the grower has
- * to run the doser protocol via the chat agent first.
- *
- * After the v0.2 → v0.3 cleanup this is the SINGLE point of control for
- * whether the cron-driven brain can fire pumps directly or whether its
- * proposals are queued as dose_approval tasks.
+ * Master safety toggle for autonomous dosing — icon-forward, palette-correct.
+ *   autonomous ON  → ph-brain, basil, a soft glow (the Brain runs itself)
+ *   manual (verified) → ph-hand-pointing, amber (you approve each dose)
+ *   unverified     → ph-warning-circle, stone (run the doser protocol first)
+ * Reflects per-system `autonomous_dosing_enabled`; refuses ON until doser_verified.
  */
 
 import { useEffect, useState } from "react";
@@ -27,8 +23,7 @@ export function AutonomousToggle() {
     try {
       const r = await listSystems();
       const active = getActiveSystem();
-      const found = r.systems.find((s) => s.id === active) ?? null;
-      setSys(found);
+      setSys(r.systems.find((s) => s.id === active) ?? null);
       setErr(null);
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
@@ -50,13 +45,13 @@ export function AutonomousToggle() {
     if (!sys || busy) return;
     if (!on && !verified) {
       alert(
-        "אי אפשר להפעיל דישון אוטונומי לפני אימות הדוזר.  בקש בצ'אט להריץ runDoserProtocol, וודא ויזואלית שטיפה יוצאת מכל ערוץ למיכל הנכון."
+        "אי אפשר להפעיל דישון אוטונומי לפני אימות הדוזר. בקש בצ'אט להריץ runDoserProtocol, וודא ויזואלית שטיפה יוצאת מכל ערוץ למיכל הנכון."
       );
       return;
     }
     if (!on) {
       const ok = window.confirm(
-        "להפעיל דישון אוטונומי?  המוח האוטונומי יוכל לירות במשאבות ישירות במחזורים הבאים — עד 250ml/יום מצטבר.  המלצה: לעשות את זה רק אחרי שראית מספיק קריאות יציבות והדוזר אומת."
+        "להפעיל דישון אוטונומי? המוח יוכל לירות במשאבות ישירות במחזורים הבאים — עד 250ml/יום מצטבר. מומלץ רק אחרי קריאות יציבות ודוזר מאומת."
       );
       if (!ok) return;
     }
@@ -65,12 +60,15 @@ export function AutonomousToggle() {
       await setAutonomousDosing(sys.id, !on);
       await load();
     } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      alert(`לא הצליח: ${msg}`);
+      alert(`לא הצליח: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
       setBusy(false);
     }
   }
+
+  const icon = on ? "ph-brain" : verified ? "ph-hand-pointing" : "ph-warning-circle";
+  const color = on ? "var(--c-basil)" : verified ? "var(--amber)" : "var(--c-stone)";
+  const label = on ? "אוטונומי" : "ידני";
 
   return (
     <button
@@ -78,26 +76,23 @@ export function AutonomousToggle() {
       disabled={busy}
       title={
         on
-          ? "דישון אוטונומי מופעל — המוח ירה משאבות לבד.  לחץ לכבות."
+          ? "דישון אוטונומי מופעל — המוח יורה משאבות לבד. לחץ לכבות."
           : verified
-          ? "דישון אוטונומי כבוי — המוח מציע, אתה מאשר.  לחץ להפעיל."
+          ? "דישון אוטונומי כבוי — המוח מציע, אתה מאשר. לחץ להפעיל."
           : "דוזר לא מאומת — הרץ runDoserProtocol בצ'אט קודם."
       }
-      className={`text-[11px] sm:text-xs px-1.5 sm:px-2 py-1 rounded-md border flex items-center gap-1 sm:gap-1.5 transition-colors ${
-        on
-          ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300"
-          : verified
-          ? "border-amber-500 bg-amber-50 dark:bg-amber-950/40 text-amber-800 dark:text-amber-300"
-          : "border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900 text-zinc-500"
-      } disabled:opacity-50`}
+      className="flex items-center gap-1.5 text-[11px] sm:text-xs px-2 py-1 rounded-md transition-colors disabled:opacity-50"
+      style={{
+        border: "1px solid color-mix(in srgb, var(--c-parchment) 8%, transparent)",
+        background: "var(--surface-warm)",
+        color,
+      }}
     >
-      <span className={`inline-block w-2 h-2 rounded-full shrink-0 ${on ? "bg-emerald-500" : verified ? "bg-amber-500" : "bg-zinc-400"}`} />
-      <span className="font-medium whitespace-nowrap">
-        {on ? "אוטונומי" : "ידני"}
-      </span>
-      {/* Hide the secondary tag on mobile — the dot colour already tells
-          the verified/unverified story and saves horizontal space. */}
-      {!verified && <span className="text-zinc-400 hidden sm:inline whitespace-nowrap">·לא מאומת</span>}
+      <i
+        className={"ph-light " + icon}
+        style={{ fontSize: "1.05rem", textShadow: on ? "0 0 10px color-mix(in srgb, var(--c-basil) 70%, transparent)" : "none" }}
+      />
+      <span className="font-medium whitespace-nowrap hidden sm:inline">{label}</span>
     </button>
   );
 }

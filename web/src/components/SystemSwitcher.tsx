@@ -96,24 +96,24 @@ export function SystemSwitcher() {
     <div className="relative">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="text-[12px] sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800 flex items-center gap-1.5 sm:gap-2 max-w-[140px] sm:max-w-[200px]"
+        className="text-[12px] sm:text-sm px-2 sm:px-3 py-1 sm:py-1.5 rounded-md border border-[var(--c-bark)] bg-[var(--surface-warm)] hover:bg-[var(--c-earth)] flex items-center gap-1.5 sm:gap-2 max-w-[140px] sm:max-w-[200px]"
         aria-expanded={open}
       >
-        <span className="inline-block w-2 h-2 rounded-full bg-emerald-500" />
+        <span className="inline-block w-2 h-2 rounded-full bg-[var(--c-basil)]" />
         <span className="truncate font-medium">
           {activeSys?.name ||
             (systems.length === 0 ? "אין מערכות" : active === DEFAULT_SYSTEM ? "בחר מערכת" : active)}
         </span>
-        <span className="text-zinc-400">▾</span>
+        <span className="text-[var(--c-stone)]">▾</span>
       </button>
 
       {open && (
         <div
-          className="absolute end-0 mt-2 w-[min(20rem,calc(100vw-1.5rem))] bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-lg shadow-lg z-30 overflow-hidden"
+          className="absolute end-0 mt-2 w-[min(20rem,calc(100vw-1.5rem))] bg-[var(--surface-warm)] border border-[var(--c-bark)] rounded-lg shadow-lg z-30 overflow-hidden"
           onMouseLeave={() => !deletingId && !creating && setOpen(false)}
         >
           {error && (
-            <div className="text-xs text-red-600 dark:text-red-400 p-2 bg-red-50 dark:bg-red-950/40">
+            <div className="text-xs text-[var(--c-terra)] p-2 bg-[color-mix(in_srgb,var(--c-terra)_12%,transparent)]">
               {error}
             </div>
           )}
@@ -122,8 +122,8 @@ export function SystemSwitcher() {
             {systems.map((s) => (
               <li
                 key={s.id}
-                className={`flex items-stretch hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors ${
-                  s.id === active ? "bg-emerald-50 dark:bg-emerald-950/40" : ""
+                className={`flex items-stretch hover:bg-[var(--c-earth)] transition-colors ${
+                  s.id === active ? "bg-[color-mix(in_srgb,var(--c-basil)_12%,transparent)]" : ""
                 }`}
               >
                 <button
@@ -132,7 +132,7 @@ export function SystemSwitcher() {
                   disabled={deletingId === s.id}
                 >
                   <div className="text-sm font-medium truncate">{s.name}</div>
-                  <div className="text-xs text-zinc-500 truncate">
+                  <div className="text-xs text-[var(--c-stone)] truncate">
                     {s.crop_type} · {s.reservoir_liters}L · {s.growth_stage}
                   </div>
                 </button>
@@ -141,7 +141,7 @@ export function SystemSwitcher() {
                   disabled={deletingId !== null}
                   title="מחק לצמיתות"
                   aria-label={`מחק את ${s.name}`}
-                  className="px-3 text-zinc-400 hover:text-red-600 dark:hover:text-red-400 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+                  className="px-3 text-[var(--c-stone)] hover:text-[var(--c-terra)] disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
                 >
                   {deletingId === s.id ? (
                     <span className="text-xs">...</span>
@@ -159,13 +159,13 @@ export function SystemSwitcher() {
               </li>
             ))}
             {systems.length === 0 && (
-              <li className="text-sm text-zinc-500 p-3 text-center">אין מערכות עדיין</li>
+              <li className="text-sm text-[var(--c-stone)] p-3 text-center">אין מערכות עדיין</li>
             )}
           </ul>
           <button
             onClick={handleCreateNew}
             disabled={creating}
-            className="w-full text-right px-3 py-2 border-t border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-sm font-medium text-emerald-600 dark:text-emerald-400 disabled:opacity-50"
+            className="w-full text-right px-3 py-2 border-t border-[var(--c-bark)] hover:bg-[var(--c-earth)] text-sm font-medium text-[var(--c-basil)] disabled:opacity-50"
           >
             {creating ? "פותח שיחה..." : "+ מערכת חדשה (החקלאי ינחה אותך)"}
           </button>
