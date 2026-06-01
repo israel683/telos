@@ -27,16 +27,19 @@ import {
   dismissTask,
   approveDoseTask,
   snoozeTask,
+  answerTask,
 } from "@/lib/api";
 import type { HumanTask } from "@/lib/types";
 
 const POLL_MS = 15_000;
 
+// Palette-only priority dots (no rainbow): terra for urgent/high (the negative),
+// amber for medium, stone for low.
 const PRIORITY_TONE: Record<HumanTask["priority"], { dot: string; text: string }> = {
-  urgent: { dot: "bg-red-500",    text: "דחוף" },
-  high:   { dot: "bg-orange-500", text: "גבוה" },
-  medium: { dot: "bg-amber-500",  text: "בינוני" },
-  low:    { dot: "bg-zinc-400",   text: "נמוך" },
+  urgent: { dot: "var(--c-terra)", text: "דחוף" },
+  high:   { dot: "var(--c-terra)", text: "גבוה" },
+  medium: { dot: "var(--amber)",   text: "בינוני" },
+  low:    { dot: "var(--c-stone)", text: "נמוך" },
 };
 
 const TYPE_LABEL_HE: Record<HumanTask["type"], string> = {
@@ -51,6 +54,27 @@ export function PendingTasksCard() {
   const [tasks, setTasks] = useState<HumanTask[]>([]);
   const [busy, setBusy] = useState<number | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  // Per-question typed answers (a `question` task is answered, not "done").
+  const [answers, setAnswers] = useState<Record<number, string>>({});
+
+  async function submitAnswer(taskId: number) {
+    const text = (answers[taskId] || "").trim();
+    if (!text || busy === taskId) return;
+    setBusy(taskId);
+    try {
+      await answerTask(taskId, text);
+      setAnswers((a) => {
+        const n = { ...a };
+        delete n[taskId];
+        return n;
+      });
+      await load();
+    } catch (e) {
+      alert(`שגיאה: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setBusy(null);
+    }
+  }
 
   async function load() {
     try {
@@ -114,6 +138,7 @@ export function PendingTasksCard() {
       {visible.map((t) => {
         const tone = PRIORITY_TONE[t.priority];
         const isApproval = t.type === "dose_approval";
+        const isQuestion = t.type === "question";
         const payload = t.payload as { channel?: string; amount_ml?: number } | undefined;
         return (
           <div
@@ -122,7 +147,7 @@ export function PendingTasksCard() {
           >
             <div className="flex items-start justify-between gap-2 mb-1.5">
               <div className="flex items-center gap-2 flex-wrap min-w-0">
-                <span className={`inline-block w-2 h-2 rounded-full ${tone.dot} shrink-0`} />
+                <span className="inline-block w-2 h-2 rounded-full shrink-0" style={{ background: tone.dot }} />
                 <span className="text-[11px] uppercase tracking-wide text-zinc-500">
                   {TYPE_LABEL_HE[t.type]} · {tone.text}
                 </span>
@@ -148,8 +173,32 @@ export function PendingTasksCard() {
                 — this IS the primary action when a task surfaces).
                 Secondary buttons: small radius, dim borders, terra for
                 destruct (dismiss). */}
+            {/* A question is ANSWERED, not "done": inline free-text input. */}
+            {isQuestion && (
+              <div className="flex gap-2 mb-2">
+                <input
+                  type="text"
+                  value={answers[t.id] ?? ""}
+                  onChange={(e) => setAnswers((a) => ({ ...a, [t.id]: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Enter") submitAnswer(t.id); }}
+                  placeholder="כתוב את התשובה כאן…"
+                  disabled={busy === t.id}
+                  className="flex-1 text-sm rounded-md px-3 py-2 text-[var(--c-parchment)] placeholder:text-[var(--c-stone)] focus:outline-none disabled:opacity-50"
+                  style={{ background: "var(--c-void)", border: "1px solid rgba(238,237,232,0.12)" }}
+                />
+              </div>
+            )}
+
             <div className="flex flex-wrap gap-2 sm:gap-1.5">
-              {isApproval ? (
+              {isQuestion ? (
+                <button
+                  onClick={() => submitAnswer(t.id)}
+                  disabled={busy === t.id || !(answers[t.id] || "").trim()}
+                  className="text-xs px-4 py-2.5 sm:py-1.5 rounded-full bg-[var(--c-basil)] hover:brightness-110 text-[var(--c-void)] disabled:opacity-40 font-medium tracking-wide transition-all"
+                >
+                  {busy === t.id ? "..." : "ענה"}
+                </button>
+              ) : isApproval ? (
                 <button
                   onClick={() => handleAction(t.id, "approve")}
                   disabled={busy === t.id}

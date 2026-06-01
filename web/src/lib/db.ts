@@ -1244,6 +1244,45 @@ export async function dismissTask(
   }
 }
 
+/**
+ * Answer a `question` task: store the grower's typed answer, complete the task,
+ * and feed the answer back into the system so the Brain actually uses it —
+ * logged as an episode AND recorded in Grower Memory (the Q→A as a fact).
+ */
+export async function answerTask(
+  id: number,
+  answer: string,
+  systemId: string = DEFAULT_SYSTEM_ID
+): Promise<void> {
+  await ensureSchema();
+  const s = sql();
+  const rows = (await s`
+    UPDATE human_tasks
+    SET status = 'done', completed_at = NOW(), user_response = ${answer}
+    WHERE id = ${id} AND system_id = ${systemId}
+    RETURNING title
+  `) as unknown as Array<{ title: string }>;
+  if (rows[0]) {
+    const title = rows[0].title;
+    try {
+      await addEpisode(systemId, { status: null, summary: `Grower answered "${title}": ${answer}` });
+    } catch (e) {
+      console.error("[answerTask] addEpisode failed:", e);
+    }
+    try {
+      // The Brain reads grower_memory each cycle — store the Q→A so the answer
+      // informs every future decision (not just sits on the closed task).
+      await addGrowerMemory(systemId, {
+        kind: "fact",
+        text: `${title} — ${answer}`,
+        source: "grower",
+      });
+    } catch (e) {
+      console.error("[answerTask] addGrowerMemory failed:", e);
+    }
+  }
+}
+
 export async function expireOldTasks(
   systemId: string = DEFAULT_SYSTEM_ID
 ): Promise<number> {

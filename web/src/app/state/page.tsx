@@ -7,6 +7,7 @@ import {
   completeTask,
   dismissTask,
   approveDoseTask,
+  answerTask,
 } from "@/lib/api";
 import type { StateResponse, HumanTask, AgentStatus } from "@/lib/types";
 import { SensorChart } from "@/components/SensorChart";
@@ -57,6 +58,7 @@ export default function Dashboard() {
   }, []);
 
   async function handleComplete(id: number) { await completeTask(id, "marked done from dashboard"); refresh(); }
+  async function handleAnswer(id: number, answer: string) { await answerTask(id, answer); refresh(); }
   async function handleDismiss(id: number) { await dismissTask(id, "dismissed from dashboard"); refresh(); }
   async function handleApproveDose(id: number) {
     try {
@@ -166,7 +168,7 @@ export default function Dashboard() {
         </section>
       </div>
 
-      <TasksPanel tasks={tasks} onApprove={handleApproveDose} onComplete={handleComplete} onDismiss={handleDismiss} />
+      <TasksPanel tasks={tasks} onApprove={handleApproveDose} onComplete={handleComplete} onDismiss={handleDismiss} onAnswer={handleAnswer} />
 
       <footer style={{ fontSize: ".7rem", color: "var(--c-stone)", textAlign: "center", paddingTop: 8 }}>
         מתעדכן כל {REFRESH_MS / 1000} שניות
@@ -207,15 +209,18 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function TasksPanel({
-  tasks, onApprove, onComplete, onDismiss,
+  tasks, onApprove, onComplete, onDismiss, onAnswer,
 }: {
   tasks: HumanTask[];
   onApprove: (id: number) => void;
   onComplete: (id: number) => void;
   onDismiss: (id: number) => void;
+  onAnswer: (id: number, answer: string) => void;
 }) {
+  const { t } = useLang();
   const approval = tasks.filter((t) => t.type === "dose_approval");
-  const hands = tasks.filter((t) => t.type !== "dose_approval");
+  const questions = tasks.filter((t) => t.type === "question");
+  const hands = tasks.filter((t) => t.type !== "dose_approval" && t.type !== "question");
 
   if (tasks.length === 0) {
     return (
@@ -246,6 +251,21 @@ function TasksPanel({
         </div>
       ) : null}
 
+      {questions.length > 0 ? (
+        <div>
+          <div className="tk-card-h">
+            <span className="ct" style={{ color: "var(--c-fog)", display: "flex", alignItems: "center", gap: 8 }}>
+              <i className="ph-light ph-chat-circle-dots" style={{ color: "var(--amber)" }} />{t("The Brain is asking", "המוח שואל")} ({questions.length})
+            </span>
+          </div>
+          <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 12 }}>
+            {questions.map((q) => (
+              <TaskCard key={q.id} t={q} primaryLabel="" onPrimary={() => {}} onDismiss={() => onDismiss(q.id)} onAnswer={(text) => onAnswer(q.id, text)} />
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
       {hands.length > 0 ? (
         <div>
           <div className="tk-card-h">
@@ -265,13 +285,15 @@ function TasksPanel({
 }
 
 function TaskCard({
-  t, primaryLabel, onPrimary, onDismiss,
+  t, primaryLabel, onPrimary, onDismiss, onAnswer,
 }: {
   t: HumanTask;
   primaryLabel: string;
   onPrimary: () => void;
   onDismiss: () => void;
+  onAnswer?: (text: string) => void;
 }) {
+  const [answer, setAnswer] = useState("");
   return (
     <li className="tk-card" style={{ padding: 18 }}>
       <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
@@ -283,9 +305,24 @@ function TaskCard({
           </div>
           <h3 style={{ fontFamily: "var(--f-display)", fontWeight: 500, fontSize: "1.05rem", color: "var(--c-parchment)", lineHeight: 1.3, marginBottom: 5 }}>{t.title}</h3>
           <p style={{ fontSize: ".88rem", color: "var(--c-fog)", lineHeight: 1.5 }}>{t.reason}</p>
+          {onAnswer ? (
+            <input
+              type="text"
+              value={answer}
+              onChange={(e) => setAnswer(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && answer.trim()) onAnswer(answer.trim()); }}
+              placeholder="כתוב את התשובה כאן…"
+              className="text-sm rounded-md px-3 py-2 mt-3 w-full text-[var(--c-parchment)] placeholder:text-[var(--c-stone)] focus:outline-none"
+              style={{ background: "var(--c-void)", border: "1px solid rgba(238,237,232,0.12)" }}
+            />
+          ) : null}
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 8, flex: "none" }}>
-          <button className="tk-btn" onClick={onPrimary}>{primaryLabel}</button>
+          {onAnswer ? (
+            <button className="tk-btn" disabled={!answer.trim()} style={{ opacity: answer.trim() ? 1 : 0.4 }} onClick={() => answer.trim() && onAnswer(answer.trim())}>ענה</button>
+          ) : (
+            <button className="tk-btn" onClick={onPrimary}>{primaryLabel}</button>
+          )}
           <button className="tk-btn-ghost" onClick={onDismiss}>בטל</button>
         </div>
       </div>

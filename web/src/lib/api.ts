@@ -112,6 +112,14 @@ export async function dismissTask(id: number, response = "") {
   });
 }
 
+/** Answer a `question` task with free text — stored + fed into Grower Memory. */
+export async function answerTask(id: number, answer: string) {
+  return fetchJson<{ ok: true }>(`/api/tasks/${id}/answer`, {
+    method: "POST",
+    body: JSON.stringify({ answer }),
+  });
+}
+
 /**
  * Hide a pending task until N minutes from now.  Default 60.  Used by the
  * chat-thread task widget's "דחיית X" buttons.
