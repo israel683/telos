@@ -41,7 +41,7 @@ export function Nav() {
                 fontStyle: "italic",
                 fontWeight: 500,
                 fontSize: ".8rem",
-                color: "var(--c-stone)",
+                color: "var(--c-ash)",
               }}
             >
               the Brain
@@ -54,12 +54,15 @@ export function Nav() {
                 <li key={l.href} className="shrink-0">
                   <Link
                     href={l.href}
-                    className="flex items-center gap-1.5 px-1.5 py-2 whitespace-nowrap transition-colors"
-                    style={{ color: active ? "var(--c-parchment)" : "var(--c-stone)" }}
+                    className="flex items-center gap-1.5 px-1.5 py-2 whitespace-nowrap transition-colors border-b-2"
+                    style={{
+                      color: active ? "var(--c-parchment)" : "var(--c-ash)",
+                      borderColor: active ? "var(--c-basil)" : "transparent",
+                    }}
                   >
                     <i
                       className={"ph-light " + l.icon}
-                      style={{ fontSize: "1.05rem", color: active ? "var(--c-basil)" : "inherit" }}
+                      style={{ fontSize: "1.05rem", color: active ? "var(--c-basil)" : "var(--c-fog)" }}
                     />
                     {l.label}
                   </Link>

@@ -390,7 +390,7 @@ export default function ChatPage() {
         )}
 
         {!historyLoaded && (
-          <div className="text-center text-zinc-400 text-sm pt-12">טוען היסטוריה...</div>
+          <div className="text-center text-[var(--c-ash)] text-sm pt-12">טוען היסטוריה...</div>
         )}
 
         {messages.map((m, idx) => {
@@ -410,7 +410,7 @@ export default function ChatPage() {
         })}
 
         {isStreaming && messages[messages.length - 1]?.role !== "assistant" && (
-          <div className="flex items-center gap-2 text-zinc-400 text-sm">
+          <div className="flex items-center gap-2 text-[var(--c-ash)] text-sm">
             <Spinner /> חושב...
           </div>
         )}
@@ -557,11 +557,11 @@ const STATUS_LABEL: Record<string, string> = {
   warning: "אזהרה",
   critical: "קריטי",
 };
-const STATUS_BG: Record<string, string> = {
-  healthy: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
-  attention: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
-  warning: "bg-orange-100 text-orange-800 dark:bg-orange-900/40 dark:text-orange-300",
-  critical: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300",
+const STATUS_COLOR: Record<string, string> = {
+  healthy: "var(--c-basil)",
+  attention: "var(--amber)",
+  warning: "#c97a3a",
+  critical: "var(--c-terra)",
 };
 
 function MessageBubble({
@@ -590,30 +590,36 @@ function MessageBubble({
       | { type: "text"; text: string }
       | undefined;
     return (
-      <details className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl overflow-hidden max-w-full" open={isLastAssistant}>
+      <details className="tk-card rounded-xl overflow-hidden max-w-full" style={{ padding: 0, background: "var(--surface-warm)" }} open={isLastAssistant}>
         <summary className="cursor-pointer px-4 py-3 list-none flex items-start gap-3">
-          <span className="text-lg leading-none mt-0.5">🤖</span>
+          <i className="ph-light ph-pulse text-lg mt-0.5" style={{ color: "var(--amber)" }} />
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 text-xs text-zinc-500 mb-1 flex-wrap">
-              <span className="font-medium">בדיקה אוטומטית</span>
+            <div className="flex items-center gap-2 text-xs mb-1 flex-wrap" style={{ color: "var(--c-ash)" }}>
+              <span style={{ fontWeight: 500, color: "var(--c-fog)" }}>בדיקה אוטומטית</span>
               {STATUS_LABEL[status] && (
-                <span className={`px-1.5 py-0.5 rounded text-xs ${STATUS_BG[status]}`}>
+                <span
+                  className="px-2 py-0.5 rounded-full text-xs"
+                  style={{
+                    color: STATUS_COLOR[status] ?? "var(--c-ash)",
+                    background: `color-mix(in srgb, ${STATUS_COLOR[status] ?? "var(--c-stone)"} 16%, transparent)`,
+                  }}
+                >
                   {STATUS_LABEL[status]}
                 </span>
               )}
               {time && (
-                <span className="text-zinc-400" dir="ltr">
+                <span style={{ color: "var(--c-stone)" }} dir="ltr">
                   {time.toLocaleString("he-IL", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "2-digit" })}
                 </span>
               )}
             </div>
             {textPart?.text && (
-              <p className="text-sm leading-relaxed line-clamp-3">{textPart.text}</p>
+              <p className="text-sm leading-relaxed line-clamp-3" style={{ color: "var(--c-fog)" }}>{textPart.text}</p>
             )}
           </div>
-          <span className="text-zinc-300 text-sm">▾</span>
+          <span style={{ color: "var(--c-stone)" }} className="text-sm">▾</span>
         </summary>
-        <div className="px-4 pb-4 border-t border-zinc-100 dark:border-zinc-800 pt-3 space-y-3 text-sm">
+        <div className="px-4 pb-4 pt-3 space-y-3 text-sm" style={{ borderTop: "1px solid color-mix(in srgb, var(--c-parchment) 7%, transparent)" }}>
           {textPart?.text && (
             <div className="prose-chat">
               <ReactMarkdown>{textPart.text}</ReactMarkdown>
@@ -625,7 +631,7 @@ function MessageBubble({
               <ToolPart key={i} part={p as { type: string } & Record<string, unknown>} />
             ))}
           {meta?.decision_id && (
-            <div className="text-xs text-zinc-400" dir="ltr">
+            <div className="text-xs text-[var(--c-ash)]" dir="ltr">
               decision #{meta.decision_id}
             </div>
           )}
@@ -637,11 +643,16 @@ function MessageBubble({
   return (
     <div className={`flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[88%] ${
+        className={`max-w-[88%] ${isUser ? "rounded-2xl rounded-bl-md px-4 py-2" : "leading-relaxed"}`}
+        style={
           isUser
-            ? "bg-emerald-600 text-white rounded-2xl rounded-bl-md px-4 py-2"
-            : "text-zinc-900 dark:text-zinc-100 leading-relaxed"
-        }`}
+            ? {
+                background: "color-mix(in srgb, var(--c-basil) 14%, transparent)",
+                border: "1px solid color-mix(in srgb, var(--c-basil) 30%, transparent)",
+                color: "var(--c-parchment)",
+              }
+            : { color: "var(--c-fog)" }
+        }
       >
         {message.parts.map((part, i) => {
           // File parts (images the grower attached, or images TELOS sends
@@ -700,7 +711,7 @@ function MessageBubble({
             return (
               <details
                 key={i}
-                className="text-xs text-zinc-500 mt-2 mb-1"
+                className="text-xs text-[var(--c-stone)] mt-2 mb-1"
               >
                 <summary className="cursor-pointer">תהליך מחשבה</summary>
                 <p className="mt-1 leading-relaxed" dir="ltr">
@@ -733,10 +744,10 @@ function MessageBubble({
               return input?.question ? (
                 <div
                   key={i}
-                  className="bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl p-4 my-2 max-w-md"
+                  className="bg-[var(--surface-warm)] border border-[rgba(238,237,232,0.08)] rounded-2xl p-4 my-2 max-w-md"
                 >
                   <p className="font-medium text-sm leading-relaxed">{input.question}</p>
-                  <p className="text-xs text-zinc-400 mt-2">ענה למטה בתיבת ההודעות ↓</p>
+                  <p className="text-xs text-[var(--c-ash)] mt-2">ענה למטה בתיבת ההודעות ↓</p>
                 </div>
               ) : null;
             }
@@ -770,7 +781,7 @@ function ToolPart({ part }: { part: { type: string } & Record<string, unknown> }
   const label = labels[toolName] || `⚙️ ${toolName}`;
 
   return (
-    <details className="my-2 text-xs bg-zinc-100 dark:bg-zinc-900 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-800">
+    <details className="my-2 text-xs bg-[var(--surface-warm)] rounded-lg overflow-hidden border border-[rgba(238,237,232,0.08)]">
       <summary className="cursor-pointer px-3 py-2 flex items-center gap-2 select-none">
         <span>{label}</span>
         {state === "input-streaming" || state === "input-available" ? (
@@ -782,12 +793,12 @@ function ToolPart({ part }: { part: { type: string } & Record<string, unknown> }
       </summary>
       <div className="px-3 pb-2 space-y-2 text-[11px]" dir="ltr">
         {inputData ? (
-          <pre className="bg-white dark:bg-zinc-950 rounded p-2 overflow-x-auto">
+          <pre className="bg-[var(--c-void)] rounded p-2 overflow-x-auto">
             {JSON.stringify(inputData, null, 2)}
           </pre>
         ) : null}
         {output !== undefined ? (
-          <pre className="bg-white dark:bg-zinc-950 rounded p-2 overflow-x-auto max-h-64">
+          <pre className="bg-[var(--c-void)] rounded p-2 overflow-x-auto max-h-64">
             {JSON.stringify(output, null, 2)}
           </pre>
         ) : null}
@@ -798,6 +809,6 @@ function ToolPart({ part }: { part: { type: string } & Record<string, unknown> }
 
 function Spinner() {
   return (
-    <span className="inline-block w-3 h-3 border-2 border-zinc-300 dark:border-zinc-700 border-t-emerald-500 rounded-full animate-spin" />
+    <span className="inline-block w-3 h-3 border-2 border-[var(--c-bark)] border-t-[var(--c-basil)] rounded-full animate-spin" />
   );
 }
