@@ -54,27 +54,32 @@ export function TasksBadge() {
     <Link
       href="/state"
       title={`משימות ממתינות: ${approval} לאישור · ${hands} פיזי`}
-      className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs px-1.5 sm:px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 hover:bg-zinc-50 dark:hover:bg-zinc-800"
+      className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs px-1.5 sm:px-2 py-1 rounded-md transition-colors"
+      style={{ border: "1px solid color-mix(in srgb, var(--c-parchment) 8%, transparent)", background: "var(--surface-warm)" }}
     >
       {approval > 0 && (
         <span className="flex items-center gap-1">
-          <span className="inline-flex items-center justify-center min-w-[1.125rem] sm:min-w-[1.25rem] h-[18px] sm:h-5 px-1 rounded-full bg-emerald-600 text-white text-[10px] font-semibold leading-none">
+          <span
+            className="inline-flex items-center justify-center min-w-[1.125rem] sm:min-w-[1.25rem] h-[18px] sm:h-5 px-1 rounded-full text-[10px] font-semibold leading-none"
+            style={{ background: "var(--c-basil)", color: "var(--c-void)" }}
+          >
             {approval}
           </span>
-          {/* Hide the word "לאישור" on mobile — the green pill colour
-              already signals "approval needed" and saves horizontal space. */}
-          <span className="text-zinc-700 dark:text-zinc-300 hidden sm:inline">לאישור</span>
+          <span className="hidden sm:inline" style={{ color: "var(--c-fog)" }}>לאישור</span>
         </span>
       )}
       {approval > 0 && hands > 0 && (
-        <span className="text-zinc-300 dark:text-zinc-700 hidden sm:inline">·</span>
+        <span className="hidden sm:inline" style={{ color: "var(--c-bark)" }}>·</span>
       )}
       {hands > 0 && (
         <span className="flex items-center gap-1">
-          <span className="inline-flex items-center justify-center min-w-[1.125rem] sm:min-w-[1.25rem] h-[18px] sm:h-5 px-1 rounded-full bg-blue-600 text-white text-[10px] font-semibold leading-none">
+          <span
+            className="inline-flex items-center justify-center min-w-[1.125rem] sm:min-w-[1.25rem] h-[18px] sm:h-5 px-1 rounded-full text-[10px] font-semibold leading-none"
+            style={{ background: "color-mix(in srgb, var(--c-mineral) 55%, var(--c-fog))", color: "var(--c-void)" }}
+          >
             {hands}
           </span>
-          <span className="text-zinc-700 dark:text-zinc-300 hidden sm:inline">פיזי</span>
+          <span className="hidden sm:inline" style={{ color: "var(--c-fog)" }}>פיזי</span>
         </span>
       )}
     </Link>
