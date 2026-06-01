@@ -559,8 +559,8 @@ const STATUS_LABEL: Record<string, string> = {
 };
 const STATUS_COLOR: Record<string, string> = {
   healthy: "var(--c-basil)",
-  attention: "var(--amber)",
-  warning: "#c97a3a",
+  attention: "var(--c-terra)",
+  warning: "var(--c-terra)",
   critical: "var(--c-terra)",
 };
 

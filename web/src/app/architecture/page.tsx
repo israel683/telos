@@ -623,16 +623,24 @@ const BLOCKS: Block[] = [
   },
 ];
 
+// Palette-only category accents (no rainbow): the 4 accents + amber + a couple
+// of neutrals, assigned by meaning. safety = terra (the negative), control =
+// basil (the Brain), the rest spread across mineral/moss/amber/neutral. The
+// label carries the real distinction; the colour is a quiet accent.
 const LAYER_LABELS: Record<Block["layer"], { he: string; color: string }> = {
-  hw:      { he: "חומרה",            color: "border-orange-500 bg-orange-50 dark:bg-orange-950/30" },
-  cloud:   { he: "ענן צד שלישי",      color: "border-cyan-500 bg-cyan-50 dark:bg-cyan-950/30" },
-  server:  { he: "שירותי שרת",        color: "border-blue-500 bg-blue-50 dark:bg-blue-950/30" },
-  lib:     { he: "ספריות-Domain",     color: "border-violet-500 bg-violet-50 dark:bg-violet-950/30" },
-  control: { he: "שכבת בקרה",         color: "border-indigo-500 bg-indigo-50 dark:bg-indigo-950/30" },
-  safety:  { he: "בקרת בטיחות",       color: "border-red-500 bg-red-50 dark:bg-red-950/30" },
-  ui:      { he: "ממשק משתמש",        color: "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/30" },
-  user:    { he: "המגדל",             color: "border-amber-500 bg-amber-50 dark:bg-amber-950/30" },
+  hw:      { he: "חומרה",        color: "var(--amber)" },
+  cloud:   { he: "ענן צד שלישי",  color: "var(--c-stone)" },
+  server:  { he: "שירותי שרת",    color: "var(--c-mineral)" },
+  lib:     { he: "ספריות-Domain", color: "var(--c-moss)" },
+  control: { he: "שכבת בקרה",     color: "var(--c-basil)" },
+  safety:  { he: "בקרת בטיחות",   color: "var(--c-terra)" },
+  ui:      { he: "ממשק משתמש",    color: "var(--c-fog)" },
+  user:    { he: "המגדל",         color: "var(--amber)" },
 };
+/** Inline style for a category chip/card from its palette colour. */
+function layerStyle(c: string): React.CSSProperties {
+  return { borderColor: c, background: `color-mix(in srgb, ${c} 12%, transparent)` };
+}
 
 export default function ArchitecturePage() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -683,12 +691,9 @@ export default function ArchitecturePage() {
                     <button
                       key={b.id}
                       onClick={() => setSelectedId(b.id)}
+                      style={layerStyle(LAYER_LABELS[layer].color)}
                       className={`text-right p-3 rounded-lg border-2 transition-all hover:scale-[1.01] hover:shadow ${
-                        LAYER_LABELS[layer].color
-                      } ${
-                        selectedId === b.id
-                          ? "ring-2 ring-offset-1 ring-zinc-700 dark:ring-zinc-300"
-                          : ""
+                        selectedId === b.id ? "ring-2 ring-offset-1 ring-[var(--c-parchment)]" : ""
                       }`}
                     >
                       <div className="flex items-baseline gap-2">
@@ -748,7 +753,7 @@ function FlowDiagram({ onSelect }: { onSelect: (id: string) => void }) {
         <div key={s.id} className="flex items-center">
           <button
             onClick={() => onSelect(s.id)}
-            className="px-3 py-2 rounded-lg border-2 border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 hover:border-emerald-400 transition-colors text-sm font-medium flex items-center gap-1.5"
+            className="px-3 py-2 rounded-lg border-2 border-[var(--c-bark)] bg-[var(--surface-warm)] hover:border-[var(--c-basil)] transition-colors text-sm font-medium flex items-center gap-1.5"
           >
             <span>{s.icon}</span>
             <span>{s.label_he}</span>
@@ -782,16 +787,15 @@ function DetailPanel({
         </div>
         <p className="text-xs text-[var(--c-ash)] mt-0.5" dir="ltr">{block.title_en}</p>
         <span
-          className={`inline-block mt-2 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded border ${
-            LAYER_LABELS[block.layer].color
-          }`}
+          className="inline-block mt-2 text-[10px] uppercase tracking-wide px-2 py-0.5 rounded border"
+          style={layerStyle(LAYER_LABELS[block.layer].color)}
         >
           {LAYER_LABELS[block.layer].he}
         </span>
       </header>
 
       <section>
-        <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">תקציר</h3>
+        <h3 className="font-semibold text-[var(--c-fog)] mb-1">תקציר</h3>
         <p className="text-[var(--c-fog)] dark:text-[var(--c-stone)] leading-relaxed">
           {block.summary_he}
         </p>
@@ -799,11 +803,11 @@ function DetailPanel({
 
       {block.concepts.length > 0 && (
         <section>
-          <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">קונספטים</h3>
+          <h3 className="font-semibold text-[var(--c-fog)] mb-1">קונספטים</h3>
           <ul className="space-y-2">
             {block.concepts.map((c) => (
-              <li key={c.he} className="border-r-2 border-emerald-500 pr-3 py-0.5">
-                <div className="font-medium text-xs text-emerald-700 dark:text-emerald-400">
+              <li key={c.he} className="border-r-2 border-[var(--c-basil)] pr-3 py-0.5">
+                <div className="font-medium text-xs text-[var(--c-basil)]">
                   {c.he}
                 </div>
                 <div className="text-xs text-[var(--c-fog)] dark:text-[var(--c-stone)] leading-relaxed mt-0.5">
@@ -817,7 +821,7 @@ function DetailPanel({
 
       {block.files.length > 0 && (
         <section>
-          <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">קבצים</h3>
+          <h3 className="font-semibold text-[var(--c-fog)] mb-1">קבצים</h3>
           <ul className="space-y-1">
             {block.files.map((f) => (
               <li
@@ -834,7 +838,7 @@ function DetailPanel({
 
       {block.depends_on.length > 0 && (
         <section>
-          <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">תלוי ב</h3>
+          <h3 className="font-semibold text-[var(--c-fog)] mb-1">תלוי ב</h3>
           <div className="flex flex-wrap gap-1">
             {block.depends_on.map((id) => {
               const target = byId[id];
@@ -843,7 +847,7 @@ function DetailPanel({
                 <button
                   key={id}
                   onClick={() => onSelect(id)}
-                  className="text-[11px] px-2 py-0.5 rounded bg-[var(--c-bark)] hover:bg-emerald-200 dark:hover:bg-emerald-900 transition-colors"
+                  className="text-[11px] px-2 py-0.5 rounded bg-[var(--c-bark)] hover:bg-[color-mix(in_srgb,var(--c-basil)_22%,transparent)] transition-colors"
                 >
                   {target.icon} {target.title_he}
                 </button>
@@ -855,7 +859,7 @@ function DetailPanel({
 
       {block.produces_for.length > 0 && (
         <section>
-          <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">מזין ל</h3>
+          <h3 className="font-semibold text-[var(--c-fog)] mb-1">מזין ל</h3>
           <div className="flex flex-wrap gap-1">
             {block.produces_for.map((id) => {
               const target = byId[id];
@@ -864,7 +868,7 @@ function DetailPanel({
                 <button
                   key={id}
                   onClick={() => onSelect(id)}
-                  className="text-[11px] px-2 py-0.5 rounded bg-[var(--c-bark)] hover:bg-blue-200 dark:hover:bg-blue-900 transition-colors"
+                  className="text-[11px] px-2 py-0.5 rounded bg-[var(--c-bark)] hover:bg-[color-mix(in_srgb,var(--c-mineral)_30%,transparent)] transition-colors"
                 >
                   {target.icon} {target.title_he}
                 </button>
@@ -876,12 +880,12 @@ function DetailPanel({
 
       {block.gotchas_he && block.gotchas_he.length > 0 && (
         <section>
-          <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">⚠️ Gotchas</h3>
+          <h3 className="font-semibold text-[var(--c-fog)] mb-1">⚠️ Gotchas</h3>
           <ul className="space-y-1">
             {block.gotchas_he.map((g, i) => (
               <li
                 key={i}
-                className="text-xs text-[var(--c-fog)] dark:text-[var(--c-stone)] bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900 rounded p-2 leading-relaxed"
+                className="text-xs text-[var(--c-fog)] bg-[color-mix(in_srgb,var(--amber)_10%,transparent)] border border-[color-mix(in_srgb,var(--amber)_30%,transparent)] rounded p-2 leading-relaxed"
               >
                 {g}
               </li>
@@ -892,8 +896,8 @@ function DetailPanel({
 
       {block.ux_note_he && (
         <section>
-          <h3 className="font-semibold text-zinc-700 dark:text-[var(--c-ash)] mb-1">💡 UX Note</h3>
-          <p className="text-xs text-[var(--c-fog)] dark:text-[var(--c-stone)] bg-violet-50 dark:bg-violet-950/30 border border-violet-200 dark:border-violet-900 rounded p-2 leading-relaxed">
+          <h3 className="font-semibold text-[var(--c-fog)] mb-1">💡 UX Note</h3>
+          <p className="text-xs text-[var(--c-fog)] bg-[color-mix(in_srgb,var(--c-mineral)_14%,transparent)] border border-[color-mix(in_srgb,var(--c-mineral)_30%,transparent)] rounded p-2 leading-relaxed">
             {block.ux_note_he}
           </p>
         </section>

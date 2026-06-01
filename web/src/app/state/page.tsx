@@ -18,7 +18,7 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
   healthy: "תקין", attention: "לב", warning: "אזהרה", critical: "קריטי", unknown: "לא ידוע",
 };
 const STATUS_DOT: Record<AgentStatus, string> = {
-  healthy: "var(--c-basil)", attention: "var(--amber)", warning: "#c97a3a",
+  healthy: "var(--c-basil)", attention: "var(--c-terra)", warning: "var(--c-terra)",
   critical: "var(--c-terra)", unknown: "var(--c-stone)",
 };
 const PRIORITY_LABEL: Record<HumanTask["priority"], string> = {

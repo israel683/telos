@@ -84,7 +84,7 @@
 .telos-site .breathing .glow{ opacity:.72;animation:site-glow-reveal var(--reveal) var(--ease) both, site-breathe var(--breathe-glow) var(--ease) var(--reveal) infinite; }
 
 /* ── annotation pill ───────────────────────────────────────────────────── */
-.telos-site .annotation{ display:inline-flex;align-items:center;gap:8px;background:color-mix(in srgb,var(--basil) 12%,transparent);border:1px solid color-mix(in srgb,var(--basil) 40%,transparent);border-radius:20px;padding:5px 13px;font-family:var(--f-body);font-size:.6rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:#b9cd83; }
+.telos-site .annotation{ display:inline-flex;align-items:center;gap:8px;background:color-mix(in srgb,var(--basil) 12%,transparent);border:1px solid color-mix(in srgb,var(--basil) 40%,transparent);border-radius:20px;padding:5px 13px;font-family:var(--f-body);font-size:.6rem;font-weight:500;letter-spacing:.14em;text-transform:uppercase;color:color-mix(in srgb,var(--basil) 55%,var(--lit-white)); }
 .telos-site .annotation .dot{ width:6px;height:6px;border-radius:50%;background:var(--basil);box-shadow:0 0 9px rgba(137,168,62,.9); }
 @keyframes site-pulse-dot{ 0%,100%{opacity:1} 50%{opacity:.45} }
 .telos-site .breathing .annotation .dot{ animation:site-pulse-dot var(--breathe-glow) var(--ease) infinite; }

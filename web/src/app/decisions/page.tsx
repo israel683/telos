@@ -14,8 +14,8 @@ const STATUS_LABEL: Record<AgentStatus, string> = {
 
 const STATUS_COLOR: Record<AgentStatus, string> = {
   healthy: "var(--c-basil)",
-  attention: "var(--amber)",
-  warning: "#c97a3a",
+  attention: "var(--c-terra)",
+  warning: "var(--c-terra)",
   critical: "var(--c-terra)",
   unknown: "var(--c-stone)",
 };
@@ -131,7 +131,7 @@ export default function DecisionsPage() {
                       </span>
                     )}
                     {tasks.length > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: "var(--c-mineral-text, #7fa8a2)", background: "color-mix(in srgb, var(--c-mineral) 22%, transparent)" }}>
+                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ color: "color-mix(in srgb, var(--c-mineral) 52%, var(--lit-white))", background: "color-mix(in srgb, var(--c-mineral) 22%, transparent)" }}>
                         {tasks.length} משימות
                       </span>
                     )}
