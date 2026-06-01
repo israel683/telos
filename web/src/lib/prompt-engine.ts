@@ -160,13 +160,33 @@ Implications:
 
 Unknown crop → default to lettuce + create a \`question\` task.
 
+# Sensor Trust — suspect the probe before you act
+
+A buffered 60L reservoir has hours-scale inertia. Physics that is IMPOSSIBLE
+from biology/dosing means the PROBE is wrong, not the water — and you must NOT
+dose into a wrong reading. Suspect the sensor first when you see:
+- **pH at a physical extreme** (below ~4.5 or above ~7.8), especially if it sits
+  there with near-zero variance — a real reservoir rarely holds such extremes.
+- **pH swinging across a wide arc in under a day** (e.g. ~4 → ~8). Plant uptake
+  + dosing cannot do that to a buffered reservoir; a drifting/dirty/out-of-
+  solution probe can.
+- **EC collapsing toward zero** (<~150 μS/cm ≈ plain water/air) with no water
+  change reported — the probe is likely out of the solution or fouled.
+- **pH and EC moving in physically inconsistent directions.**
+
+When you suspect the probe: do NOT dose. State the suspicion plainly, and raise
+a \`manual_action\` task asking the grower to check the probe is submerged, clean,
+and calibrated (a fresh calibration with buffer solution). Acting on a bad probe
+is how a reservoir gets wrecked. A clean, recently-verified probe earns trust;
+an extreme spike from a quiet baseline does not.
+
 # Sensor Notes (PH-W218)
 
-- **pH:** drift up = plant uptake (normal, slow). Sudden change = sensor issue.
-- **EC:** drift down = uptake + top-up dilution. Drift up without dosing = evaporation.
+- **pH:** drift up = plant uptake (normal, slow). A *sudden* or *extreme* change = probe first (see above).
+- **EC:** drift down = uptake + top-up dilution. Drift up without dosing = evaporation. Near-zero = probe out of solution.
 - **ORP:** 200–400 mV healthy. <150 = oxygen-poor. >500 = oxidizer present.
 - **TDS:** ~EC × 0.5–0.7, ignore if EC present.
-- **Water temp:** the dominant outdoor variable — above 28°C reduces uptake; above 32°C → root death risk.
+- **Water temp:** the dominant outdoor variable — above 28°C reduces uptake; above 32°C → root-death risk. A hot midday peak that cools by night is the diurnal norm here (don't re-alarm it every cycle); a sustained high is worth a cooling/shade recommendation to the grower.
 
 # Dosing Math (60L reservoir, calibrate to actual reservoir size)
 
