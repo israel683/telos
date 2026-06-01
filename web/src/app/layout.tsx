@@ -1,18 +1,22 @@
 import type { Metadata, Viewport } from "next";
-import { Cormorant_Garamond, Plus_Jakarta_Sans, Noto_Serif_Hebrew, Rubik } from "next/font/google";
+import { Plus_Jakarta_Sans, Noto_Serif_Hebrew, Rubik } from "next/font/google";
+import localFont from "next/font/local";
 import { Nav } from "@/components/Nav";
 import "./globals.css";
 
-// TELOS typographic stack — see src/brand/tokens.ts.  Cormorant Italic
-// 300 is the display + numbers face; Plus Jakarta Sans 300 is body for
-// Latin; Noto Serif Hebrew + Rubik are the Hebrew counterparts.  Souvenir
-// (the canonical display per the brief) is a commercial face — Cormorant
-// is the open-source substitute the brief itself uses in HTML samples.
-const cormorant = Cormorant_Garamond({
-  variable: "--font-cormorant",
-  weight: ["300", "400"],
-  style: ["normal", "italic"],
-  subsets: ["latin", "latin-ext"],
+// TELOS typographic stack — see design-system/tokens.json (single source of
+// truth).  ITC Souvenir is the canonical display + numbers face (warm humanist
+// serif, reverence) self-hosted from src/app/fonts/.  Plus Jakarta Sans is the
+// Latin body; Noto Serif Hebrew + Rubik are the Hebrew counterparts.
+const souvenir = localFont({
+  variable: "--font-souvenir",
+  src: [
+    { path: "./fonts/ITC Souvenir Light.woff2", weight: "300", style: "normal" },
+    { path: "./fonts/ITC Souvenir Medium.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/ITC Souvenir Medium Italic.woff2", weight: "500", style: "italic" },
+    { path: "./fonts/ITC Souvenir Demi.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/ITC Souvenir Bold.woff2", weight: "700", style: "normal" },
+  ],
   display: "swap",
 });
 
@@ -66,7 +70,7 @@ export default function RootLayout({
     <html
       lang="he"
       dir="rtl"
-      className={`dark ${cormorant.variable} ${jakarta.variable} ${notoSerifHebrew.variable} ${rubik.variable} h-full antialiased`}
+      className={`dark ${souvenir.variable} ${jakarta.variable} ${notoSerifHebrew.variable} ${rubik.variable} h-full antialiased`}
     >
       {/* TELOS is a DARK system by default — the Warm Neutral palette IS
           the brand.  Foreground = parchment on a void background, with

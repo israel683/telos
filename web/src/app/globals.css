@@ -18,11 +18,11 @@
    next/font runtime variables injected in layout.tsx. Every other token lives
    in the generated block below (source of truth: design-system/tokens.json). */
 :root {
-  --f-display: var(--font-cormorant), Georgia, serif;
+  --f-display: var(--font-souvenir), Georgia, 'Times New Roman', serif;
   --f-body:    var(--font-jakarta), 'Plus Jakarta Sans', system-ui, sans-serif;
-  --f-display-he: 'Noto Serif Hebrew', var(--font-cormorant), serif;
+  --f-display-he: var(--font-noto-serif-hebrew), 'Noto Serif Hebrew', var(--font-souvenir), serif;
   --f-body-he:    var(--font-rubik), 'Rubik', system-ui, sans-serif;
-  --f-numbers: var(--font-cormorant), Georgia, serif;
+  --f-numbers: var(--font-souvenir), Georgia, serif;
 
   --background: var(--c-void);
   --foreground: var(--c-parchment);
@@ -65,19 +65,23 @@
   --ls-normal: 0.05em;
   --ls-wide: 0.15em;
   --ls-label: 0.28em;
-  --ls-logo: 0.18em;
+  --ls-logo: 0.22em;
 
   /* Radii */
   --r-none: 0px;
-  --r-sm: 4px;
+  --r-sm: 3px;
+  --r-btn: 6px;
   --r-md: 8px;
+  --r-card: 8px;
   --r-lg: 14px;
+  --r-soft: 14px;
   --r-pill: 999px;
 
   /* Borders */
   --border-subtle: 1px solid rgba(238,237,232,0.07);
   --border-dim: 1px solid rgba(238,237,232,0.12);
   --border-basil: 1px solid rgba(137,168,62,0.25);
+  --border-hair: 1px solid var(--c-bark);
 
   /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -86,6 +90,40 @@
   --dur-base: 280ms;
   --dur-slow: 600ms;
   --dur-scene: 1400ms;
+
+  /* Light Layer — warmth is light, not surface (key = exact CSS var) */
+  --amber: #a8783c;
+  --amber-glow: rgba(214,182,120,.22);
+  --ground-warm: color-mix(in srgb, var(--c-void) 98%, var(--amber) 2%);
+  --surface-warm: color-mix(in srgb, var(--c-soil) 97%, var(--amber) 3%);
+  --surface-light: #f1ece1;
+  --cool: #16201f;
+  --glow-shadow: 0 18px 44px rgba(0,0,0,.55);
+  --glow-tint: var(--amber);
+  --lit-white: #f6efdc;
+  --spotlight: 168deg;
+  --beam-blur: 13px;
+  --beam-angle: 16deg;
+  --radius-soft: 14px;
+
+  /* Semantic role tokens — switch-ready Dark→Light */
+  --bg: var(--ground-warm);
+  --surface: var(--surface-warm);
+  --surface-2: var(--c-earth);
+  --text: var(--c-parchment);
+  --text-soft: var(--c-fog);
+  --text-muted: var(--c-stone);
+  --line: var(--c-bark);
+  --accent: var(--c-basil);
+
+  /* Atmosphere + hero motion */
+  --breathe: 5s;
+  --breathe-glow: 9.5s;
+  --breathe-min: 0.72;
+  --drift: 23s;
+  --reveal: 1.4s;
+  --grain-opacity: 0.04;
+  --grain-z: 500;
 }
 /* DESIGN-TOKENS:END */
 
@@ -163,6 +201,43 @@ html[dir="rtl"] body {
   letter-spacing: var(--ls-label);
   text-transform: uppercase;
   color: var(--c-stone);
+}
+
+/* ── Atmosphere: always-on grain (the brand's faint paper tooth). Fixed,
+   overlay-blended at 4%, never animated. ── */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: url("/brand/grain.svg");
+  background-size: 180px 180px;
+  opacity: var(--grain-opacity);
+  mix-blend-mode: var(--grain-blend, overlay);
+  pointer-events: none;
+  z-index: var(--grain-z);
+}
+
+/* ── Light Layer: the breathing spotlight. "Warmth is light, not surface."
+   Opt in with class="t-spotlight" on the ONE hero element per screen — a warm
+   amber beam pools behind it and breathes (9.5s). Swap the hue per element with
+   `--glow-tint: var(--c-basil)` etc. Honors prefers-reduced-motion. ── */
+@keyframes telos-breathe {
+  0%, 100% { opacity: var(--breathe-min, 0.72); }
+  50%      { opacity: 1; }
+}
+.t-spotlight { position: relative; isolation: isolate; }
+.t-spotlight::before {
+  content: "";
+  position: absolute;
+  inset: -12%;
+  background: radial-gradient(58% 58% at 50% 4%, var(--amber-glow), transparent 70%);
+  filter: blur(var(--beam-blur));
+  pointer-events: none;
+  z-index: -1;
+  animation: telos-breathe var(--breathe-glow) ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .t-spotlight::before { animation: none; opacity: 1; }
 }
 
 /* Hide scrollbars on horizontally-scrollable containers (e.g. the nav

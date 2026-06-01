@@ -19,4 +19,7 @@ export {
   BORDER,
   MOTION,
   TAGLINES,
+  LIGHT,
+  ROLE,
+  ATMOSPHERE,
 } from "./tokens.generated";

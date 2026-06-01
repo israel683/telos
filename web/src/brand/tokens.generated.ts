@@ -33,11 +33,11 @@ export const SEMANTIC = {
 } as const;
 
 export const TYPE = {
-  "display_en": "'Cormorant Garamond', Georgia, serif",
+  "display_en": "'Souvenir', Georgia, 'Times New Roman', serif",
   "body_en": "'Plus Jakarta Sans', system-ui, sans-serif",
-  "display_he": "'Noto Serif Hebrew', 'Cormorant Garamond', serif",
+  "display_he": "'Noto Serif Hebrew', 'Souvenir', serif",
   "body_he": "'Rubik', 'Plus Jakarta Sans', system-ui, sans-serif",
-  "numbers": "'Cormorant Garamond', Georgia, serif",
+  "numbers": "'Souvenir', Georgia, serif",
   "sizes": {
     "xs": "0.58rem",
     "sm": "0.75rem",
@@ -52,7 +52,7 @@ export const TYPE = {
     "normal": "0.05em",
     "wide": "0.15em",
     "label": "0.28em",
-    "logo": "0.18em"
+    "logo": "0.22em"
   }
 } as const;
 
@@ -71,16 +71,20 @@ export const SPACE = {
 
 export const RADIUS = {
   "none": "0px",
-  "sm": "4px",
+  "sm": "3px",
+  "btn": "6px",
   "md": "8px",
+  "card": "8px",
   "lg": "14px",
+  "soft": "14px",
   "pill": "999px"
 } as const;
 
 export const BORDER = {
   "subtle": "1px solid rgba(238,237,232,0.07)",
   "dim": "1px solid rgba(238,237,232,0.12)",
-  "basil": "1px solid rgba(137,168,62,0.25)"
+  "basil": "1px solid rgba(137,168,62,0.25)",
+  "hair": "1px solid var(--c-bark)"
 } as const;
 
 export const MOTION = {
@@ -99,4 +103,41 @@ export const MOTION = {
 export const TAGLINES = {
   "primary": "Every plant, its fullest self.",
   "secondary": "Not optimized. Fulfilled."
+} as const;
+
+export const LIGHT = {
+  "amber": "#a8783c",
+  "amber-glow": "rgba(214,182,120,.22)",
+  "ground-warm": "color-mix(in srgb, var(--c-void) 98%, var(--amber) 2%)",
+  "surface-warm": "color-mix(in srgb, var(--c-soil) 97%, var(--amber) 3%)",
+  "surface-light": "#f1ece1",
+  "cool": "#16201f",
+  "glow-shadow": "0 18px 44px rgba(0,0,0,.55)",
+  "glow-tint": "var(--amber)",
+  "lit-white": "#f6efdc",
+  "spotlight": "168deg",
+  "beam-blur": "13px",
+  "beam-angle": "16deg",
+  "radius-soft": "14px"
+} as const;
+
+export const ROLE = {
+  "bg": "var(--ground-warm)",
+  "surface": "var(--surface-warm)",
+  "surface-2": "var(--c-earth)",
+  "text": "var(--c-parchment)",
+  "text-soft": "var(--c-fog)",
+  "text-muted": "var(--c-stone)",
+  "line": "var(--c-bark)",
+  "accent": "var(--c-basil)"
+} as const;
+
+export const ATMOSPHERE = {
+  "breathe": "5s",
+  "breathe-glow": "9.5s",
+  "breathe-min": "0.72",
+  "drift": "23s",
+  "reveal": "1.4s",
+  "grain-opacity": "0.04",
+  "grain-z": "500"
 } as const;

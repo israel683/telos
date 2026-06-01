@@ -1,13 +1,13 @@
-/* TELOS Design Tokens v1.0 — /* GENERATED from design-system/tokens.json — do not edit by hand.
+/* TELOS Design Tokens v1.1 — /* GENERATED from design-system/tokens.json — do not edit by hand.
    Regenerate: npm run sync:design (CSS). */
    Portable token CSS for any consumer. The web app wires fonts via next/font in globals.css. */
 :root {
   /* Fonts */
-  --f-display: 'Cormorant Garamond', Georgia, serif;
+  --f-display: 'Souvenir', Georgia, 'Times New Roman', serif;
   --f-body: 'Plus Jakarta Sans', system-ui, sans-serif;
-  --f-display-he: 'Noto Serif Hebrew', 'Cormorant Garamond', serif;
+  --f-display-he: 'Noto Serif Hebrew', 'Souvenir', serif;
   --f-body-he: 'Rubik', 'Plus Jakarta Sans', system-ui, sans-serif;
-  --f-numbers: 'Cormorant Garamond', Georgia, serif;
+  --f-numbers: 'Souvenir', Georgia, serif;
 
   /* Foundation — Warm Neutral dark system */
   --c-void: #0c0c0a;
@@ -44,19 +44,23 @@
   --ls-normal: 0.05em;
   --ls-wide: 0.15em;
   --ls-label: 0.28em;
-  --ls-logo: 0.18em;
+  --ls-logo: 0.22em;
 
   /* Radii */
   --r-none: 0px;
-  --r-sm: 4px;
+  --r-sm: 3px;
+  --r-btn: 6px;
   --r-md: 8px;
+  --r-card: 8px;
   --r-lg: 14px;
+  --r-soft: 14px;
   --r-pill: 999px;
 
   /* Borders */
   --border-subtle: 1px solid rgba(238,237,232,0.07);
   --border-dim: 1px solid rgba(238,237,232,0.12);
   --border-basil: 1px solid rgba(137,168,62,0.25);
+  --border-hair: 1px solid var(--c-bark);
 
   /* Motion */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -65,4 +69,38 @@
   --dur-base: 280ms;
   --dur-slow: 600ms;
   --dur-scene: 1400ms;
+
+  /* Light Layer — warmth is light, not surface (key = exact CSS var) */
+  --amber: #a8783c;
+  --amber-glow: rgba(214,182,120,.22);
+  --ground-warm: color-mix(in srgb, var(--c-void) 98%, var(--amber) 2%);
+  --surface-warm: color-mix(in srgb, var(--c-soil) 97%, var(--amber) 3%);
+  --surface-light: #f1ece1;
+  --cool: #16201f;
+  --glow-shadow: 0 18px 44px rgba(0,0,0,.55);
+  --glow-tint: var(--amber);
+  --lit-white: #f6efdc;
+  --spotlight: 168deg;
+  --beam-blur: 13px;
+  --beam-angle: 16deg;
+  --radius-soft: 14px;
+
+  /* Semantic role tokens — switch-ready Dark→Light */
+  --bg: var(--ground-warm);
+  --surface: var(--surface-warm);
+  --surface-2: var(--c-earth);
+  --text: var(--c-parchment);
+  --text-soft: var(--c-fog);
+  --text-muted: var(--c-stone);
+  --line: var(--c-bark);
+  --accent: var(--c-basil);
+
+  /* Atmosphere + hero motion */
+  --breathe: 5s;
+  --breathe-glow: 9.5s;
+  --breathe-min: 0.72;
+  --drift: 23s;
+  --reveal: 1.4s;
+  --grain-opacity: 0.04;
+  --grain-z: 500;
 }

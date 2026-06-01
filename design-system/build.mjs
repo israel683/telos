@@ -65,7 +65,10 @@ const ts =
   `export const RADIUS = ${JSON.stringify(T.radius, null, 2)} as const;\n\n` +
   `export const BORDER = ${JSON.stringify(T.border, null, 2)} as const;\n\n` +
   `export const MOTION = ${JSON.stringify(T.motion, null, 2)} as const;\n\n` +
-  `export const TAGLINES = ${JSON.stringify(T.taglines, null, 2)} as const;\n`;
+  `export const TAGLINES = ${JSON.stringify(T.taglines, null, 2)} as const;\n\n` +
+  `export const LIGHT = ${JSON.stringify(T.lightLayer, null, 2)} as const;\n\n` +
+  `export const ROLE = ${JSON.stringify(T.role, null, 2)} as const;\n\n` +
+  `export const ATMOSPHERE = ${JSON.stringify(T.atmosphere, null, 2)} as const;\n`;
 writeFileSync(join(WEB, "src", "brand", "tokens.generated.ts"), ts, "utf8");
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -98,6 +101,15 @@ function cssVarLines() {
   L.push(`  --ease-out: ${T.motion.easing.out};`);
   L.push(`  --ease-in: ${T.motion.easing.in};`);
   for (const [k, v] of Object.entries(T.motion.duration)) L.push(`  --dur-${k}: ${v}ms;`);
+  L.push("");
+  L.push("  /* Light Layer — warmth is light, not surface (key = exact CSS var) */");
+  for (const [k, v] of Object.entries(T.lightLayer)) L.push(`  --${k}: ${v};`);
+  L.push("");
+  L.push("  /* Semantic role tokens — switch-ready Dark→Light */");
+  for (const [k, v] of Object.entries(T.role)) L.push(`  --${k}: ${v};`);
+  L.push("");
+  L.push("  /* Atmosphere + hero motion */");
+  for (const [k, v] of Object.entries(T.atmosphere)) L.push(`  --${k}: ${v};`);
   return L.join("\n");
 }
 const rootBlock = cssVarLines();
@@ -154,6 +166,9 @@ for (const [k, v] of Object.entries(T.border)) flat[`border.${k}`] = v;
 flat["motion.easing.out"] = T.motion.easing.out;
 flat["motion.easing.in"] = T.motion.easing.in;
 for (const [k, v] of Object.entries(T.motion.duration)) flat[`motion.duration.${k}`] = v;
+for (const [k, v] of Object.entries(T.lightLayer)) flat[`light.${k}`] = v;
+for (const [k, v] of Object.entries(T.role)) flat[`role.${k}`] = v;
+for (const [k, v] of Object.entries(T.atmosphere)) flat[`atmosphere.${k}`] = v;
 flat["taglines.primary"] = T.taglines.primary;
 flat["taglines.secondary"] = T.taglines.secondary;
 writeFileSync(join(here, "tokens.flat.json"), JSON.stringify(flat, null, 2) + "\n", "utf8");
