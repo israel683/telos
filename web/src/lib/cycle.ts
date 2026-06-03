@@ -41,6 +41,7 @@ import { doseChannelByPhysical } from "@/lib/devices/jebao";
 import { getDosingConfig } from "@/lib/dosing-config";
 import { evaluateCycleGate, CYCLE_GATE } from "@/lib/cycle-gate";
 import { getEffectiveTargets } from "@/lib/tolerance";
+import { sendAlertEmail } from "@/lib/notify";
 
 export type RunCycleOptions = {
   /** Bypass the cycle gate and always run the LLM (grower-triggered re-eval). */
@@ -400,6 +401,45 @@ export async function runSystemCycle(
         `(status='${decision.status}' unchanged since ${lastPushAgeHours.toFixed(1)}h ago, ` +
         `no new tasks, no doses fired)`
     );
+  }
+
+  // -------------------------------------------------------------------
+  // Out-of-app URGENT alert (email) — the channel that reaches a grower who
+  // isn't in the app. Scheduled cron only (a grower-triggered re-eval means
+  // they're already here). Fire only on a material escalation so we don't
+  // spam: status transitioned into warning/critical, a high/urgent task was
+  // raised, or a dose was newly queued for the grower to perform by hand.
+  // The change-based conditions self-dedupe (a steady-state critical doesn't
+  // re-email every cycle).
+  // -------------------------------------------------------------------
+  if (source === "cron") {
+    const escalated =
+      statusChanged && (decision.status === "warning" || decision.status === "critical");
+    const newHighTask = decision.human_tasks.some(
+      (t) => t.priority === "high" || t.priority === "urgent"
+    );
+    const newDoseApproval = executed.some(
+      (e) => !e.success && typeof e.error === "string" && e.error.includes("queued as dose_approval")
+    );
+    if (escalated || newHighTask || newDoseApproval) {
+      const lines: string[] = [decision.message || decision.analysis || "התראת מערכת"];
+      if (newDoseApproval) {
+        const doses = executed
+          .filter((e) => !e.success && typeof e.error === "string" && e.error.includes("queued as dose_approval"))
+          .map((e) => `${e.channel} ${e.amount_ml}ml`);
+        if (doses.length) lines.push(`\nמנה לביצוע ידני: ${doses.join(", ")}`);
+      }
+      const newTasks = decision.human_tasks.filter(
+        (t) => t.priority === "high" || t.priority === "urgent"
+      );
+      if (newTasks.length) lines.push(`\nמשימות: ${newTasks.map((t) => t.title).join(" · ")}`);
+      lines.push("\nפתח את TELOS כדי לפעול.");
+      const subject = `TELOS · ${decision.status === "critical" ? "🔴 קריטי" : decision.status === "warning" ? "⚠ אזהרה" : "פעולה נדרשת"} — ${sys.name}`;
+      const mail = await sendAlertEmail(subject, lines.join("\n"));
+      if (!mail.ok && !("skipped" in mail && mail.skipped)) {
+        console.error(`[cycle] urgent email failed for system=${sys.id}`);
+      }
+    }
   }
 
   return {

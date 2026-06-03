@@ -19,6 +19,7 @@ import {
 // Brand voice imported from the canonical reference — same rules apply
 // to the daily report as to the chat agent and the autonomous brain.
 import { TELOS_VOICE_PROMPT } from "@/brand/voice";
+import { sendAlertEmail } from "@/lib/notify";
 
 export const maxDuration = 60;
 
@@ -130,11 +131,15 @@ ${JSON.stringify(stats, null, 2)}`;
           status: "healthy",
         });
 
+        // Also deliver the digest out-of-app (email). No-op unless configured.
+        const mail = await sendAlertEmail(`TELOS · דוח יומי — ${sys.name}`, ai.text);
+
         results.push({
           system_id: sys.id,
           ok: true,
           readings_count: readings.length,
           decisions_count: decisions.length,
+          emailed: mail.ok,
         });
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
