@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { getGrow, answerOnboarding, type GrowView, type OnboardingView } from "@/lib/api";
+import { getGrow, answerOnboarding, type GrowView, type OnboardingView, type GrowContextField } from "@/lib/api";
 import { startVisibilityAwarePolling } from "@/lib/poll";
 import { useLang, statusLabel } from "@/lib/i18n";
 
@@ -42,16 +42,6 @@ function Card({
       </div>
       {children}
     </section>
-  );
-}
-
-function Field({ label, value }: { label: string; value: React.ReactNode }) {
-  if (value === null || value === undefined || value === "") return null;
-  return (
-    <div style={{ display: "flex", gap: 14, padding: "7px 0", fontSize: ".92rem", borderBottom: "1px solid color-mix(in srgb, var(--c-parchment) 6%, transparent)" }}>
-      <span style={{ color: "var(--c-ash)", minWidth: 104, flex: "none" }}>{label}</span>
-      <span style={{ color: "var(--c-parchment)" }}>{value}</span>
-    </div>
   );
 }
 
@@ -197,6 +187,122 @@ function OnboardingChecklist({
   );
 }
 
+// Short, readable labels for the Grow Context fields (the catalog questions are
+// long); keyed by onboarding question id.
+const CONTEXT_LABEL: Record<string, [string, string]> = {
+  water_source: ["Water source", "מקור מים"],
+  water_baseline_ec: ["Water baseline EC", "בסיס מים (EC)"],
+  light: ["Light", "תאורה"],
+  climate: ["Climate", "אקלים"],
+  business_goal: ["Goal", "יעד"],
+  target_buyer: ["Buyer", "לקוח"],
+  practices: ["Practices", "פרקטיקות"],
+};
+
+/**
+ * One Grow Context field, editable in place. Shows the current value with an
+ * "ערוך" affordance; opens a type-aware input (choice → chips, number/text →
+ * field) and saves via the same /api/grow/answer endpoint (which overwrites the
+ * field — practices append). This is how a grower revises an answer without
+ * going through chat.
+ */
+function EditableField({
+  field,
+  onSaved,
+}: {
+  field: GrowContextField;
+  onSaved: () => void | Promise<void>;
+}) {
+  const { t } = useLang();
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+
+  const label = CONTEXT_LABEL[field.id] ? t(...CONTEXT_LABEL[field.id]) : field.question;
+  const isPractices = field.id === "practices";
+
+  async function save(value: string) {
+    const v = value.trim();
+    if (!v || busy) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      await answerOnboarding(field.id, v);
+      setEditing(false);
+      setDraft("");
+      await onSaved();
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div style={{ padding: "7px 0", borderBottom: "1px solid color-mix(in srgb, var(--c-parchment) 6%, transparent)" }}>
+      <div style={{ display: "flex", gap: 14, alignItems: "baseline", fontSize: ".92rem" }}>
+        <span style={{ color: "var(--c-ash)", minWidth: 104, flex: "none" }}>{label}</span>
+        <span style={{ color: field.value ? "var(--c-parchment)" : "var(--c-stone)", flex: 1 }}>
+          {field.value || t("not set", "לא הוגדר")}
+        </span>
+        {!editing ? (
+          <button
+            onClick={() => { setEditing(true); setDraft(""); setErr(null); }}
+            style={{ background: "none", border: "none", padding: 0, cursor: "pointer", color: "var(--c-basil)", fontSize: ".8rem", flex: "none" }}
+          >
+            {field.value ? t("Edit", "ערוך") : isPractices ? t("Add", "הוסף") : t("Set", "הגדר")}
+          </button>
+        ) : null}
+      </div>
+
+      {editing ? (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 8 }}>
+          {field.type === "choice" && field.choices ? (
+            field.choices.map((c) => (
+              <button
+                key={c}
+                onClick={() => save(c)}
+                disabled={busy}
+                style={{ fontSize: ".8rem", padding: "6px 14px", borderRadius: 999, background: "var(--c-basil)", color: "var(--c-void)", border: "none", cursor: "pointer", opacity: busy ? 0.5 : 1 }}
+              >
+                {busy ? "…" : c}
+              </button>
+            ))
+          ) : (
+            <input
+              type={field.type === "number" ? "number" : "text"}
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") save(draft); }}
+              placeholder={isPractices ? t("Add a practice…", "הוסף פרקטיקה…") : t("New value…", "ערך חדש…")}
+              autoFocus
+              disabled={busy}
+              style={{ flex: 1, minWidth: 140, fontSize: ".88rem", borderRadius: 8, padding: "7px 11px", background: "var(--c-void)", border: "1px solid color-mix(in srgb, var(--c-parchment) 12%, transparent)", color: "var(--c-parchment)" }}
+            />
+          )}
+          {field.type !== "choice" ? (
+            <button
+              onClick={() => save(draft)}
+              disabled={busy || !draft.trim()}
+              style={{ fontSize: ".8rem", padding: "7px 16px", borderRadius: 999, background: "var(--c-basil)", color: "var(--c-void)", border: "none", cursor: "pointer", opacity: busy || !draft.trim() ? 0.45 : 1 }}
+            >
+              {busy ? "…" : t("Save", "שמור")}
+            </button>
+          ) : null}
+          <button
+            onClick={() => { setEditing(false); setDraft(""); setErr(null); }}
+            style={{ fontSize: ".8rem", padding: "7px 12px", borderRadius: 999, background: "transparent", color: "var(--c-stone)", border: "1px solid color-mix(in srgb, var(--c-parchment) 12%, transparent)", cursor: "pointer" }}
+          >
+            {t("Cancel", "ביטול")}
+          </button>
+          {err ? <span style={{ fontSize: ".78rem", color: "var(--c-terra)" }}>{err}</span> : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function GrowPage() {
   const { t, lang } = useLang();
   const [data, setData] = useState<GrowView | null>(null);
@@ -224,9 +330,6 @@ export default function GrowPage() {
   if (error) return <div style={{ maxWidth: 1180, margin: "0 auto", padding: "3rem 1.5rem", color: "var(--c-terra)" }}>{t("Error", "שגיאה")}: {error}</div>;
   if (!data) return null;
 
-  const p = (data.grow_profile ?? {}) as Record<string, unknown>;
-  const wb = p.water_baseline as { ph?: number; ec?: number } | undefined;
-  const practices = (p.practices as string[] | undefined) ?? [];
   const stagePair = STAGE[data.system.growth_stage];
   const stage = stagePair ? t(stagePair[0], stagePair[1]) : data.system.growth_stage;
   const answered = data.onboarding.total - data.onboarding.unanswered.length;
@@ -281,32 +384,20 @@ export default function GrowPage() {
         </Card>
 
         <Card title={t("Grow context", "הקשר הגידול")} icon="ph-plant">
-          <Field label={t("Water source", "מקור מים")} value={p.water_source as string} />
-          <Field
-            label={t("Water baseline", "בסיס מים")}
-            value={
-              wb && (wb.ph != null || wb.ec != null)
-                ? [wb.ph != null ? `pH ${wb.ph}` : null, wb.ec != null ? `EC ${wb.ec}` : null].filter(Boolean).join(" · ")
-                : null
-            }
-          />
-          <Field label={t("Light", "תאורה")} value={p.light as string} />
-          <Field label={t("Climate", "אקלים")} value={p.climate as string} />
-          <Field label={t("Goal", "יעד")} value={p.business_goal as string} />
-          <Field label={t("Buyer", "לקוח")} value={p.target_buyer as string} />
-          {practices.length > 0 ? (
-            <div style={{ paddingTop: 10 }}>
-              <span style={{ color: "var(--c-ash)", fontSize: ".88rem" }}>{t("Practices:", "פרקטיקות:")}</span>
-              <ul style={{ listStyle: "none", padding: 0, margin: "8px 0 0", display: "flex", flexDirection: "column", gap: 6 }}>
-                {practices.map((pr, i) => (
-                  <li key={i} style={{ fontSize: ".9rem", color: "var(--c-parchment)" }}>• {pr}</li>
+          {data.onboarding.fields.some((f) => f.answered) ? (
+            <>
+              {data.onboarding.fields
+                .filter((f) => f.answered)
+                .map((f) => (
+                  <EditableField key={f.id} field={f} onSaved={load} />
                 ))}
-              </ul>
-            </div>
-          ) : null}
-          {!p.water_source && !p.light && !p.business_goal && practices.length === 0 ? (
+              <p style={{ fontSize: ".78rem", color: "var(--c-stone)", marginTop: 10 }}>
+                {t("Tap Edit to revise what the Brain knows about this grow.", "הקש 'ערוך' כדי לעדכן מה שהמוח יודע על הגידול.")}
+              </p>
+            </>
+          ) : (
             <p style={{ fontSize: ".9rem", color: "var(--c-ash)" }}>{t("Nothing gathered yet — onboarding hasn't started.", "עדיין לא נאסף מידע — ההיכרות טרם החלה.")}</p>
-          ) : null}
+          )}
         </Card>
 
         <Card title={t("Grower memory", "זיכרון המגדל")} icon="ph-brain">

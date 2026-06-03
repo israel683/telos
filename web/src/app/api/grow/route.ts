@@ -4,6 +4,7 @@ import { systemIdFromRequest } from "@/lib/system-ctx";
 import {
   unansweredQuestions,
   isOnboardingComplete,
+  growContextView,
   ONBOARDING_CATALOG,
 } from "@/lib/grow-profile";
 import { getCultivarRecord } from "@/lib/cultivars";
@@ -52,6 +53,9 @@ export async function GET(req: Request) {
           type: q.type,
           choices: q.choices ?? null,
         })),
+        // Full catalog + current values — lets the Grow screen revise answers,
+        // not just complete missing ones.
+        fields: growContextView(profile),
       },
       memory: memory.map((m) => ({
         id: m.id,

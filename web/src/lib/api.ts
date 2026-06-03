@@ -57,16 +57,27 @@ export type GrowView = {
   episodes: Array<{ id: number; ts: string; status: string | null; summary: string }>;
 };
 
+export type OnboardingQuestionType = "text" | "number" | "choice";
+
+export type OnboardingField = {
+  id: string;
+  question: string;
+  required: boolean;
+  type: OnboardingQuestionType;
+  choices: string[] | null;
+};
+
+export type GrowContextField = OnboardingField & {
+  answered: boolean;
+  value: string | null;
+};
+
 export type OnboardingView = {
   complete: boolean;
   total: number;
-  unanswered: Array<{
-    id: string;
-    question: string;
-    required: boolean;
-    type: "text" | "number" | "choice";
-    choices: string[] | null;
-  }>;
+  unanswered: OnboardingField[];
+  /** Full catalog + current values — for revising answers, not just completing. */
+  fields: GrowContextField[];
 };
 
 export async function getGrow(): Promise<GrowView> {

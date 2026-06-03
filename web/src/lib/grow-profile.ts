@@ -170,6 +170,38 @@ export function applyOnboardingAnswer(
   return next;
 }
 
+/** One catalog question paired with its CURRENT stored value — for the editable Grow Context UI. */
+export type GrowContextField = {
+  id: string;
+  question: string;
+  type: OnboardingQuestionType;
+  choices: string[] | null;
+  required: boolean;
+  answered: boolean;
+  /** Human-readable current value (joined for arrays), or null if unanswered. */
+  value: string | null;
+};
+
+/** Full catalog with each question's current stored value — lets the UI both complete AND revise answers. */
+export function growContextView(profile: GrowProfile | null | undefined): GrowContextField[] {
+  const p = (profile ?? {}) as Record<string, unknown>;
+  return ONBOARDING_CATALOG.map((q) => {
+    const raw = getPath(p, q.field);
+    const answered = isAnswered(raw);
+    let value: string | null = null;
+    if (answered) value = Array.isArray(raw) ? raw.join(", ") : String(raw);
+    return {
+      id: q.id,
+      question: q.q,
+      type: q.type,
+      choices: q.choices ?? null,
+      required: q.required ?? false,
+      answered,
+      value,
+    };
+  });
+}
+
 /** True once every required question is answered (or onboarding was marked done). */
 export function isOnboardingComplete(
   profile: GrowProfile | null | undefined
