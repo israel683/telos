@@ -17,6 +17,7 @@ import type { TargetRanges } from "./tolerance";
 import { evaluateMetric, bandWidth } from "./tolerance";
 import { renderGrowContext, type GrowProfile } from "./grow-profile";
 import { renderGrowerMemory, renderEpisodes, type GrowerMemoryEntry, type GrowEpisode } from "./grower-memory";
+import { relAge } from "./time";
 import { TELOS_VOICE_PROMPT } from "../brand/voice";
 
 export const SYSTEM_PROMPT = TELOS_VOICE_PROMPT + `
@@ -509,9 +510,10 @@ export function buildUserPrompt(opts: {
     pendingTasks,
   } = opts;
   const sections: string[] = [];
+  const now = new Date();
 
   sections.push("## Sensor Statistics (windowed — use these, not raw points)");
-  sections.push(`Current reading timestamp: ${current.ts.toISOString()}`);
+  sections.push(`Current reading timestamp: ${current.ts.toISOString()} (${relAge(current.ts, now)})`);
   sections.push(`Source: ${current.source}`);
   sections.push("");
   sections.push(buildMetricTable(current, recent));
@@ -618,7 +620,7 @@ export function buildUserPrompt(opts: {
     sections.push("## Recent Dosing Actions (last 24h)");
     for (const a of recentActions.slice(-10)) {
       sections.push(
-        `  [${a.ts.toISOString()}] ${a.channel}: ${a.amount_ml}ml (${a.success ? "OK" : "FAILED"}) — ${a.reason}`
+        `  [${a.ts.toISOString()}] (${relAge(a.ts, now)}) ${a.channel}: ${a.amount_ml}ml (${a.success ? "OK" : "FAILED"}) — ${a.reason}`
       );
     }
     sections.push("");
@@ -632,7 +634,7 @@ export function buildUserPrompt(opts: {
     sections.push("## Currently Pending Human Tasks (do not duplicate these types)");
     for (const t of pendingTasks) {
       sections.push(
-        `  #${t.id} [${t.priority}] ${t.type}: ${t.title} (created ${t.created_at.toISOString().slice(0, 16)})`
+        `  #${t.id} [${t.priority}] ${t.type}: ${t.title} (created ${t.created_at.toISOString().slice(0, 16)}, ${relAge(t.created_at, now)})`
       );
     }
     sections.push("");
@@ -710,7 +712,6 @@ export function buildUserPrompt(opts: {
   }
   sections.push("");
 
-  const now = new Date();
   const hour = now.getHours();
   let period: string;
   if (hour >= 6 && hour < 10) period = "Early morning — plants starting photosynthesis";

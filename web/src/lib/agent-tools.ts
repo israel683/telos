@@ -25,6 +25,7 @@ import {
   DEFAULT_SYSTEM_ID,
 } from "./db";
 import { GROWER_MEMORY_KINDS } from "./grower-memory";
+import { relAge, isoMinuteUtc } from "./time";
 import { getBottleStatusReport } from "./bottle-status";
 import { readTuyaSensor } from "./devices/tuya";
 import { doseChannelByPhysical } from "./devices/jebao";
@@ -77,7 +78,9 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
         ]);
         const current = readings[readings.length - 1] || null;
         const last = decisions[0] || null;
+        const now = new Date();
         return {
+          now: isoMinuteUtc(now),
           system: sys ? { id: sys.id, name: sys.name, status: sys.status } : null,
           setup_completed_at: sys?.setup_completed_at
             ? sys.setup_completed_at.toISOString()
@@ -86,6 +89,7 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           current_reading: current
             ? {
                 timestamp: current.ts.toISOString(),
+                age: relAge(current.ts, now),
                 ph: current.ph,
                 ec: current.ec,
                 tds: current.tds,
@@ -101,6 +105,7 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
             ? {
                 id: last.id,
                 timestamp: last.ts.toISOString(),
+                age: relAge(last.ts, now),
                 status: last.status,
                 message: last.message,
                 analysis: last.analysis,
@@ -128,9 +133,13 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
       }),
       execute: async ({ hours, limit }) => {
         const readings = await getRecentReadings(hours, limit, systemId);
+        const now = new Date();
+        const newest = readings[readings.length - 1];
         return {
           system_id: systemId,
+          now: isoMinuteUtc(now),
           count: readings.length,
+          newest_age: newest ? relAge(newest.ts, now) : "no readings",
           readings: readings.map((r) => ({
             ts: r.ts.toISOString(),
             ph: r.ph,
@@ -150,12 +159,15 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
       }),
       execute: async ({ limit }) => {
         const decisions = await getRecentDecisions(limit, systemId);
+        const now = new Date();
         return {
           system_id: systemId,
+          now: isoMinuteUtc(now),
           count: decisions.length,
           decisions: decisions.map((d) => ({
             id: d.id,
             ts: d.ts.toISOString(),
+            age: relAge(d.ts, now),
             status: d.status,
             analysis: d.analysis,
             message: d.message,
@@ -170,8 +182,10 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
       inputSchema: z.object({}),
       execute: async () => {
         const tasks = await getPendingTasks(systemId);
+        const now = new Date();
         return {
           system_id: systemId,
+          now: isoMinuteUtc(now),
           count: tasks.length,
           tasks: tasks.map((t) => ({
             id: t.id,
@@ -180,6 +194,7 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
             title: t.title,
             reason: t.reason,
             created_at: t.created_at.toISOString(),
+            age: relAge(t.created_at, now),
           })),
         };
       },
@@ -472,6 +487,7 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           return {
             source: "db_cache",
             age_seconds: Math.round(ageSec),
+            age: relAge(latest.ts),
             reading: {
               timestamp: latest.ts.toISOString(),
               ph: latest.ph,
@@ -508,6 +524,7 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           return {
             source: "tuya_live",
             online: r.online,
+            age: relAge(r.ts),
             reading: {
               timestamp: r.ts.toISOString(),
               ph: r.ph,

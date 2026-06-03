@@ -7,6 +7,7 @@ import {
   type ModelMessage,
 } from "ai";
 import { buildAgentTools } from "@/lib/agent-tools";
+import { nowAnchorBlock } from "@/lib/time";
 import {
   getSystem,
   getRecentReadings,
@@ -187,7 +188,8 @@ export async function POST(req: Request) {
     readingsForFreshCheck.length === 0 &&
     decisionsForFreshCheck.length === 0;
 
-  let contextLine = sys
+  let contextLine = `\n\n${nowAnchorBlock()}`;
+  contextLine += sys
     ? `\n\n# Active system\n- id: ${sys.id}\n- name: ${sys.name}\n- status: ${sys.status}\n- crop: ${sys.crop_type}\n- growth stage: ${sys.growth_stage}\n- reservoir: ${sys.reservoir_liters}L\n- location: ${sys.location}`
     : `\n\n# Active system\n- id: ${systemId} (not found in DB)`;
 
