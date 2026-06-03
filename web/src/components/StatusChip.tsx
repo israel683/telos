@@ -27,6 +27,11 @@ const DECISION_STYLE: Record<string, { dot: string; label: string }> = {
 export function StatusChip({ onRequestStatus }: { onRequestStatus?: () => void }) {
   const { t } = useLang();
   const [info, setInfo] = useState<StatusInfo | null>(null);
+  // Connectivity: distinguish "still loading the first time" from "we polled
+  // and it FAILED". On failure we keep the last-known status visible (so the
+  // chip doesn't lie) but mark it offline — the global "can't reach the Brain"
+  // signal the rest of the chrome can rely on.
+  const [offline, setOffline] = useState(false);
 
   async function load() {
     try {
@@ -41,8 +46,10 @@ export function StatusChip({ onRequestStatus }: { onRequestStatus?: () => void }
         systemName: j.system?.name ?? null,
         hasReadings: !!j.current_reading,
       });
+      setOffline(false);
     } catch {
-      setInfo(null);
+      // Keep the last-known `info`; just flag that we can't reach the server.
+      setOffline(true);
     }
   }
 
@@ -50,6 +57,19 @@ export function StatusChip({ onRequestStatus }: { onRequestStatus?: () => void }
     load();
     return startVisibilityAwarePolling(load, 30_000);
   }, []);
+
+  // Persistent failure with nothing ever loaded → explicit "no connection".
+  if (offline && !info) {
+    return (
+      <span
+        className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs px-2 py-1 rounded-sm border border-[rgba(168,89,58,0.25)] bg-[rgba(168,89,58,0.08)] text-[var(--c-terra)] font-medium"
+        title={t("Can't reach the Brain — retrying", "אין קשר למוח — מנסה שוב")}
+      >
+        <span className="inline-block w-2 h-2 rounded-full bg-[var(--c-terra)]" />
+        {t("Offline", "אין קשר")}
+      </span>
+    );
+  }
 
   if (!info) {
     return (
@@ -92,9 +112,14 @@ export function StatusChip({ onRequestStatus }: { onRequestStatus?: () => void }
   const ds = info.decisionStatus || "unknown";
   const style = DECISION_STYLE[ds] || DECISION_STYLE.unknown;
   return (
-    <span className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs px-2 py-1 rounded-sm border border-[rgba(238,237,232,0.07)] bg-[var(--c-soil)]">
+    <span
+      className="inline-flex items-center gap-1.5 text-[11px] sm:text-xs px-2 py-1 rounded-sm border border-[rgba(238,237,232,0.07)] bg-[var(--c-soil)]"
+      style={offline ? { opacity: 0.55 } : undefined}
+      title={offline ? t("Showing last-known status — can't reach the Brain", "מציג מצב אחרון ידוע — אין כרגע קשר למוח") : undefined}
+    >
       <span className={`inline-block w-2 h-2 rounded-full ${style.dot}`} />
       <span className="text-[var(--c-fog)] font-medium">{statusLabel(ds, t)}</span>
+      {offline ? <span className="text-[var(--c-terra)]" aria-hidden="true">⚠</span> : null}
     </span>
   );
 }

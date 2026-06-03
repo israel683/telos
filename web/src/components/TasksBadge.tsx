@@ -51,14 +51,21 @@ export function TasksBadge() {
     };
   }, []);
 
-  if (error || (approval === 0 && hands === 0)) return null;
+  // Only hide when there's genuinely nothing pending. A transient fetch error
+  // must NOT hide existing tasks — we keep the last-known counts visible (just
+  // dimmed) so a pending dose approval never silently disappears.
+  if (approval === 0 && hands === 0) return null;
 
   return (
     <Link
       href="/"
-      title={`משימות ממתינות: ${approval} לאישור · ${hands} פיזי`}
+      title={
+        error
+          ? `${approval} לאישור · ${hands} פיזי — לא עודכן (אין קשר)`
+          : `משימות ממתינות: ${approval} לאישור · ${hands} פיזי`
+      }
       className="flex items-center gap-1 sm:gap-1.5 text-[11px] sm:text-xs px-1.5 sm:px-2 py-1 rounded-md transition-colors"
-      style={{ border: "1px solid color-mix(in srgb, var(--c-parchment) 8%, transparent)", background: "var(--surface-warm)" }}
+      style={{ border: "1px solid color-mix(in srgb, var(--c-parchment) 8%, transparent)", background: "var(--surface-warm)", opacity: error ? 0.6 : 1 }}
     >
       {approval > 0 && (
         <span className="flex items-center gap-1">

@@ -99,7 +99,9 @@ export function PendingTasksCard() {
     return startVisibilityAwarePolling(load, POLL_MS);
   }, []);
 
-  if (err) return null;
+  // A transient fetch error must NOT hide tasks we already loaded — keep the
+  // last-known list visible so a pending approval never silently disappears.
+  // Only render nothing when there's genuinely nothing to show.
   if (tasks.length === 0) return null;
 
   async function handleAction(
@@ -135,6 +137,11 @@ export function PendingTasksCard() {
 
   return (
     <div className="space-y-2 mb-2">
+      {err ? (
+        <div className="text-[10px] text-[var(--c-stone)] text-center" title={err}>
+          לא עודכן (אין קשר) · מציג מצב אחרון
+        </div>
+      ) : null}
       {visible.map((t) => {
         const tone = PRIORITY_TONE[t.priority];
         const isApproval = t.type === "dose_approval";
