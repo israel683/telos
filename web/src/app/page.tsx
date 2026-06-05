@@ -77,8 +77,8 @@ export default function Dashboard() {
     return (
       <main style={{ flex: 1, display: "grid", placeItems: "center", padding: 32 }}>
         <div style={{ maxWidth: 420, textAlign: "center" }}>
-          <h2 style={{ fontFamily: "var(--f-display)", fontSize: "1.5rem", color: "var(--c-parchment)", marginBottom: 8 }}>{t("Connection error", "שגיאת חיבור")}</h2>
-          <p style={{ fontSize: ".85rem", color: "var(--c-ash)", wordBreak: "break-word" }}>{error}</p>
+          <h2 style={{ fontFamily: "var(--f-display)", fontSize: "1.5rem", color: "var(--c-parchment)", marginBottom: 8 }}>{t("Can't reach TELOS", "אין כרגע קשר ל‑TELOS")}</h2>
+          <p style={{ fontSize: ".85rem", color: "var(--c-ash)" }}>{t("Reconnecting on its own — this page refreshes automatically.", "מתחבר מחדש מעצמו — העמוד יתרענן אוטומטית.")}</p>
         </div>
       </main>
     );

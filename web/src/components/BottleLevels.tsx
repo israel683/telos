@@ -17,6 +17,7 @@
 import { useEffect, useState } from "react";
 import { getActiveSystem } from "@/lib/system";
 import { startVisibilityAwarePolling } from "@/lib/poll";
+import { useLang } from "@/lib/i18n";
 
 const POLL_MS = 30_000;
 
@@ -59,22 +60,24 @@ const LEVEL_TEXT_COLOR: Record<ChannelStatus["level"], string> = {
   unknown:    "text-[var(--c-stone)]",
 };
 
-const LEVEL_TAG_HE: Record<ChannelStatus["level"], string> = {
-  empty: "ריק",
-  near_empty: "כמעט ריק",
-  low: "נמוך",
-  ok: "תקין",
-  unknown: "לא ידוע",
+const LEVEL_TAG: Record<ChannelStatus["level"], [string, string]> = {
+  empty: ["empty", "ריק"],
+  near_empty: ["nearly empty", "כמעט ריק"],
+  low: ["low", "נמוך"],
+  ok: ["ok", "תקין"],
+  unknown: ["unknown", "לא ידוע"],
 };
 
+/** Numeric day count, unit-free (the caller adds the localized "days" word). */
 function formatDays(d: number | null): string {
   if (d === null || !Number.isFinite(d)) return "—";
-  if (d < 1) return "<1 יום";
-  if (d < 10) return `${d.toFixed(1)} ימים`;
-  return `${Math.round(d)} ימים`;
+  if (d < 1) return "<1";
+  if (d < 10) return d.toFixed(1);
+  return String(Math.round(d));
 }
 
 export function BottleLevels() {
+  const { t } = useLang();
   const [report, setReport] = useState<Report | null>(null);
   const [err, setErr] = useState(false);
 
@@ -102,32 +105,43 @@ export function BottleLevels() {
     };
   }, []);
 
-  if (err || !report) return null;
+  // Initial load → render nothing (the card frame shows). A persistent fetch
+  // error keeps the component visible with a quiet note instead of vanishing.
+  if (!report) {
+    if (err) {
+      return (
+        <p className="text-xs leading-relaxed" style={{ color: "var(--c-stone)" }}>
+          {t("Couldn't load bottle levels — retrying.", "לא הצלחתי לטעון את רמות הבקבוקים — מנסה שוב.")}
+        </p>
+      );
+    }
+    return null;
+  }
   const noData = report.channels.length === 0;
 
   return (
-    <div className="bg-[var(--c-soil)] rounded-md p-5 border border-[rgba(238,237,232,0.07)]">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="font-semibold">רמות בקבוקים</h2>
-        <div className="flex items-center gap-2">
+    <div>
+      {(report.doser_verified === false || report.any_near_empty) && (
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
           {report.doser_verified === false && (
-            <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300">
-              דוזר לא מאומת
+            <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded" style={{ color: "var(--amber)", background: "color-mix(in srgb, var(--amber) 16%, transparent)" }}>
+              {t("Doser not verified", "דוזר לא מאומת")}
             </span>
           )}
           {report.any_near_empty && (
-            <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded bg-red-100 dark:bg-red-950/40 text-red-700 dark:text-red-300">
-              צריך מילוי
+            <span className="text-[10px] uppercase tracking-wide px-2 py-0.5 rounded" style={{ color: "var(--c-terra)", background: "color-mix(in srgb, var(--c-terra) 16%, transparent)" }}>
+              {t("Needs refill", "צריך מילוי")}
             </span>
           )}
         </div>
-      </div>
+      )}
 
       {noData && (
-        <p className="text-xs text-zinc-500 leading-relaxed">
-          לא הוצהרו רמות. בקש בצ&apos;אט מהחקלאי לרשום כמה מל יש בכל בקבוק
-          (&quot;שמתי 100 בכל אחד&quot;) — מאותו רגע אני אעקוב אחרי הירידה,
-          אזהיר לפני שהבקבוק מתרוקן, ואוכל לעשות בדיקה צולבת מול מה שאתה רואה.
+        <p className="text-xs leading-relaxed" style={{ color: "var(--c-stone)" }}>
+          {t(
+            "No levels declared yet. Tell TELOS in chat how many ml are in each bottle (\"I put 100 in each\") — from then on it tracks the drawdown, warns before a bottle runs dry, and can cross-check against what you see.",
+            "עדיין לא הוצהרו רמות. ספר ל‑TELOS בצ'אט כמה מ\"ל יש בכל בקבוק (\"שמתי 100 בכל אחד\") — מאותו רגע הוא עוקב אחרי הירידה, מזהיר לפני שבקבוק מתרוקן, ויכול להצליב מול מה שאתה רואה."
+          )}
         </p>
       )}
 
@@ -155,7 +169,7 @@ export function BottleLevels() {
                     {cap !== null ? ` / ${cap.toFixed(0)}` : ""}
                     {pct !== null ? `  (${pct.toFixed(0)}%)` : ""}
                     {c.level !== "ok" && c.level !== "unknown" && (
-                      <span className="ms-1">⚠ {LEVEL_TAG_HE[c.level]}</span>
+                      <span className="ms-1">⚠ {t(...LEVEL_TAG[c.level])}</span>
                     )}
                   </span>
                 </div>
@@ -165,22 +179,22 @@ export function BottleLevels() {
                     style={{ width: `${barPct}%` }}
                   />
                 </div>
-                <div className="mt-1 flex justify-between text-[11px] text-zinc-500 tabular-nums">
+                <div className="mt-1 flex justify-between text-[11px] tabular-nums" style={{ color: "var(--c-stone)" }}>
                   <span>
-                    צריכה 7 ימים: {c.consumed_7d_ml.toFixed(1)}ml
-                    {c.daily_avg_ml !== null ? ` · ממוצע ${c.daily_avg_ml.toFixed(1)}ml/יום` : ""}
+                    {t("7-day use", "צריכה 7 ימים")}: {c.consumed_7d_ml.toFixed(1)}ml
+                    {c.daily_avg_ml !== null ? ` · ${t("avg", "ממוצע")} ${c.daily_avg_ml.toFixed(1)}ml/${t("day", "יום")}` : ""}
                   </span>
                   <span>
                     {c.days_until_empty !== null
-                      ? `יספיק לעוד ${formatDays(c.days_until_empty)}`
+                      ? t(`lasts ~${formatDays(c.days_until_empty)} more days`, `יספיק לעוד ${formatDays(c.days_until_empty)} ימים`)
                       : c.daily_avg_ml === null && rem !== null
-                      ? "אין דאטה לתחזית"
+                      ? t("no forecast data yet", "אין דאטה לתחזית")
                       : ""}
                   </span>
                 </div>
                 {c.needs_recheck && rem !== null && (
-                  <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
-                    🔎 לא אומת ויזואלית מעל שבוע — שווה הצצה.
+                  <p className="mt-1 text-[11px]" style={{ color: "var(--amber)" }}>
+                    🔎 {t("not eyeballed in over a week — worth a look.", "לא אומת ויזואלית מעל שבוע — שווה הצצה.")}
                   </p>
                 )}
               </li>

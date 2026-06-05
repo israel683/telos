@@ -65,8 +65,10 @@ export default function DecisionsPage() {
   }
   if (error) {
     return (
-      <main className="flex-1 grid place-items-center p-8">
-        <p className="text-sm text-[var(--c-ash)] break-words">{error}</p>
+      <main className="flex-1 grid place-items-center p-8 text-center">
+        <p className="text-sm text-[var(--c-ash)] max-w-sm">
+          {t("Couldn't load the history right now. It'll refresh on its own.", "לא הצלחתי לטעון את ההיסטוריה כרגע. זה יתעדכן מעצמו.")}
+        </p>
       </main>
     );
   }
@@ -137,7 +139,7 @@ export default function DecisionsPage() {
                   {d.analysis && (
                     <div>
                       <h3 className="text-xs font-semibold text-[var(--c-ash)] uppercase tracking-wide mb-1">
-                        Analysis
+                        {t("Analysis", "ניתוח")}
                       </h3>
                       <p className="text-sm leading-relaxed" dir="ltr">
                         {d.analysis}
@@ -148,7 +150,7 @@ export default function DecisionsPage() {
                   {actions.length > 0 && (
                     <div>
                       <h3 className="text-xs font-semibold text-[var(--c-ash)] uppercase tracking-wide mb-1">
-                        Actions
+                        {t("Actions", "פעולות")}
                       </h3>
                       <ul className="space-y-1.5">
                         {actions.map((a, i) => (
@@ -185,7 +187,7 @@ export default function DecisionsPage() {
                   {concerns.length > 0 && (
                     <div>
                       <h3 className="text-xs font-semibold text-[var(--c-ash)] uppercase tracking-wide mb-1">
-                        Concerns
+                        {t("Concerns", "דגשים")}
                       </h3>
                       <ul className="space-y-1 list-disc pr-4" dir="ltr">
                         {concerns.map((c, i) => (
@@ -204,7 +206,7 @@ export default function DecisionsPage() {
 
         {decisions.length === 0 && (
           <p className="text-center py-8 text-sm text-[var(--c-ash)]">
-            עדיין אין החלטות שנשמרו. הרץ את האייג'נט וחזור בעוד דקה.
+            {t("No decisions logged yet — TELOS will record them as it watches the grow.", "עדיין אין החלטות — TELOS ירשום אותן ככל שיעקוב אחרי הגידול.")}
           </p>
         )}
       </div>
