@@ -45,16 +45,14 @@ export async function GET(req: Request) {
         : null,
       last_decision: last
         ? {
+            // Token telemetry intentionally omitted — internal-only (reveals the
+            // LLM + cost structure). Kept in logs/observability, not the API.
             id: last.id,
             timestamp: last.ts.toISOString(),
             status: last.status,
             analysis: last.analysis,
             message: last.message,
             raw_response: last.raw_response,
-            tokens_input: last.tokens_input,
-            tokens_output: last.tokens_output,
-            cache_creation_tokens: last.cache_creation_tokens,
-            cache_read_tokens: last.cache_read_tokens,
           }
         : null,
       pending_tasks: { total: pending.length, by_priority: priorityCounts },

@@ -12,6 +12,8 @@ export async function GET(req: Request) {
     const decisions = await getRecentDecisions(limit, systemId);
     return NextResponse.json({
       system_id: systemId,
+      // Token telemetry is intentionally NOT returned — it reveals the LLM and
+      // cost structure (proprietary). It stays in server logs/observability.
       decisions: decisions.map((d) => ({
         id: d.id,
         timestamp: d.ts.toISOString(),
@@ -19,10 +21,6 @@ export async function GET(req: Request) {
         analysis: d.analysis,
         message: d.message,
         raw_response: d.raw_response,
-        tokens_input: d.tokens_input,
-        tokens_output: d.tokens_output,
-        cache_creation_tokens: d.cache_creation_tokens,
-        cache_read_tokens: d.cache_read_tokens,
       })),
     });
   } catch (e) {

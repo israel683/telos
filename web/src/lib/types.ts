@@ -48,10 +48,13 @@ export type DecisionRow = {
   analysis: string;
   message: string;
   raw_response: any;
-  tokens_input: number;
-  tokens_output: number;
-  cache_creation_tokens: number;
-  cache_read_tokens: number;
+  // Token telemetry is internal-only (it reveals the LLM + cost structure) and
+  // is NOT exposed by the customer-facing API. Optional so the type tolerates
+  // its absence.
+  tokens_input?: number;
+  tokens_output?: number;
+  cache_creation_tokens?: number;
+  cache_read_tokens?: number;
 };
 
 export type StateResponse = {

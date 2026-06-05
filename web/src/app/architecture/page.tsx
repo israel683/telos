@@ -10,6 +10,7 @@
  */
 
 import { useState, useMemo } from "react";
+import { redirect } from "next/navigation";
 
 type Block = {
   id: string;
@@ -643,6 +644,11 @@ function layerStyle(c: string): React.CSSProperties {
 }
 
 export default function ArchitecturePage() {
+  // IP protection: this page documents how TELOS is built. It is off in the
+  // customer-facing app — only reachable when the team sets
+  // NEXT_PUBLIC_SHOW_ARCHITECTURE=1. Otherwise the URL bounces home.
+  if (process.env.NEXT_PUBLIC_SHOW_ARCHITECTURE !== "1") redirect("/");
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const byId = useMemo(() => Object.fromEntries(BLOCKS.map((b) => [b.id, b])), []);
   const byLayer = useMemo(() => {

@@ -11,12 +11,19 @@ import { AutonomousToggle } from "./AutonomousToggle";
 import { LanguageToggle } from "./LanguageToggle";
 import { useLang } from "@/lib/i18n";
 
+// The architecture page documents how TELOS is built — proprietary IP. It is
+// hidden from the customer-facing app by default; the team enables it with
+// NEXT_PUBLIC_SHOW_ARCHITECTURE=1 (e.g. locally or a protected preview).
+const SHOW_ARCHITECTURE = process.env.NEXT_PUBLIC_SHOW_ARCHITECTURE === "1";
+
 const LINKS = [
   { href: "/", en: "Dashboard", he: "לוח בקרה", icon: "ph-squares-four" },
   { href: "/grow", en: "The Grow", he: "הגידול", icon: "ph-plant" },
   { href: "/chat", en: "Chat", he: "שיחה", icon: "ph-chat-circle" },
   { href: "/decisions", en: "Decisions", he: "החלטות", icon: "ph-list-checks" },
-  { href: "/architecture", en: "Architecture", he: "ארכיטקטורה", icon: "ph-tree-structure" },
+  ...(SHOW_ARCHITECTURE
+    ? [{ href: "/architecture", en: "Architecture", he: "ארכיטקטורה", icon: "ph-tree-structure" }]
+    : []),
 ];
 
 /** Overflow (⋯) menu — holds the quieter controls (pause/resume, …). */

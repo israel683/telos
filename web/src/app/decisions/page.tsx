@@ -86,11 +86,6 @@ export default function DecisionsPage() {
         {decisions.map((d) => {
           const isOpen = expanded.has(d.id);
           const status = (d.status as AgentStatus) || "unknown";
-          const cacheRatio =
-            d.tokens_input + d.cache_creation_tokens + d.cache_read_tokens > 0
-              ? d.cache_read_tokens /
-                (d.tokens_input + d.cache_creation_tokens + d.cache_read_tokens)
-              : 0;
           const concerns = (d.raw_response?.concerns || []) as string[];
           const actions = (d.raw_response?.actions || []) as Array<{
             channel: string;
@@ -131,10 +126,6 @@ export default function DecisionsPage() {
                       </span>
                     )}
                   </div>
-                  <span className="text-xs text-[var(--c-stone)]" dir="ltr">
-                    {d.tokens_input + d.cache_creation_tokens + d.cache_read_tokens} → {d.tokens_output}t
-                    {cacheRatio > 0 && ` · cache ${(cacheRatio * 100).toFixed(0)}%`}
-                  </span>
                 </div>
                 {d.message && (
                   <p className="mt-2 text-sm leading-relaxed font-medium">{d.message}</p>
@@ -205,25 +196,6 @@ export default function DecisionsPage() {
                       </ul>
                     </div>
                   )}
-
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs text-[var(--c-ash)]" dir="ltr">
-                    <div>
-                      <span className="block text-[10px] uppercase">Input</span>
-                      {d.tokens_input}
-                    </div>
-                    <div>
-                      <span className="block text-[10px] uppercase">Output</span>
-                      {d.tokens_output}
-                    </div>
-                    <div>
-                      <span className="block text-[10px] uppercase">Cache write</span>
-                      {d.cache_creation_tokens}
-                    </div>
-                    <div>
-                      <span className="block text-[10px] uppercase">Cache read</span>
-                      {d.cache_read_tokens}
-                    </div>
-                  </div>
                 </div>
               )}
             </article>
