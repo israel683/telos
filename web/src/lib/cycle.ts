@@ -326,13 +326,15 @@ export async function runSystemCycle(
     executed.length > 0 ||
     decision.human_tasks.length > 0;
   if (noteworthy) {
+    // Hebrew suffix — this summary surfaces to the grower (Grow hero / activity),
+    // so keep it in the Brain's language, not an English log tag.
     const actionText =
       successes.length > 0
-        ? ` · dosed ${successes.map((e) => `${e.channel} ${e.amount_ml}ml`).join(", ")}`
+        ? ` · בוצע דישון: ${successes.map((e) => `${e.channel} ${e.amount_ml}ml`).join(", ")}`
         : executed.length > 0
-        ? ` · proposed ${executed.length} dose(s) (queued for approval)`
+        ? ` · הוצעו ${executed.length} מנות (ממתינות לאישור)`
         : decision.human_tasks.length > 0
-        ? ` · raised ${decision.human_tasks.length} task(s)`
+        ? ` · נוצרו ${decision.human_tasks.length} משימות`
         : "";
     const base = (decision.message || decision.analysis || "cycle").slice(0, 220);
     try {
