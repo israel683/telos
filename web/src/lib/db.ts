@@ -1287,6 +1287,19 @@ export async function answerTask(
   `) as unknown as Array<{ title: string }>;
   if (rows[0]) {
     const title = rows[0].title;
+    // Close any OTHER pending duplicates of the SAME question (the cron used to
+    // re-create the identical question every cycle). Answering once resolves
+    // them all, so the grower isn't left staring at copies of what they answered.
+    try {
+      await s`
+        UPDATE human_tasks
+        SET status = 'done', completed_at = NOW(), user_response = 'resolved with a duplicate answer'
+        WHERE system_id = ${systemId} AND type = 'question' AND status = 'pending'
+          AND title = ${title} AND id <> ${id}
+      `;
+    } catch (e) {
+      console.error("[answerTask] duplicate cleanup failed:", e);
+    }
     try {
       await addEpisode(systemId, { status: null, summary: `Grower answered "${title}": ${answer}` });
     } catch (e) {

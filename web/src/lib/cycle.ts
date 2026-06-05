@@ -50,6 +50,14 @@ export type RunCycleOptions = {
   forcePush?: boolean;
   /** Tag for the chat message + logs: 'cron', 'grower-dose', 'grower-answer'… */
   source?: string;
+  /**
+   * Suppress creating NEW `question` Human Tasks this run. Used by the
+   * grower-action re-eval: the grower just engaged (answered / dosed), so we
+   * don't want the immediate re-analysis to turn around and re-interrogate them
+   * — which is exactly how an answered question "reappears". The next scheduled
+   * cron can still raise it if it's genuinely still needed.
+   */
+  suppressNewQuestions?: boolean;
 };
 
 /**
@@ -68,7 +76,7 @@ export async function reevalSystem(
     const sys = await getSystem(systemId);
     // Only re-evaluate live systems — a paused/archived rig shouldn't churn.
     if (!sys || sys.status !== "active") return null;
-    return await runSystemCycle(sys, { force: true, forcePush: true, source });
+    return await runSystemCycle(sys, { force: true, forcePush: true, source, suppressNewQuestions: true });
   } catch (e) {
     console.error(`[cycle] reevalSystem(${systemId}, ${source}) failed:`, e);
     return null;
@@ -79,7 +87,7 @@ export async function runSystemCycle(
   sys: SystemRow,
   opts: RunCycleOptions = {}
 ): Promise<Record<string, unknown>> {
-  const { force = false, forcePush = false, source = "cron" } = opts;
+  const { force = false, forcePush = false, source = "cron", suppressNewQuestions = false } = opts;
   const chatSource: "cron-cycle" | "reeval" = source === "cron" ? "cron-cycle" : "reeval";
   const sysStart = Date.now();
 
@@ -203,7 +211,31 @@ export async function runSystemCycle(
     sys.id
   );
 
+  // Dedup human-task creation. Without this, every cycle (incl. the forced
+  // re-eval right after a grower answers) re-creates the same question /
+  // manual_action, so an answered question immediately "reappears" and the
+  // grower is nagged with duplicates. Skip a type if one is already pending or
+  // was raised/resolved within its window (the documented doctrine, finally
+  // wired into this loop — dose_approval is deduped on its own path below).
+  const TASK_DEDUP_HOURS: Record<string, number> = {
+    question: 4,
+    manual_action: 6,
+    water_change: 6,
+    system_reset: 6,
+  };
+  const createdTasks: typeof decision.human_tasks = [];
   for (const t of decision.human_tasks) {
+    // A grower-action re-eval must not re-interrogate the grower they just
+    // engaged with — this is what made an answered question "reappear".
+    if (t.type === "question" && suppressNewQuestions) {
+      console.log(`[cycle] system=${sys.id} suppressed new question on ${source} re-eval ("${t.title}")`);
+      continue;
+    }
+    const windowH = TASK_DEDUP_HOURS[t.type] ?? 4;
+    if (await hasRecentTaskOfType(t.type, windowH, sys.id)) {
+      console.log(`[cycle] system=${sys.id} skipped duplicate ${t.type} task ("${t.title}") — recent/pending within ${windowH}h`);
+      continue;
+    }
     await createHumanTask(
       {
         type: t.type,
@@ -216,6 +248,7 @@ export async function runSystemCycle(
       },
       sys.id
     );
+    createdTasks.push(t);
   }
 
   const executed: Array<{ channel: string; amount_ml: number; success: boolean; error?: string }> = [];
@@ -324,7 +357,7 @@ export async function runSystemCycle(
   const noteworthy =
     decision.status !== "healthy" ||
     executed.length > 0 ||
-    decision.human_tasks.length > 0;
+    createdTasks.length > 0;
   if (noteworthy) {
     // Hebrew suffix — this summary surfaces to the grower (Grow hero / activity),
     // so keep it in the Brain's language, not an English log tag.
@@ -333,8 +366,8 @@ export async function runSystemCycle(
         ? ` · בוצע דישון: ${successes.map((e) => `${e.channel} ${e.amount_ml}ml`).join(", ")}`
         : executed.length > 0
         ? ` · הוצעו ${executed.length} מנות (ממתינות לאישור)`
-        : decision.human_tasks.length > 0
-        ? ` · נוצרו ${decision.human_tasks.length} משימות`
+        : createdTasks.length > 0
+        ? ` · נוצרו ${createdTasks.length} משימות`
         : "";
     const base = (decision.message || decision.analysis || "cycle").slice(0, 220);
     try {
@@ -369,7 +402,7 @@ export async function runSystemCycle(
   //   5. forcePush — a grower action triggered this; acknowledge it.
   const lastPush = await getLastCronChatPush(sys.id);
   const statusChanged = lastPush?.status !== decision.status;
-  const newTaskCreated = decision.human_tasks.length > 0;
+  const newTaskCreated = createdTasks.length > 0;
   const dosesFired = executed.some((e) => e.success);
   const lastPushAgeHours = lastPush
     ? (Date.now() - lastPush.ts.getTime()) / (60 * 60 * 1000)
@@ -417,7 +450,7 @@ export async function runSystemCycle(
   if (source === "cron") {
     const escalated =
       statusChanged && (decision.status === "warning" || decision.status === "critical");
-    const newHighTask = decision.human_tasks.some(
+    const newHighTask = createdTasks.some(
       (t) => t.priority === "high" || t.priority === "urgent"
     );
     const newDoseApproval = executed.some(
@@ -431,7 +464,7 @@ export async function runSystemCycle(
           .map((e) => `${e.channel} ${e.amount_ml}ml`);
         if (doses.length) lines.push(`\nמנה לביצוע ידני: ${doses.join(", ")}`);
       }
-      const newTasks = decision.human_tasks.filter(
+      const newTasks = createdTasks.filter(
         (t) => t.priority === "high" || t.priority === "urgent"
       );
       if (newTasks.length) lines.push(`\nמשימות: ${newTasks.map((t) => t.title).join(" · ")}`);
@@ -451,7 +484,7 @@ export async function runSystemCycle(
     status: decision.status,
     commands_executed: executed,
     blocked: decision.blocked_commands,
-    tasks_created: decision.human_tasks.length,
+    tasks_created: createdTasks.length,
     next_check_minutes: decision.next_check_minutes,
     source,
     tokens: {
