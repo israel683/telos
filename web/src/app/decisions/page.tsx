@@ -63,7 +63,9 @@ export default function DecisionsPage() {
   if (loading) {
     return <main className="flex-1 grid place-items-center text-[var(--c-ash)]">{t("Loading…", "טוען...")}</main>;
   }
-  if (error) {
+  // Only blank to an error when nothing has loaded; a transient poll failure
+  // after we already have rows keeps the last-known list visible.
+  if (error && decisions.length === 0) {
     return (
       <main className="flex-1 grid place-items-center p-8 text-center">
         <p className="text-sm text-[var(--c-ash)] max-w-sm">

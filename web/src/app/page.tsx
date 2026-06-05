@@ -73,7 +73,11 @@ export default function Dashboard() {
   }
 
   if (loading) return <main style={{ flex: 1, display: "grid", placeItems: "center", color: "var(--c-ash)" }}>{t("Loading…", "טוען נתונים…")}</main>;
-  if (error || !state) {
+  // Only show the full error screen when we have NOTHING to show. Once state has
+  // loaded, a transient poll failure must NOT blank the dashboard — keep the
+  // last-known view (StatusChip carries the offline signal) and let the next
+  // poll recover.
+  if (!state) {
     return (
       <main style={{ flex: 1, display: "grid", placeItems: "center", padding: 32 }}>
         <div style={{ maxWidth: 420, textAlign: "center" }}>
