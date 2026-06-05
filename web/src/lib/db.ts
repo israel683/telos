@@ -1227,9 +1227,12 @@ export async function completeTask(
   // the grower acted on it next cycle (closes the feedback loop).
   if (rows[0]) {
     try {
+      // Hebrew + clean: this line surfaces to the grower (Grow hero / activity)
+      // and feeds the Brain. The internal UI response string ("marked done from
+      // chat widget" etc.) is plumbing — don't show it.
       await addEpisode(systemId, {
         status: null,
-        summary: `Grower DID task "${rows[0].title}"${response ? ` — "${response}"` : ""}.`,
+        summary: `המגדל ביצע: "${rows[0].title}".`,
       });
     } catch (e) {
       console.error("[completeTask] addEpisode failed:", e);
@@ -1256,7 +1259,7 @@ export async function dismissTask(
     try {
       await addEpisode(systemId, {
         status: null,
-        summary: `Grower DECLINED task "${rows[0].title}"${response ? ` — "${response}"` : ""}.`,
+        summary: `המגדל דחה: "${rows[0].title}".`,
       });
     } catch (e) {
       console.error("[dismissTask] addEpisode failed:", e);

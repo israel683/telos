@@ -333,7 +333,11 @@ export default function GrowPage() {
   const stagePair = STAGE[data.system.growth_stage];
   const stage = stagePair ? t(stagePair[0], stagePair[1]) : data.system.growth_stage;
   const answered = data.onboarding.total - data.onboarding.unanswered.length;
-  const latestEpisode = data.episodes[0]?.summary;
+  // The hero speaks in the Brain's voice, so prefer the latest Brain DECISION
+  // (episodes carry a status) over task-action log lines ("grower did X",
+  // status null) — the latter aren't the Brain talking and read as noise here.
+  const latestEpisode =
+    data.episodes.find((e) => e.status)?.summary ?? data.episodes[0]?.summary;
 
   return (
     <div dir={lang === "he" ? "rtl" : "ltr"} style={{ maxWidth: 1180, margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -370,13 +374,21 @@ export default function GrowPage() {
       </section>
 
       <div className="tk-grid-2">
-        <Card title={t("Getting to know the grow", "היכרות עם הגידול")} icon="ph-clipboard-text" glow={!data.onboarding.complete}>
-          {data.onboarding.complete ? (
-            <p style={{ fontSize: ".92rem", color: "var(--c-basil)" }}>✓ {t("Onboarding complete — the grow's personal Brain is established.", "ההיכרות הושלמה — המוח האישי של הגידול מגובש.")}</p>
+        <Card title={t("Getting to know the grow", "היכרות עם הגידול")} icon="ph-clipboard-text" glow={data.onboarding.unanswered.length > 0}>
+          {data.onboarding.unanswered.length === 0 ? (
+            <p style={{ fontSize: ".92rem", color: "var(--c-basil)" }}>✓ {t("All questions answered — the grow's personal Brain is established.", "ענית על כל השאלות — המוח האישי של הגידול מגובש.")}</p>
           ) : (
             <>
               <p style={{ fontSize: ".9rem", color: "var(--c-fog)", marginBottom: 12 }}>
-                {t(`${data.onboarding.unanswered.length} of ${data.onboarding.total} questions left. Tap a question to answer it here, or the Brain will ask in chat.`, `נותרו ${data.onboarding.unanswered.length} מתוך ${data.onboarding.total} שאלות. הקש על שאלה כדי לענות כאן, או שהמוח ישאל בשיחה.`)}
+                {data.onboarding.complete
+                  ? t(
+                      `The essentials are in. ${data.onboarding.unanswered.length} optional question(s) left — answer them to sharpen the Brain further.`,
+                      `כל ההכרחי כבר אצלי. נותרו ${data.onboarding.unanswered.length} שאלות אופציונליות — ענה עליהן כדי לחדד עוד את המוח.`
+                    )
+                  : t(
+                      `${data.onboarding.unanswered.length} of ${data.onboarding.total} questions left. Tap one to answer it here, or the Brain will ask in chat.`,
+                      `נותרו ${data.onboarding.unanswered.length} מתוך ${data.onboarding.total} שאלות. הקש על שאלה כדי לענות כאן, או שהמוח ישאל בשיחה.`
+                    )}
               </p>
               <OnboardingChecklist unanswered={data.onboarding.unanswered} onAnswered={load} />
             </>
