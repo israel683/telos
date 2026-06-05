@@ -7,7 +7,7 @@ import ReactMarkdown from "react-markdown";
 import { getActiveSystem } from "@/lib/system";
 import { StackedQuestion } from "@/components/StackedQuestion";
 import { PendingTasksCard } from "@/components/PendingTasksCard";
-import { useLang } from "@/lib/i18n";
+import { useLang, statusLabel } from "@/lib/i18n";
 
 // Starters phrased in TELOS voice — short, specific, factual.
 // "Always specific.  Day 21, not 'how's it going'."  See brand/voice.ts.
@@ -29,7 +29,7 @@ type HistoryMessage = {
 };
 
 export default function ChatPage() {
-  const { t } = useLang();
+  const { t, lang } = useLang();
   const [activeSystem, setActiveSystemState] = useState<string>("default");
   const [historyLoaded, setHistoryLoaded] = useState(false);
   // Per-system info needed to branch the empty-state UI:
@@ -294,13 +294,13 @@ export default function ChatPage() {
         const totalBytes = fileParts.reduce((sum, p) => sum + p.url.length, 0);
         if (totalBytes > 4_000_000) {
           alert(
-            "התמונות עדיין כבדות מדי גם אחרי כיווץ. נסה לשלוח פחות תמונות או תמונות קטנות יותר."
+            t("The images are still too large even after compression. Try sending fewer or smaller images.", "התמונות עדיין כבדות מדי גם אחרי כיווץ. נסה לשלוח פחות תמונות או תמונות קטנות יותר.")
           );
           return;
         }
       } catch (err) {
         console.error("[chat] file processing failed:", err);
-        alert("לא הצלחתי לעבד את התמונה. נסה שוב.");
+        alert(t("I couldn't process the image. Try again.", "לא הצלחתי לעבד את התמונה. נסה שוב."));
         return;
       }
     }
@@ -340,24 +340,23 @@ export default function ChatPage() {
           // Fresh-system empty state — TELOS voice: no welcome flourish,
           // no rocket emoji, no "let's begin your journey".  A position,
           // then a single fact-shaped CTA.
-          <div className="text-center pt-16 pb-8" dir="rtl">
+          <div className="text-center pt-16 pb-8" dir={lang === "he" ? "rtl" : "ltr"}>
             <div className="t-eyebrow mb-4">Day 0</div>
             <h1
               className="font-display italic font-light text-3xl sm:text-4xl mb-3 text-[var(--c-parchment)]"
-              style={{ fontFamily: "var(--f-display-he)" }}
+              style={{ fontFamily: lang === "he" ? "var(--f-display-he)" : "var(--f-display)" }}
             >
-              מערכת חדשה.
+              {t("New system.", "מערכת חדשה.")}
             </h1>
             <p className="text-[var(--c-ash)] text-sm leading-relaxed max-w-md mx-auto mb-8">
-              לחיצה אחת. שם, גידול, נפח, דשן, ערוצים.
-              TELOS שואל. אתה עונה.
+              {t("One pass. Name, crop, volume, fertilizer, channels. TELOS asks. You answer.", "לחיצה אחת. שם, גידול, נפח, דשן, ערוצים. TELOS שואל. אתה עונה.")}
             </p>
             <button
-              onClick={() => handleSubmit("בוא נתחיל להקים את המערכת")}
+              onClick={() => handleSubmit(t("Let's set up the system", "בוא נתחיל להקים את המערכת"))}
               disabled={isStreaming}
               className="px-6 py-3 rounded-full bg-[var(--c-basil)] hover:brightness-110 text-[var(--c-void)] font-medium text-sm disabled:opacity-50 tracking-wide transition-all"
             >
-              התחל ←
+              {t("Start →", "התחל ←")}
             </button>
           </div>
         )}
@@ -366,16 +365,16 @@ export default function ChatPage() {
           // Returning-user empty state — TELOS voice: a fact, a question
           // the data could answer, no greeting fluff.  Starters are short,
           // specific, and end without punctuation.
-          <div className="text-center pt-16 pb-8" dir="rtl">
+          <div className="text-center pt-16 pb-8" dir={lang === "he" ? "rtl" : "ltr"}>
             <div className="t-eyebrow mb-4">TELOS Farm</div>
             <h1
               className="font-display italic font-light text-3xl sm:text-4xl mb-3 text-[var(--c-parchment)]"
-              style={{ fontFamily: "var(--f-display-he)" }}
+              style={{ fontFamily: lang === "he" ? "var(--f-display-he)" : "var(--f-display)" }}
             >
-              אני כאן.
+              {t("I'm here.", "אני כאן.")}
             </h1>
             <p className="text-[var(--c-ash)] text-sm leading-relaxed max-w-md mx-auto">
-              שאל. אענה מהדאטה.
+              {t("Ask. I answer from the data.", "שאל. אענה מהדאטה.")}
             </p>
             <div className="mt-8 grid sm:grid-cols-2 gap-2 max-w-lg mx-auto">
               {STARTERS.map((s) => {
@@ -416,20 +415,22 @@ export default function ChatPage() {
 
         {isStreaming && messages[messages.length - 1]?.role !== "assistant" && (
           <div className="flex items-center gap-2 text-[var(--c-ash)] text-sm">
-            <Spinner /> חושב...
+            <Spinner /> {t("Thinking…", "חושב...")}
           </div>
         )}
 
         {error && (
-          <div className="bg-red-50 dark:bg-red-950/40 border border-red-200 dark:border-red-900 text-red-700 dark:text-red-300 text-sm p-3 rounded-lg flex items-start justify-between gap-3">
-            <div className="break-words">
-              <strong>שגיאה:</strong> {error.message}
-            </div>
+          <div
+            className="text-sm p-3 rounded-lg flex items-start justify-between gap-3"
+            style={{ background: "color-mix(in srgb, var(--c-terra) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--c-terra) 30%, transparent)", color: "var(--c-fog)" }}
+          >
+            <div className="break-words">{t("Something went wrong. Try again.", "משהו השתבש. נסה שוב.")}</div>
             <button
               onClick={() => regenerate()}
-              className="text-xs px-2 py-1 rounded bg-red-100 dark:bg-red-900/60 hover:bg-red-200 dark:hover:bg-red-900"
+              className="text-xs px-2 py-1 rounded shrink-0"
+              style={{ background: "color-mix(in srgb, var(--c-terra) 18%, transparent)", color: "var(--c-parchment)" }}
             >
-              נסה שוב
+              {t("Retry", "נסה שוב")}
             </button>
           </div>
         )}
@@ -514,10 +515,10 @@ export default function ChatPage() {
             disabled={isStreaming || attachedFiles.length >= 4}
             title={
               attachedFiles.length >= 4
-                ? "מקסימום 4 תמונות בהודעה"
-                : "צרף תמונה"
+                ? t("Max 4 images per message", "מקסימום 4 תמונות בהודעה")
+                : t("Attach image", "צרף תמונה")
             }
-            aria-label="צרף תמונה"
+            aria-label={t("Attach image", "צרף תמונה")}
             className="shrink-0 w-10 h-10 rounded-md border border-[rgba(238,237,232,0.12)] bg-[var(--c-soil)] hover:bg-[var(--c-earth)] hover:border-[rgba(137,168,62,0.25)] text-[var(--c-fog)] disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center transition-colors"
           >
             {/* Paperclip glyph — inline SVG so we don't pull an icon lib */}
@@ -556,12 +557,6 @@ export default function ChatPage() {
 
 type UIMessageType = ReturnType<typeof useChat>["messages"][number];
 
-const STATUS_LABEL: Record<string, string> = {
-  healthy: "תקין",
-  attention: "לב",
-  warning: "אזהרה",
-  critical: "קריטי",
-};
 const STATUS_COLOR: Record<string, string> = {
   healthy: "var(--c-basil)",
   attention: "var(--c-terra)",
@@ -582,6 +577,7 @@ function MessageBubble({
   onAnswer: (text: string) => void;
   awaitingAnswer: boolean;
 }) {
+  const { t } = useLang();
   const isUser = message.role === "user";
   // Brain-pushed messages (scheduled cron OR a grower-action re-eval) render as
   // collapsible log cards rather than plain chat bubbles.
@@ -605,8 +601,8 @@ function MessageBubble({
           <i className="ph-light ph-pulse text-lg mt-0.5" style={{ color: "var(--amber)" }} />
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 text-xs mb-1 flex-wrap" style={{ color: "var(--c-ash)" }}>
-              <span style={{ fontWeight: 500, color: "var(--c-fog)" }}>בדיקה אוטומטית</span>
-              {STATUS_LABEL[status] && (
+              <span style={{ fontWeight: 500, color: "var(--c-fog)" }}>{t("Auto check-in", "בדיקה אוטומטית")}</span>
+              {["healthy", "attention", "warning", "critical"].includes(status) && (
                 <span
                   className="px-2 py-0.5 rounded-full text-xs"
                   style={{
@@ -614,7 +610,7 @@ function MessageBubble({
                     background: `color-mix(in srgb, ${STATUS_COLOR[status] ?? "var(--c-stone)"} 16%, transparent)`,
                   }}
                 >
-                  {STATUS_LABEL[status]}
+                  {statusLabel(status, t)}
                 </span>
               )}
               {time && (
@@ -699,7 +695,7 @@ function MessageBubble({
                 rel="noopener noreferrer"
                 className="inline-block text-xs px-2 py-1 rounded-sm border border-[rgba(238,237,232,0.12)] bg-[var(--c-soil)] text-[var(--c-fog)] hover:border-[rgba(137,168,62,0.25)] mb-2"
               >
-                {file.filename ?? "קובץ מצורף"}
+                {file.filename ?? t("attachment", "קובץ מצורף")}
               </a>
             );
           }
@@ -723,7 +719,7 @@ function MessageBubble({
                 key={i}
                 className="text-xs text-[var(--c-stone)] mt-2 mb-1"
               >
-                <summary className="cursor-pointer">תהליך מחשבה</summary>
+                <summary className="cursor-pointer">{t("Reasoning", "תהליך מחשבה")}</summary>
                 <p className="mt-1 leading-relaxed" dir="ltr">
                   {("text" in part && (part as { text?: string }).text) || ""}
                 </p>
@@ -757,7 +753,7 @@ function MessageBubble({
                   className="bg-[var(--surface-warm)] border border-[rgba(238,237,232,0.08)] rounded-2xl p-4 my-2 max-w-md"
                 >
                   <p className="font-medium text-sm leading-relaxed">{input.question}</p>
-                  <p className="text-xs text-[var(--c-ash)] mt-2">ענה למטה בתיבת ההודעות ↓</p>
+                  <p className="text-xs text-[var(--c-ash)] mt-2">{t("Reply below in the message box ↓", "ענה למטה בתיבת ההודעות ↓")}</p>
                 </div>
               ) : null;
             }
@@ -775,45 +771,33 @@ function MessageBubble({
 }
 
 function ToolPart({ part }: { part: { type: string } & Record<string, unknown> }) {
+  const { t } = useLang();
   const toolName = part.type.replace(/^tool-/, "");
   const state = (part as { state?: string }).state;
-  const inputData = (part as { input?: unknown }).input;
-  const output = (part as { output?: unknown }).output;
 
-  const labels: Record<string, string> = {
-    getCurrentState: "📡 בודק מצב נוכחי",
-    getRecentReadings: "📈 שולף היסטוריית חיישן",
-    getRecentDecisions: "📋 בודק החלטות אחרונות",
-    getPendingTasks: "✅ בודק משימות פתוחות",
-    proposeAction: "💧 מציע פעולה",
-    requestObservation: "📷 מבקש תצפית",
+  // Friendly, agronomist-framed activity labels. We deliberately do NOT render
+  // the raw tool input/output JSON or fall back to the internal function name —
+  // that would leak how TELOS works under the hood (proprietary).
+  const labels: Record<string, [string, string]> = {
+    getCurrentState: ["📡 Checking the current state", "📡 בודק מצב נוכחי"],
+    getRecentReadings: ["📈 Pulling sensor history", "📈 שולף היסטוריית חיישן"],
+    getRecentDecisions: ["📋 Reviewing recent decisions", "📋 בודק החלטות אחרונות"],
+    getPendingTasks: ["✅ Checking open tasks", "✅ בודק משימות פתוחות"],
+    proposeAction: ["💧 Proposing an action", "💧 מציע פעולה"],
+    requestObservation: ["📷 Requesting a check", "📷 מבקש תצפית"],
   };
-  const label = labels[toolName] || `⚙️ ${toolName}`;
+  const label = labels[toolName] ? t(...labels[toolName]) : t("⚙️ Working…", "⚙️ עובד…");
 
   return (
-    <details className="my-2 text-xs bg-[var(--surface-warm)] rounded-lg overflow-hidden border border-[rgba(238,237,232,0.08)]">
-      <summary className="cursor-pointer px-3 py-2 flex items-center gap-2 select-none">
+    <div className="my-2 text-xs bg-[var(--surface-warm)] rounded-lg overflow-hidden border border-[rgba(238,237,232,0.08)]">
+      <div className="px-3 py-2 flex items-center gap-2">
         <span>{label}</span>
-        {state === "input-streaming" || state === "input-available" ? (
-          <Spinner />
-        ) : null}
+        {state === "input-streaming" || state === "input-available" ? <Spinner /> : null}
         {state === "output-error" && (
-          <span className="text-red-500">שגיאה</span>
+          <span style={{ color: "var(--c-terra)" }}>{t("error", "שגיאה")}</span>
         )}
-      </summary>
-      <div className="px-3 pb-2 space-y-2 text-[11px]" dir="ltr">
-        {inputData ? (
-          <pre className="bg-[var(--c-void)] rounded p-2 overflow-x-auto">
-            {JSON.stringify(inputData, null, 2)}
-          </pre>
-        ) : null}
-        {output !== undefined ? (
-          <pre className="bg-[var(--c-void)] rounded p-2 overflow-x-auto max-h-64">
-            {JSON.stringify(output, null, 2)}
-          </pre>
-        ) : null}
       </div>
-    </details>
+    </div>
   );
 }
 
