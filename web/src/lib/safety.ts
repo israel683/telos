@@ -38,14 +38,34 @@ export const PRE_VERIFY_DAILY_TOTAL_ML = 30;
 export const VERIFIED_DAILY_TOTAL_ML = 250;
 
 /**
- * pH is a once-a-day decision. After ANY pH correction (either direction), no
- * further pH dose is allowed for this many hours — the hard backstop against
- * the pH-up/pH-down oscillation that has emptied a bottle overnight in this
- * system. ~20h ≈ "once per day" while tolerating a slightly-early next-day
- * window. Overridden only by an explicit grower action after a real change
- * (water swap / top-off), via command.ph_override.
+ * pH titration controller — replaces the old blunt "one pH dose per 20h"
+ * lockout, which made it impossible to bring highly-buffered source water (e.g.
+ * pH-8 tap) down to target: a single capped dose isn't enough, and the lockout
+ * then blocked any follow-up for ~a day.
+ *
+ * The new model keeps the REAL safety invariant (never fight yourself) while
+ * allowing the Brain to titrate precisely:
+ *
+ *  1. OPPOSITE-direction lockout — after a pH correction in one direction, the
+ *     opposite direction is blocked for this long. This is the actual
+ *     anti-oscillation backstop (the runaway that emptied a bottle was pH-up
+ *     AND pH-down on the same reservoir). Commit a direction for the day.
  */
-export const PH_DECISION_COOLDOWN_HOURS = 20;
+export const PH_OPPOSITE_LOCKOUT_HOURS = 18;
+/**
+ *  2. SAME-direction settle gate — consecutive same-direction pH steps are
+ *     allowed, but each must wait this long after the previous pH dose so the
+ *     reservoir actually mixes and a FRESH reading reflects the effect. This is
+ *     what turns "8 doses stacked within minutes" (the old failure) into a
+ *     measured, closed-loop titration: dose → settle → re-read → dose again.
+ */
+export const PH_SETTLE_MINUTES = 30;
+/**
+ *  3. Daily pH-acid budget — total ml across pH channels in a rolling 24h.
+ *     Bounds the titration so a mis-estimate or bug can't pour a whole bottle
+ *     of acid into the tank, even though many small steps are now permitted.
+ */
+export const MAX_DAILY_PH_ML = 150;
 
 export const SAFETY_LIMITS = {
   // pH absolute bounds — outside this range, only the corrective channel allowed
@@ -97,9 +117,11 @@ export type DosingCommand = {
   is_priming?: boolean;
   /**
    * Set TRUE only by an explicit grower action (chat) after a real disruption
-   * such as a water change / top-off — lifts the once-a-day pH cooldown for
-   * this single dose. The autonomous cron path NEVER sets this, so the
-   * autonomous brain can't bypass the once-a-day pH discipline.
+   * such as a water change / top-off — lifts the pH titration gates (the
+   * opposite-direction lockout + same-direction settle) for this single dose,
+   * since the reservoir's chemistry just changed under us. It NEVER lifts the
+   * daily pH-acid ceiling. The autonomous cron path never sets this, so the
+   * brain can't bypass the titration discipline on its own.
    */
   ph_override?: boolean;
 };
@@ -325,12 +347,13 @@ export async function validateCommand(
     }
   }
 
-  // 9. pH discipline — pH is a ONCE-A-DAY decision; never fight yourself.
-  // Block any pH dose if EITHER pH channel already corrected within the
-  // cooldown. This is the hard backstop against the pH-up/pH-down oscillation
-  // that emptied a bottle overnight (8 pH-down doses + a simultaneous pH-up
-  // seen in production). The prompt asks for restraint; this enforces it.
-  if ((isPhUp || isPhDown) && !command.is_priming && !command.ph_override) {
+  // 9. pH titration controller — allow precise, sufficient correction while
+  // keeping the anti-oscillation backstop. Three gates, in order:
+  //   (a) opposite-direction lockout — never fight yourself (the real runaway);
+  //   (b) same-direction settle — let the reservoir mix + re-read between steps;
+  //   (c) daily pH-acid budget — bound total acid so a bug can't drain a bottle.
+  // The grower's explicit ph_override (after a real water change) lifts (a)/(b).
+  if ((isPhUp || isPhDown) && !command.is_priming) {
     const roleOf = (ch: string) => cfg.assignments[ch]?.role;
     const phRecent = recent.filter(
       (a) =>
@@ -338,26 +361,56 @@ export async function validateCommand(
         !isPrimingAction(a) &&
         (roleOf(a.channel) === "ph_up" || roleOf(a.channel) === "ph_down")
     );
-    if (phRecent.length > 0) {
-      const last = phRecent.reduce((l, a) =>
-        a.ts.getTime() > l.ts.getTime() ? a : l
-      );
-      const hrs = (Date.now() - last.ts.getTime()) / 3_600_000;
-      if (hrs < PH_DECISION_COOLDOWN_HOURS) {
-        const lastRole = roleOf(last.channel);
-        const opposite =
-          (isPhUp && lastRole === "ph_down") || (isPhDown && lastRole === "ph_up");
-        return {
-          ok: false,
-          reason:
-            `pH is a once-a-day decision: last pH correction (${last.channel}) was ` +
-            `${hrs.toFixed(1)}h ago (min ${PH_DECISION_COOLDOWN_HOURS}h between pH corrections).` +
-            (opposite
-              ? ` Dosing the OPPOSITE direction now would be fighting yourself — refused.`
-              : ` Wait for tomorrow's pH window.`) +
-            ` After a real water change the grower can override.`,
-        };
+    const thisRole = isPhUp ? "ph_up" : "ph_down";
+    const oppRole = isPhUp ? "ph_down" : "ph_up";
+
+    // (a) Opposite-direction lockout — the anti-oscillation invariant.
+    if (!command.ph_override) {
+      const oppRecent = phRecent.filter((a) => roleOf(a.channel) === oppRole);
+      if (oppRecent.length > 0) {
+        const lastOpp = oppRecent.reduce((l, a) => (a.ts.getTime() > l.ts.getTime() ? a : l));
+        const hrs = (Date.now() - lastOpp.ts.getTime()) / 3_600_000;
+        if (hrs < PH_OPPOSITE_LOCKOUT_HOURS) {
+          return {
+            ok: false,
+            reason:
+              `Fighting yourself: pH was already moved the OTHER way (${lastOpp.channel}) ` +
+              `${hrs.toFixed(1)}h ago. One direction per day — refused (min ${PH_OPPOSITE_LOCKOUT_HOURS}h ` +
+              `before reversing). After a real water change the grower can override.`,
+          };
+        }
       }
+    }
+
+    // (b) Same-direction settle gate — never stack on an unmixed reservoir.
+    if (!command.ph_override) {
+      const sameRecent = phRecent.filter((a) => roleOf(a.channel) === thisRole);
+      if (sameRecent.length > 0) {
+        const lastSame = sameRecent.reduce((l, a) => (a.ts.getTime() > l.ts.getTime() ? a : l));
+        const mins = (Date.now() - lastSame.ts.getTime()) / 60_000;
+        if (mins < PH_SETTLE_MINUTES) {
+          return {
+            ok: false,
+            reason:
+              `Too soon for the next pH step: last ${thisRole} dose was ${mins.toFixed(0)}m ago. ` +
+              `Wait ${PH_SETTLE_MINUTES}m for the reservoir to mix and a fresh reading before titrating further.`,
+          };
+        }
+      }
+    }
+
+    // (c) Daily pH-acid budget — bounds total titration over 24h. NOT lifted by
+    // ph_override; this is a hard ceiling against draining a bottle.
+    const phDailyMl = phRecent.reduce((sum, a) => sum + a.amount_ml, 0);
+    if (phDailyMl + command.amount_ml > MAX_DAILY_PH_ML) {
+      return {
+        ok: false,
+        reason:
+          `Daily pH budget: already dosed ${phDailyMl.toFixed(1)}ml of pH adjuster in 24h; ` +
+          `this ${command.amount_ml}ml would exceed the ${MAX_DAILY_PH_ML}ml/day ceiling. ` +
+          `If pH still won't hold, the cause is likely structural (source-water alkalinity) — ` +
+          `raise a water-change / source-fix task rather than more acid.`,
+      };
     }
   }
 
