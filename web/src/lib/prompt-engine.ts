@@ -18,7 +18,7 @@ import { evaluateMetric, bandWidth } from "./tolerance";
 import { renderGrowContext, type GrowProfile } from "./grow-profile";
 import { renderGrowerMemory, renderEpisodes, type GrowerMemoryEntry, type GrowEpisode } from "./grower-memory";
 import { relAge } from "./time";
-import type { CultivarRecord } from "./cultivars";
+import { resolveCultivarHarvest, type CultivarRecord } from "./cultivars";
 import { TELOS_VOICE_PROMPT } from "../brand/voice";
 
 export const SYSTEM_PROMPT = TELOS_VOICE_PROMPT + `
@@ -122,6 +122,32 @@ POC (a new basil line in full sun all day, high heat, high-pH source water):
 - When the data doesn't add up from pH/EC alone, name the likely external driver
   (heat, light load, source water, root zone) and, if useful, raise a \`question\`
   to confirm or a \`manual_action\` to address the cause. Infer; don't just react.
+
+# Harvest & physical actions — plan ahead, then OPEN A TASK
+
+Physical work on the plant is YOURS to initiate, not the grower's to remember.
+Any physical action the plant needs — prune, pinch/top, remove flower buds,
+thin, train, transplant, scout — MUST be raised as a \`manual_action\` task with
+concrete, cultivar-specific instructions in the payload (what to cut, where, how
+much). Never leave it as a sentence in \`analysis\`.
+
+Harvest is cultivar-specific — read the harvest model in Cultivar Knowledge. It
+may be **cut_and_come_again** (repeated partial cuts; the plant keeps
+producing — basil), **repeated_pick** (pick as it ripens — tomato/pepper), or
+**single_terminal** (one final cut ends the grow — head lettuce). Treat harvest
+as a PLANNED, optimal event you own:
+- Maintain the **Optimal Harvest Plan** via the \`harvest_plan\` field in your
+  output: set \`next_date\` (ISO \`YYYY-MM-DD\`) from the cultivar's first-harvest
+  trigger + cadence + the current stage, a \`prep_lead_days\` heads-up window
+  (e.g. 1), \`instructions\` (exactly what to do at the cut), and a short Hebrew
+  \`note\`. Use the Current time block to compute the date.
+- About \`prep_lead_days\` before \`next_date\`: OPEN a \`manual_action\` "הכנה לקציר"
+  heads-up task (what to ready). When \`next_date\` arrives and the markers are
+  met: OPEN the \`manual_action\` harvest task with the execution instructions.
+- After a harvest is reported done: ROLL \`next_date\` forward by the cadence
+  (cut_and_come_again / repeated_pick), or close the grow (single_terminal).
+- Emit \`harvest_plan\` ONLY when creating or changing it; omit it otherwise — the
+  stored plan persists between cycles.
 
 # Every cycle is a PROACTIVE REVIEW — not just a band check
 
@@ -351,11 +377,14 @@ per-cycle prompt. Use those keys exactly.
   ],
   "next_check_minutes": <int>,
   "message_to_grower": "<Hebrew 1-2 sentences>",
-  "concerns": ["<English>", ...]
+  "concerns": ["<English>", ...],
+  "harvest_plan": { "mode": "<cut_and_come_again|repeated_pick|single_terminal>", "next_date": "YYYY-MM-DD|null", "prep_lead_days": <int>, "instructions": "<English>", "note": "<Hebrew>" }
 }
 \`\`\`
 
-If no action and no task: empty arrays. Always emit the full structure.`;
+If no action and no task: empty arrays. \`harvest_plan\` is OPTIONAL — include it
+only when creating or changing the plan; omit the key otherwise. Always emit the
+rest of the structure.`;
 
 
 // ---------------------------------------------------------------------------
@@ -543,6 +572,19 @@ function renderCultivarKnowledge(
     lines.push("  Quality / harvest markers — steer toward these and time the harvest by them:");
     for (const h of cultivar.harvest_markers) lines.push(`    - ${h}`);
   }
+  const harvest = resolveCultivarHarvest(cultivar.id);
+  if (harvest) {
+    const cadence =
+      harvest.mode === "single_terminal"
+        ? "one final harvest ends the grow"
+        : harvest.cadence_days
+        ? `recurring ≈ every ${harvest.cadence_days} days`
+        : "recurring";
+    lines.push(`  Harvest model: ${harvest.mode} (${cadence}).`);
+    lines.push(`    First harvest: ${harvest.first_harvest}`);
+    lines.push(`    How: ${harvest.instructions}`);
+    if (harvest.end_of_grow) lines.push(`    End of grow: ${harvest.end_of_grow}`);
+  }
   return lines.join("\n");
 }
 
@@ -622,6 +664,17 @@ export function buildUserPrompt(opts: {
   const cultivarSection = renderCultivarKnowledge(cultivar, systemProfile.growth_stage ?? null);
   if (cultivarSection) {
     sections.push(cultivarSection);
+    sections.push("");
+  }
+
+  // Optimal Harvest Plan — the planned-ahead target the Brain maintains. Shown
+  // so the Brain can roll it forward, and act on it (prep + execution tasks).
+  const hp = growProfile?.harvest_plan;
+  if (hp) {
+    sections.push("## Optimal Harvest Plan (you maintain this)");
+    sections.push(`  Mode: ${hp.mode} · Next harvest: ${hp.next_date ?? "not set"} · prep heads-up ${hp.prep_lead_days}d before`);
+    sections.push(`  Instructions: ${hp.instructions}`);
+    if (hp.note) sections.push(`  Note: ${hp.note}`);
     sections.push("");
   }
 

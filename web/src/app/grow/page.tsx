@@ -346,6 +346,22 @@ export default function GrowPage() {
   const latestEpisode =
     data.episodes.find((e) => e.status)?.summary ?? data.episodes[0]?.summary;
 
+  // The Brain's planned-ahead Optimal Harvest (it maintains this in grow_profile).
+  const harvestPlan = (data.grow_profile as Record<string, unknown> | null)?.harvest_plan as
+    | { mode?: string; next_date?: string | null; prep_lead_days?: number; instructions?: string; note?: string | null }
+    | undefined
+    | null;
+  const HARVEST_MODE: Record<string, [string, string]> = {
+    cut_and_come_again: ["Cut & come again", "קטיף חוזר"],
+    repeated_pick: ["Repeated picking", "קטיף חוזר"],
+    single_terminal: ["Final harvest", "קציר סופי"],
+  };
+  let harvestCountdown: string | null = null;
+  if (harvestPlan?.next_date) {
+    const days = Math.ceil((new Date(`${harvestPlan.next_date}T12:00:00`).getTime() - Date.now()) / 86_400_000);
+    harvestCountdown = days <= 0 ? t("due now", "מתבקש עכשיו") : days === 1 ? t("tomorrow", "מחר") : t(`in ${days} days`, `בעוד ${days} ימים`);
+  }
+
   return (
     <div dir={lang === "he" ? "rtl" : "ltr"} style={{ maxWidth: 1180, margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}>
       {/* HERO — cinematic image + spotlit statement */}
@@ -379,6 +395,35 @@ export default function GrowPage() {
           </div>
         </div>
       </section>
+
+      {harvestPlan && (harvestPlan.next_date || harvestPlan.instructions) ? (
+        <Card title={t("Optimal harvest", "קציר אופטימלי")} icon="ph-scissors" glow>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
+            {harvestPlan.next_date ? (
+              <>
+                <span style={{ fontFamily: "var(--f-display)", fontSize: "1.4rem", color: "var(--c-parchment)" }} dir="ltr">{harvestPlan.next_date}</span>
+                {harvestCountdown ? <span style={{ fontSize: ".9rem", color: "var(--c-basil)" }}>· {harvestCountdown}</span> : null}
+              </>
+            ) : (
+              <span style={{ fontSize: ".9rem", color: "var(--c-ash)" }}>{t("date being planned", "תאריך בתכנון")}</span>
+            )}
+            {harvestPlan.mode && HARVEST_MODE[harvestPlan.mode] ? (
+              <span className="tk-tag" style={{ marginInlineStart: "auto" }}>{t(...HARVEST_MODE[harvestPlan.mode])}</span>
+            ) : null}
+          </div>
+          {harvestPlan.note ? <p style={{ fontSize: ".92rem", color: "var(--c-fog)", marginBottom: 8 }}>{harvestPlan.note}</p> : null}
+          {harvestPlan.instructions ? (
+            <p style={{ fontSize: ".88rem", color: "var(--c-ash)", lineHeight: 1.55 }}>
+              <span style={{ color: "var(--c-stone)" }}>{t("How", "איך")}: </span>{harvestPlan.instructions}
+            </p>
+          ) : null}
+          {typeof harvestPlan.prep_lead_days === "number" ? (
+            <p style={{ fontSize: ".78rem", color: "var(--c-stone)", marginTop: 8 }}>
+              {t(`Heads-up ${harvestPlan.prep_lead_days} day(s) before · TELOS will open the harvest task at the right time.`, `תזכורת היערכות ${harvestPlan.prep_lead_days} ימים לפני · TELOS יפתח את משימת הקציר בזמן.`)}
+            </p>
+          ) : null}
+        </Card>
+      ) : null}
 
       <div className="tk-grid-2">
         <Card title={t("Getting to know the grow", "היכרות עם הגידול")} icon="ph-clipboard-text" glow={data.onboarding.unanswered.length > 0}>

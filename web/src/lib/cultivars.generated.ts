@@ -88,6 +88,13 @@ export const CULTIVAR_REGISTRY: Record<string, CultivarRecord> = {
     "harvest_markers": [
       "First pinch once 3-4 true-leaf pairs are set; harvest above a node to drive bushing."
     ],
+    "harvest": {
+      "mode": "cut_and_come_again",
+      "first_harvest": "Once 3-4 true-leaf pairs are set and the plant is ~15-20 cm tall.",
+      "cadence_days": 9,
+      "instructions": "Cut each stem just above a leaf node, taking the top ~third down to a strong leaf pair; never strip below ~4 leaves. Remove any flower buds in the same pass. Cutting above a node drives two new shoots — harvest IS pruning, and frequent cutting holds the plant in leaf and suppresses bolting.",
+      "end_of_grow": "Productive for months under steady pinching; retire/replace when stems turn woody or it bolts persistently in heat despite pinching."
+    },
     "story": {
       "he": null,
       "en": null
@@ -147,6 +154,13 @@ export const CULTIVAR_REGISTRY: Record<string, CultivarRecord> = {
       "Ready when the canopy carries large, cupped, deep-green leaves with the sweet anise nose and no purple stem flush.",
       "Cut above a leaf node to drive a second flush; never strip a plant bare."
     ],
+    "harvest": {
+      "mode": "cut_and_come_again",
+      "first_harvest": "When the canopy carries large, cupped, deep-green leaves with a sweet anise nose and no flower spikes — usually ~3-4 leaf-pairs in.",
+      "cadence_days": 8,
+      "instructions": "Harvest in the cool morning, when the volatile oils peak. Cut each stem just above a leaf node, taking the top third; leave at least two strong leaf pairs — never strip a plant bare. Pinch out every flower bud in the same pass — flowering blunts the Genovese aroma. Each cut above a node drives a second flush.",
+      "end_of_grow": "Open-ended under disciplined pinching; replace when the leaf coarsens/serrates or it bolts repeatedly despite cool-morning harvest and afternoon shade."
+    },
     "story": {
       "he": "בזיליקו ג'נובזה DOP — הבזיליקון המוגן של ליגוריה, עלה רחב ומתוק, הבסיס האמיתי לפסטו ג'נובזה.",
       "en": "Basilico Genovese DOP — the protected basil of Liguria: a broad, sweet, cupped leaf with a soft anise nose. The only basil a Ligurian pesto is built on, and a name a chef asks for."

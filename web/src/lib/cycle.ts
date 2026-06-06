@@ -34,6 +34,7 @@ import {
   addEpisode,
   hasRecentTaskOfType,
   getSystem,
+  updateSystem,
   type SystemRow,
 } from "@/lib/db";
 import { analyzeAndDecide } from "@/lib/brain";
@@ -232,6 +233,18 @@ export async function runSystemCycle(
     },
     sys.id
   );
+
+  // Persist a harvest-plan update if the Brain emitted one this cycle. Merge
+  // into grow_profile (don't clobber other fields). null = no change.
+  if (decision.harvest_plan) {
+    try {
+      await updateSystem(sys.id, {
+        grow_profile: { ...(sys.grow_profile ?? {}), harvest_plan: decision.harvest_plan },
+      });
+    } catch (e) {
+      console.error(`[cycle] persist harvest_plan failed for system=${sys.id}: ${e}`);
+    }
+  }
 
   // Dedup human-task creation. Without this, every cycle (incl. the forced
   // re-eval right after a grower answers) re-creates the same question /

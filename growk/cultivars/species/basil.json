@@ -18,5 +18,12 @@
   "harvest_markers": [
     "First pinch once 3-4 true-leaf pairs are set; harvest above a node to drive bushing."
   ],
+  "harvest": {
+    "mode": "cut_and_come_again",
+    "first_harvest": "Once 3-4 true-leaf pairs are set and the plant is ~15-20 cm tall.",
+    "cadence_days": 9,
+    "instructions": "Cut each stem just above a leaf node, taking the top ~third down to a strong leaf pair; never strip below ~4 leaves. Remove any flower buds in the same pass. Cutting above a node drives two new shoots — harvest IS pruning, and frequent cutting holds the plant in leaf and suppresses bolting.",
+    "end_of_grow": "Productive for months under steady pinching; retire/replace when stems turn woody or it bolts persistently in heat despite pinching."
+  },
   "story": { "he": null, "en": null }
 }

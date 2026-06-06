@@ -19,6 +19,13 @@
     "Ready when the canopy carries large, cupped, deep-green leaves with the sweet anise nose and no purple stem flush.",
     "Cut above a leaf node to drive a second flush; never strip a plant bare."
   ],
+  "harvest": {
+    "mode": "cut_and_come_again",
+    "first_harvest": "When the canopy carries large, cupped, deep-green leaves with a sweet anise nose and no flower spikes — usually ~3-4 leaf-pairs in.",
+    "cadence_days": 8,
+    "instructions": "Harvest in the cool morning, when the volatile oils peak. Cut each stem just above a leaf node, taking the top third; leave at least two strong leaf pairs — never strip a plant bare. Pinch out every flower bud in the same pass — flowering blunts the Genovese aroma. Each cut above a node drives a second flush.",
+    "end_of_grow": "Open-ended under disciplined pinching; replace when the leaf coarsens/serrates or it bolts repeatedly despite cool-morning harvest and afternoon shade."
+  },
   "story": {
     "he": "בזיליקו ג'נובזה DOP — הבזיליקון המוגן של ליגוריה, עלה רחב ומתוק, הבסיס האמיתי לפסטו ג'נובזה.",
     "en": "Basilico Genovese DOP — the protected basil of Liguria: a broad, sweet, cupped leaf with a soft anise nose. The only basil a Ligurian pesto is built on, and a name a chef asks for."

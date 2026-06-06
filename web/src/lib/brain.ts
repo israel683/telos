@@ -21,6 +21,7 @@ import { getBottleStatusReport } from "./bottle-status";
 import { getSystem, getGrowerMemory, getRecentEpisodes } from "./db";
 import { getEffectiveTargets, diurnalContext } from "./tolerance";
 import { getCultivarRecord } from "./cultivars";
+import type { HarvestPlan } from "./grow-profile";
 
 const CACHE_TTL_BETA = "extended-cache-ttl-2025-04-11";
 
@@ -66,6 +67,8 @@ export type DecisionResult = {
   status: "healthy" | "attention" | "warning" | "critical" | "unknown";
   concerns: string[];
   next_check_minutes: number;
+  /** Optional harvest-plan update the Brain emitted this cycle (persisted into grow_profile). null = no change. */
+  harvest_plan: HarvestPlan | null;
   raw_response: Record<string, unknown>;
   tokens_input: number;
   tokens_output: number;
@@ -273,6 +276,7 @@ export async function analyzeAndDecide(opts: {
       : "unknown",
     concerns: Array.isArray(aiDecision.concerns) ? (aiDecision.concerns as string[]) : [],
     next_check_minutes: Number(aiDecision.next_check_minutes) || 60,
+    harvest_plan: parseHarvestPlan(aiDecision.harvest_plan),
     raw_response: aiDecision,
     tokens_input: u.inputTokens || 0,
     tokens_output: u.outputTokens || 0,
@@ -293,6 +297,34 @@ function parseJsonResponse(text: string): Record<string, unknown> {
   return JSON.parse(t);
 }
 
+/**
+ * Validate the Brain's optional `harvest_plan` output. Returns a clean
+ * HarvestPlan to persist, or null when absent/malformed (so the stored plan is
+ * left unchanged). Defensive: the Brain controls this field via free JSON.
+ */
+function parseHarvestPlan(raw: unknown): HarvestPlan | null {
+  if (!raw || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const modes = ["cut_and_come_again", "repeated_pick", "single_terminal"];
+  const mode = typeof r.mode === "string" && modes.includes(r.mode) ? r.mode : null;
+  const instructions = typeof r.instructions === "string" ? r.instructions.trim() : "";
+  if (!mode || !instructions) return null; // not a usable plan
+  // next_date: accept an ISO YYYY-MM-DD (or null).
+  let next_date: string | null = null;
+  if (typeof r.next_date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r.next_date.trim())) {
+    next_date = r.next_date.trim();
+  }
+  const prep = Number(r.prep_lead_days);
+  return {
+    mode,
+    next_date,
+    prep_lead_days: Number.isFinite(prep) ? Math.max(0, Math.min(14, Math.round(prep))) : 1,
+    instructions,
+    note: typeof r.note === "string" ? r.note.trim() : null,
+    updated_at: new Date().toISOString(),
+  };
+}
+
 function fallback(reason: string): DecisionResult {
   return {
     commands: [],
@@ -304,6 +336,7 @@ function fallback(reason: string): DecisionResult {
     status: "attention",
     concerns: [reason],
     next_check_minutes: 5,
+    harvest_plan: null,
     raw_response: { error: reason },
     tokens_input: 0,
     tokens_output: 0,

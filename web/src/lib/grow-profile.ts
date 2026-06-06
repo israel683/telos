@@ -27,6 +27,29 @@ export type GrowProfile = {
   practices?: string[];
   /** ISO timestamp when onboarding was marked complete; null/absent = in progress. */
   onboarding_completed_at?: string | null;
+  /**
+   * The Brain's planned-ahead OPTIMAL HARVEST for this grow. The Brain maintains
+   * it (sets/rolls the next date from the cultivar's harvest model + stage), the
+   * /grow screen shows it, and the Brain opens a prep heads-up + an execution
+   * task around `next_date`. For cut-and-come-again crops it rolls forward by the
+   * cultivar cadence after each harvest; for single_terminal it's the one date.
+   */
+  harvest_plan?: HarvestPlan | null;
+};
+
+export type HarvestPlan = {
+  /** Cultivar harvest mode (cut_and_come_again | repeated_pick | single_terminal). */
+  mode: string;
+  /** ISO date (YYYY-MM-DD) of the next planned harvest/cut, or null if not yet set. */
+  next_date: string | null;
+  /** Days before next_date to surface the prep heads-up task. */
+  prep_lead_days: number;
+  /** Exactly what to do at this harvest (cultivar + stage specific). */
+  instructions: string;
+  /** Short why-now / target note (Hebrew, grower-facing). */
+  note?: string | null;
+  /** ISO timestamp the Brain last updated the plan. */
+  updated_at?: string | null;
 };
 
 export type OnboardingQuestionType = "text" | "number" | "choice";

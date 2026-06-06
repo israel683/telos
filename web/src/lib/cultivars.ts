@@ -16,6 +16,24 @@ export type CultivarStageBands = Partial<
   Record<"ph" | "ec" | "water_temp", MetricTarget>
 >;
 
+/**
+ * How this cultivar is harvested — the word "harvest" is cultivar-specific:
+ *  - cut_and_come_again: repeated partial cuts; the plant keeps producing (basil, leaf herbs)
+ *  - repeated_pick: pick produce as it ripens over a long window (tomato, pepper)
+ *  - single_terminal: one final cut ends the grow (head lettuce, radicchio, mâche)
+ */
+export type CultivarHarvest = {
+  mode: "cut_and_come_again" | "repeated_pick" | "single_terminal";
+  /** Readiness trigger for the FIRST harvest, in plain grower language. */
+  first_harvest: string;
+  /** Days between recurring harvests once established; null for single_terminal. */
+  cadence_days: number | null;
+  /** Exactly what to do at each harvest — the execution instructions. */
+  instructions: string;
+  /** When the GROW itself ends / the plant should be retired; null = open-ended. */
+  end_of_grow: string | null;
+};
+
 export type CultivarRecord = {
   id: string;
   species: string;
@@ -27,6 +45,8 @@ export type CultivarRecord = {
   stages: Partial<Record<string, CultivarStageBands>>;
   stress_signatures?: string[];
   harvest_markers?: string[];
+  /** Cultivar-specific harvest model. Inherited from the species when absent. */
+  harvest?: CultivarHarvest;
   story?: { he: string | null; en: string | null };
 };
 
@@ -86,4 +106,20 @@ export function cultivarTargets(
   const bands = resolveCultivarStage(id, stage);
   if (!bands) return null;
   return { ph: bands.ph, ec: bands.ec, water_temp: bands.water_temp };
+}
+
+/**
+ * Harvest model for a cultivar, inheriting from the species when the cultivar
+ * record doesn't define its own (so e.g. "Cuore di Bue" gets the tomato model).
+ * Walks the leaf→root chain and returns the NEAREST harvest block.
+ */
+export function resolveCultivarHarvest(
+  id: string | null | undefined
+): CultivarHarvest | null {
+  if (!id || !(id in CULTIVAR_REGISTRY)) return null;
+  // inheritanceChain is root-first; reverse so we prefer the most specific.
+  for (const node of inheritanceChain(id).reverse()) {
+    if (node.harvest) return node.harvest;
+  }
+  return null;
 }
