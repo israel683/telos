@@ -18,6 +18,7 @@ import { evaluateMetric, bandWidth } from "./tolerance";
 import { renderGrowContext, type GrowProfile } from "./grow-profile";
 import { renderGrowerMemory, renderEpisodes, type GrowerMemoryEntry, type GrowEpisode } from "./grower-memory";
 import { relAge } from "./time";
+import type { CultivarRecord } from "./cultivars";
 import { TELOS_VOICE_PROMPT } from "../brand/voice";
 
 export const SYSTEM_PROMPT = TELOS_VOICE_PROMPT + `
@@ -122,6 +123,36 @@ POC (a new basil line in full sun all day, high heat, high-pH source water):
   (heat, light load, source water, root zone) and, if useful, raise a \`question\`
   to confirm or a \`manual_action\` to address the cause. Infer; don't just react.
 
+# Every cycle is a PROACTIVE REVIEW — not just a band check
+
+When you're invoked and every reading is comfortably in-band, that is NOT a
+no-op. It is your standing proactive review, and "all healthy, nothing to do"
+should be the EXCEPTION, not your default answer. Being in-band means the floor
+is met — now do the job: bring THIS cultivar toward its fullest expression.
+
+On each review, actively walk this checklist and surface the single best next
+move (don't dump five):
+1. **Cultivar Knowledge** — given the current stage, what does this cultivar
+   need NEXT? Read its early stress signals and quality/harvest markers (above).
+   Is a stage-appropriate horticultural move due (pinch/top, thin, train, scout,
+   begin/holding a harvest window)?
+2. **The whole grow** — source water / alkalinity trend, light, heat, airflow,
+   water/root-zone temperature, freshness. Is something structural worth fixing
+   AHEAD of a drift (e.g. alkalinity slowly pushing pH up; afternoon heat
+   approaching the bolt threshold)?
+3. **A known risk window approaching** — e.g. a warm-humid night favours basil
+   downy mildew; get ahead of it with airflow/spacing guidance, don't wait for
+   lesions.
+
+If you find a worthwhile move the doser can't deliver, raise it as a
+\`manual_action\` (or a \`question\` if you need info first). If genuinely nothing
+is worth acting on, say so briefly — that's allowed, just not the reflex.
+
+CRITICAL: proactive ≠ dose-happy. In-band readings still mean **DO NOT force
+corrective dosing** (see the dead-band rule). Proactive optimization is about
+environment, canopy, timing, root health and teaching the grower — not chasing
+numbers that are already fine.
+
 # Decision Cadence — IMPORTANT
 
 This system has hours-scale inertia, not minutes. A 60-liter reservoir does not
@@ -130,14 +161,16 @@ minutes.** Sensors sample every ~5 minutes for monitoring; that does NOT mean
 each new reading deserves an action.
 
 Default \`next_check_minutes\` guidance:
-- **healthy**: 240–480 minutes (4–8 hours).
+- **healthy**: the system re-engages you on a stage-aware proactive cadence
+  (more often in sensitive stages, less often in stable ones) — you don't need
+  to compute it. Suggest 240–480 if asked.
 - **attention**: 120–240 minutes (2–4 hours).
 - **warning**: 60–120 minutes.
 - **critical**: 15–30 minutes.
 
-The autonomous cron itself fires every 2 hours (cycle gate skips most of those when nothing's drifting), so even your shortest recommended check arrives on the next tick at worst.
-
-Slow is correct. Reacting to every minute-scale fluctuation harms plants.
+Slow on DOSING is correct — reacting to every minute-scale fluctuation harms
+plants. But slow ≠ passive: between doses you are still actively reviewing and
+steering the grow, not waiting to be asked.
 
 # Drift vs Noise — Use the Windowed Statistics
 
@@ -481,6 +514,38 @@ export type SystemProfile = {
   bottle_levels?: Record<string, number> | null;
 };
 
+/**
+ * Render the cultivar's deep, QUALITATIVE knowledge (Network Knowledge layer)
+ * into a prompt section: the early stress signals to catch before they hit
+ * pH/EC, the quality/harvest markers to steer toward, and the cultivar's
+ * essence. The numeric stage bands are rendered separately (tolerance bands,
+ * already cultivar+stage resolved). This knowledge previously sat unused in the
+ * registry — it's the difference between a generic band-keeper and an expert in
+ * THIS plant, and it's the menu the Brain optimizes toward on an in-band review.
+ */
+function renderCultivarKnowledge(
+  cultivar: CultivarRecord | null | undefined,
+  stage: string | null
+): string | null {
+  if (!cultivar) return null;
+  const name = cultivar.cultivar || cultivar.species;
+  const lines: string[] = [
+    `## Cultivar Knowledge — ${name}${cultivar.provenance ? ` · ${cultivar.provenance}` : ""} · stage: ${stage ?? "vegetative"}`,
+    "What an expert grower of THIS cultivar knows. Use it in EVERY decision — it OVERRIDES generic crop defaults. When readings are in-band, THIS is what you proactively steer toward; don't just confirm 'healthy'.",
+  ];
+  const story = cultivar.story?.en?.trim();
+  if (story) lines.push(`  Essence: ${story}`);
+  if (cultivar.stress_signatures?.length) {
+    lines.push("  Early stress signals — catch these BEFORE pH/EC drift (the cue to act proactively):");
+    for (const s of cultivar.stress_signatures) lines.push(`    - ${s}`);
+  }
+  if (cultivar.harvest_markers?.length) {
+    lines.push("  Quality / harvest markers — steer toward these and time the harvest by them:");
+    for (const h of cultivar.harvest_markers) lines.push(`    - ${h}`);
+  }
+  return lines.join("\n");
+}
+
 export function buildUserPrompt(opts: {
   current: WaterReading;
   recent: WaterReading[];
@@ -509,6 +574,8 @@ export function buildUserPrompt(opts: {
   growerMemory?: GrowerMemoryEntry[] | null;
   /** Episodic memory — the Brain's own recent-cycle narrative log. */
   episodes?: GrowEpisode[] | null;
+  /** Cultivar record (Network Knowledge) — the deep, cultivar-specific knowledge the Brain acts from. */
+  cultivar?: CultivarRecord | null;
   pendingTasks: Pick<HumanTask, "id" | "type" | "priority" | "title" | "created_at">[];
 }): string {
   const {
@@ -526,6 +593,7 @@ export function buildUserPrompt(opts: {
     growProfile,
     growerMemory,
     episodes,
+    cultivar,
     pendingTasks,
   } = opts;
   const sections: string[] = [];
@@ -546,6 +614,16 @@ export function buildUserPrompt(opts: {
   sections.push(`  Location: ${systemProfile.location ?? "Tel Aviv, Israel"}`);
   sections.push(`  Outdoor: ${systemProfile.outdoor ?? true}`);
   sections.push("");
+
+  // Cultivar Knowledge — the deep, cultivar-specific knowledge (Network Knowledge
+  // layer). This is what makes the Brain an EXPERT in THIS plant rather than a
+  // generic band-keeper. It must inform every decision, and on an in-band
+  // proactive review it's the menu of what to optimize toward.
+  const cultivarSection = renderCultivarKnowledge(cultivar, systemProfile.growth_stage ?? null);
+  if (cultivarSection) {
+    sections.push(cultivarSection);
+    sections.push("");
+  }
 
   // Grow Context — the personal Brain of this grow (onboarding answers + what's
   // still unknown so the brain asks rather than guesses).

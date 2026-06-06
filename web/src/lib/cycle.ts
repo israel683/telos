@@ -39,9 +39,31 @@ import {
 import { analyzeAndDecide } from "@/lib/brain";
 import { doseChannelByPhysical } from "@/lib/devices/jebao";
 import { getDosingConfig } from "@/lib/dosing-config";
-import { evaluateCycleGate, CYCLE_GATE } from "@/lib/cycle-gate";
+import { evaluateCycleGate } from "@/lib/cycle-gate";
 import { getEffectiveTargets } from "@/lib/tolerance";
 import { sendAlertEmail } from "@/lib/notify";
+
+/**
+ * How often the agent does a PROACTIVE REVIEW when everything is calm + healthy
+ * (minutes until next re-engagement). Stage-aware: sensitive stages get a
+ * tighter cadence (~3–4×/day) so the agent actively steers; the stable
+ * workhorse stages relax (~1–2×/day) to stay lean on compute. Drift / critical
+ * / out-of-band events bypass this entirely (the gate wakes immediately).
+ */
+function proactiveReviewMinutes(stage: string | null | undefined): number {
+  switch (stage) {
+    case "seedling":
+      return 360; // ~4×/day — fragile establishment, watch closely
+    case "flowering":
+      return 360; // ~4×/day — flowering/bolting is decisive (esp. herbs)
+    case "vegetative":
+      return 720; // ~2×/day — stable, productive workhorse
+    case "fruiting":
+      return 480; // ~3×/day — sizing/ripening rewards attention
+    default:
+      return 720; // ~2×/day
+  }
+}
 
 export type RunCycleOptions = {
   /** Bypass the cycle gate and always run the LLM (grower-triggered re-eval). */
@@ -381,15 +403,22 @@ export async function runSystemCycle(
     }
   }
 
-  // Honour Claude's `next_check_minutes` for the cycle gate.  Floored
-  // at CYCLE_GATE.min_skip_minutes when status=healthy so we don't
-  // re-engage on the next cron tick when Claude said "all good".
+  // Re-engagement cadence.
+  //  - Not healthy, OR acted this cycle (dosed / queued / raised a task): honour
+  //    Claude's short next_check so it follows through promptly.
+  //  - Calm + healthy + nothing to do: this was a PROACTIVE REVIEW. Re-engage on
+  //    a STAGE-AWARE cadence — more often in sensitive stages, less often in the
+  //    stable workhorse stages — so the agent keeps actively steering toward the
+  //    cultivar's potential without burning compute every 2h. (This replaces the
+  //    old flat min_skip floor that, combined with the in-band gate, made the
+  //    agent passive: it only ever "woke" on drift.)
   const claudeMin = Number(decision.next_check_minutes) || 60;
-  const floored =
-    decision.status === "healthy"
-      ? Math.max(claudeMin, CYCLE_GATE.min_skip_minutes)
-      : claudeMin;
-  await setNextCheckAt(sys.id, new Date(Date.now() + floored * 60_000));
+  const actedThisCycle = executed.length > 0 || createdTasks.length > 0;
+  const nextMin =
+    decision.status !== "healthy" || actedThisCycle
+      ? claudeMin
+      : proactiveReviewMinutes(sys.growth_stage);
+  await setNextCheckAt(sys.id, new Date(Date.now() + nextMin * 60_000));
 
   // Chat-push suppression — the v0.3 POC chat history showed the
   // brain spamming "pH is high" every 2 hours for 3 days while the

@@ -20,6 +20,7 @@ import { getPrimingState, type PrimingState } from "./priming";
 import { getBottleStatusReport } from "./bottle-status";
 import { getSystem, getGrowerMemory, getRecentEpisodes } from "./db";
 import { getEffectiveTargets, diurnalContext } from "./tolerance";
+import { getCultivarRecord } from "./cultivars";
 
 const CACHE_TTL_BETA = "extended-cache-ttl-2025-04-11";
 
@@ -130,6 +131,7 @@ export async function analyzeAndDecide(opts: {
     growProfile: sysRow?.grow_profile ?? null,
     growerMemory,
     episodes,
+    cultivar: getCultivarRecord(sysRow?.cultivar_id ?? sysRow?.crop_type ?? opts.systemProfile.crop_type),
     pendingTasks: opts.pendingTasks.map((t) => ({
       id: t.id,
       type: t.type,
