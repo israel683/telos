@@ -45,7 +45,11 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
   // Resolve the per-system dosing layout once per chat request so all tools
   // describe the SAME universe of channels to the model.  If the system has
   // no persisted config the helper falls back to the legacy default.
-  const dosingConfig: DosingConfig = await getDosingConfig(systemId);
+  // MUTABLE: configureFertilizer refreshes this in-memory after it persists, so
+  // a reconfigure-then-dose within the SAME chat turn uses the new mapping
+  // (otherwise executeDose closes over the stale snapshot and blocks — the
+  // "I moved a channel and now it won't dose" bug).
+  let dosingConfig: DosingConfig = await getDosingConfig(systemId);
   const channelKeys = allChannelKeys(dosingConfig);
   const profile = getProfile(dosingConfig.profile_id);
 
@@ -454,11 +458,15 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
         }
         const dosing_config = { profile_id: prof.id, assignments };
         await updateSystem(systemId, { dosing_config });
+        // Refresh the in-memory config so any tool used LATER in this same chat
+        // turn (esp. executeDose) sees the new layout immediately — not the
+        // snapshot captured when the tools were built.
+        dosingConfig = await getDosingConfig(systemId);
         return {
           ok: true,
           profile: prof.id,
-          channels: Object.keys(assignments),
-          note: "Dosing config saved. Future doses + safety checks use this layout.",
+          channels: Object.keys(dosingConfig.assignments),
+          note: "Dosing config saved + applied. Future doses + safety checks (including this turn) use this layout.",
         };
       },
     }),
