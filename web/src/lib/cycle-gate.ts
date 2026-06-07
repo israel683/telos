@@ -33,7 +33,11 @@ export const CYCLE_GATE = {
   ec_critical_low: 200,
   ec_critical_high: 3000,
   water_temp_critical_low: 10,
-  water_temp_critical_high: 30,
+  // Force a wake only near the real danger cliff (SafetyController blocks all
+  // dosing at 35°C). Routine structural heat in the low-30s is expected for an
+  // outdoor/south-facing rig — it gets noted on the next normal cycle, not a
+  // dedicated alarm every tick.
+  water_temp_critical_high: 34,
 
   // Stability thresholds: if the current reading differs by no more than
   // these from the reading at the time of the last decision, we consider
@@ -127,15 +131,12 @@ function outsideBand(current: WaterReading, targets: TargetRanges | undefined): 
       return `EC=${current.ec.toFixed(0)} outside band [${ev.band_low.toFixed(0)}, ${ev.band_high.toFixed(0)}]`;
     }
   }
-  // water_temp band is informational — we can't dose to correct it, but
-  // if it drifts outside band we still want Claude to surface guidance
-  // (shade / cool the reservoir / reduce dosing because uptake changes).
-  if (targets.water_temp && current.water_temp !== null) {
-    const ev = evaluateMetric(current.water_temp, targets.water_temp);
-    if (ev.status === "outside") {
-      return `water_temp=${current.water_temp.toFixed(1)}°C outside band [${ev.band_low.toFixed(1)}, ${ev.band_high.toFixed(1)}]`;
-    }
-  }
+  // water_temp is deliberately NOT a wake trigger here. We can't dose it away,
+  // and for an outdoor/south-facing rig high midday temp is STRUCTURAL — waking
+  // the brain on it every cycle just re-alerts something the grower can't fix
+  // (and burns compute). The truly dangerous end is still caught by the
+  // critical() envelope below; otherwise temp is surfaced whenever the brain
+  // runs for a real reason (pH/EC drift, or the proactive review).
   return null;
 }
 
