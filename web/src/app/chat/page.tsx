@@ -2,9 +2,18 @@
 
 import { useChat } from "@ai-sdk/react";
 import { DefaultChatTransport } from "ai";
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { getActiveSystem } from "@/lib/system";
+
+// Memoized markdown leaf: re-parses ONLY when its own text changes. During a
+// throttled stream only the active message's text changes, so every other
+// bubble (and this bubble's sibling tool/question parts) stay put — the chief
+// cause of mobile live-typing jank. Wraps the <ReactMarkdown> leaf ONLY, never
+// a parts dispatcher, so streaming tool/question branches aren't frozen.
+const MarkdownBlock = memo(function MarkdownBlock({ text }: { text: string }) {
+  return <ReactMarkdown>{text}</ReactMarkdown>;
+});
 import { StackedQuestion } from "@/components/StackedQuestion";
 import { PendingTasksCard } from "@/components/PendingTasksCard";
 import { useLang, statusLabel } from "@/lib/i18n";
@@ -47,6 +56,10 @@ export default function ChatPage() {
   >({});
 
   const { messages, sendMessage, setMessages, status, error, regenerate } = useChat({
+    // Coalesce streamed token updates to ~10/s so the message list (and its
+    // markdown) re-renders far less often — kills the mobile live-typing jank.
+    // Client-only, compute-neutral.
+    experimental_throttle: 100,
     transport: new DefaultChatTransport({
       api: "/api/chat",
       body: () => ({ system: getActiveSystem() }),
@@ -154,11 +167,35 @@ export default function ChatPage() {
     });
   }, [historyLoaded, messages.length]);
 
-  // Subsequent updates: smooth scroll on new messages or streaming chunks.
+  // Subsequent updates: follow the conversation to the bottom — but gently.
+  // Keyed on messages.LENGTH + status (not the whole messages array, which gets
+  // a new reference every streamed token), so this fires on a new message or a
+  // stream start/stop, not per token. Guards:
+  //  • near-bottom only while streaming — never yank a grower who scrolled up
+  //    to read backscroll mid-reply.
+  //  • behaviour "instant" while streaming (the container's CSS scroll-smooth
+  //    already eases it; "smooth" here fights it and stutters); "smooth" only
+  //    on the final landing when the stream settles.
+  //  • a single ref-guarded trailing timer (no overlapping smooth animations).
+  const scrollTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (!didInitialScrollRef.current) return; // initial path handled above
-    bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
-  }, [messages, status]);
+    const el = scrollRef.current;
+    if (!el) return;
+    const streaming = status === "streaming" || status === "submitted";
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
+    if (streaming && !nearBottom) return;
+    if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    scrollTimerRef.current = setTimeout(() => {
+      bottomRef.current?.scrollIntoView({
+        block: "end",
+        behavior: streaming ? ("instant" as ScrollBehavior) : "smooth",
+      });
+    }, 120);
+    return () => {
+      if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
+    };
+  }, [messages.length, status]);
 
   // Attached files (images for now — Claude Sonnet 4.6 has vision input).
   // AI SDK 6's DefaultChatTransport handles the multipart upload + base64
@@ -628,7 +665,7 @@ function MessageBubble({
         <div className="px-4 pb-4 pt-3 space-y-3 text-sm" style={{ borderTop: "1px solid color-mix(in srgb, var(--c-parchment) 7%, transparent)" }}>
           {textPart?.text && (
             <div className="prose-chat">
-              <ReactMarkdown>{textPart.text}</ReactMarkdown>
+              <MarkdownBlock text={textPart.text} />
             </div>
           )}
           {message.parts
@@ -709,7 +746,7 @@ function MessageBubble({
             }
             return (
               <div key={i} className="text-sm prose-chat">
-                <ReactMarkdown>{part.text}</ReactMarkdown>
+                <MarkdownBlock text={part.text} />
               </div>
             );
           }

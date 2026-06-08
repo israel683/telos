@@ -71,7 +71,10 @@ export function Nav() {
   return (
     <nav
       className="sticky top-0 z-30"
-      style={{ background: "var(--c-soil)", borderBottom: "1px solid color-mix(in srgb, var(--c-parchment) 6%, transparent)" }}
+      // paddingTop carries the nav's own --c-soil up through the iOS safe-area
+      // (notch/status bar) in standalone PWA mode — keeping `top-0` so a `top`
+      // offset can't leave a wrong-colored gap above it. 0px on desktop/Android.
+      style={{ background: "var(--c-soil)", paddingTop: "env(safe-area-inset-top)", borderBottom: "1px solid color-mix(in srgb, var(--c-parchment) 6%, transparent)" }}
     >
       <div className="max-w-6xl mx-auto px-3 sm:px-6 pt-2 pb-2 flex flex-col gap-2">
         {/* Row 1 — brand + scope (start) · status + overflow (end) */}
