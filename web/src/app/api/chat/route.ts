@@ -289,12 +289,31 @@ DO NOT call \`getCurrentState\` or \`getRecentReadings\` until \`markSetupComple
     ...convertedHistory,
   ];
 
+  // Owner-only forensic log of the agent's tool activity. OFF by default, gated
+  // on a plain (NON-public) server env var so it can ONLY ever reach server
+  // stderr (Vercel logs) — never the customer's browser, never the response
+  // stream. We log tool NAMES + token usage only — NEVER tool input/output or
+  // the prompt — so it stays inside the IP-confidentiality doctrine even when on.
+  const OWNER_DEBUG = process.env.OWNER_DEBUG_ENABLED === "1";
+
   const result = streamText({
     model: anthropic(modelId),
     messages: modelMessages,
     tools,
     stopWhen: stepCountIs(8),
     headers: { "anthropic-beta": CACHE_TTL_BETA },
+    ...(OWNER_DEBUG && {
+      onStepFinish: (step) => {
+        for (const call of step.toolCalls ?? []) {
+          console.log(`[owner-debug] system=${systemId} tool=${call.toolName}`);
+        }
+        if (step.usage) {
+          console.log(
+            `[owner-debug] system=${systemId} usage in=${step.usage.inputTokens ?? "?"} out=${step.usage.outputTokens ?? "?"}`
+          );
+        }
+      },
+    }),
   });
 
   return result.toUIMessageStreamResponse({
