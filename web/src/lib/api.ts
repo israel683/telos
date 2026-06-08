@@ -6,6 +6,8 @@ import type {
   SystemProfile,
 } from "./types";
 import { getActiveSystem } from "./system";
+import type { TimelineEvent } from "./grow-profile";
+import type { JournalEvent } from "./journal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "";
 const API_TOKEN = process.env.NEXT_PUBLIC_API_TOKEN;
@@ -82,6 +84,19 @@ export type OnboardingView = {
 
 export async function getGrow(): Promise<GrowView> {
   return fetchJson<GrowView>("/api/grow");
+}
+
+export type TimelineView = {
+  /** Forward plan — Brain-owned timeline or the derived view (same as /grow). */
+  forward: TimelineEvent[];
+  /** Backward journal — grower-safe events (no confidential fields). Newest first. */
+  past: JournalEvent[];
+  windowDays: number;
+  truncated: boolean;
+};
+
+export async function getTimeline(days = 30): Promise<TimelineView> {
+  return fetchJson<TimelineView>(`/api/timeline?days=${days}`);
 }
 
 /**
