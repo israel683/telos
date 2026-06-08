@@ -1174,16 +1174,20 @@ export async function getPendingTasks(
 
 export async function getTasksByStatus(
   status: "pending" | "done" | "dismissed" | "expired",
-  systemId: string = DEFAULT_SYSTEM_ID
+  systemId: string = DEFAULT_SYSTEM_ID,
+  opts: { since?: Date; limit?: number } = {}
 ): Promise<HumanTask[]> {
   await ensureSchema();
   const s = sql();
+  const since = opts.since ? opts.since.toISOString() : null;
+  const limit = opts.limit ?? 100;
   const rows = (await s`
     SELECT id, system_id, created_at, type, priority, title, reason, payload,
            status, expires_at, completed_at, user_response, decision_id
     FROM human_tasks
     WHERE system_id = ${systemId} AND status = ${status}
-    ORDER BY created_at DESC LIMIT 100
+      AND (${since}::timestamptz IS NULL OR created_at > ${since}::timestamptz)
+    ORDER BY created_at DESC LIMIT ${limit}
   `) as unknown as Array<{
     id: number;
     system_id: string;
