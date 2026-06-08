@@ -291,6 +291,11 @@ export async function ensureSchema(): Promise<void> {
     )
   `);
   await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_memory_active ON grower_memory(system_id, active, ts DESC)`);
+  // Fidelity columns: `raw_answer` keeps the grower's words verbatim even when
+  // `text` (the Brain-facing form) is normalized/de-noised; `source_flags` carries
+  // provenance (raw_task_id, was_summarized) for forensics + future summarization.
+  await safeDdl(() => s`ALTER TABLE grower_memory ADD COLUMN IF NOT EXISTS raw_answer TEXT`);
+  await safeDdl(() => s`ALTER TABLE grower_memory ADD COLUMN IF NOT EXISTS source_flags JSONB`);
 
   // Episodic memory — a compact narrative log of what the autonomous Brain did
   // each cycle (status + one-line summary), so future cycles have continuity
@@ -813,13 +818,22 @@ export async function updateSystem(
 
 export async function addGrowerMemory(
   systemId: string,
-  entry: { kind: GrowerMemoryKind; text: string; source?: string }
+  entry: {
+    kind: GrowerMemoryKind;
+    text: string;
+    source?: string;
+    /** The grower's verbatim words, kept for fidelity even when `text` is normalized. */
+    raw_answer?: string | null;
+    /** Provenance for forensics + future summarization (raw_task_id, was_summarized, …). */
+    source_flags?: Record<string, unknown> | null;
+  }
 ): Promise<number> {
   await ensureSchema();
   const s = sql();
+  const flags = entry.source_flags == null ? null : JSON.stringify(entry.source_flags);
   const rows = (await s`
-    INSERT INTO grower_memory (system_id, kind, text, source)
-    VALUES (${systemId}, ${entry.kind}, ${entry.text}, ${entry.source ?? "grower"})
+    INSERT INTO grower_memory (system_id, kind, text, source, raw_answer, source_flags)
+    VALUES (${systemId}, ${entry.kind}, ${entry.text}, ${entry.source ?? "grower"}, ${entry.raw_answer ?? null}, ${flags}::jsonb)
     RETURNING id
   `) as unknown as Array<{ id: number }>;
   return Number(rows[0].id);
@@ -832,7 +846,7 @@ export async function getGrowerMemory(
   await ensureSchema();
   const s = sql();
   const rows = (await s`
-    SELECT id, ts, kind, text, source
+    SELECT id, ts, kind, text, source, raw_answer
     FROM grower_memory
     WHERE system_id = ${systemId} AND active = TRUE
     ORDER BY ts DESC
@@ -844,6 +858,7 @@ export async function getGrowerMemory(
     kind: r.kind as GrowerMemoryKind,
     text: r.text as string,
     source: r.source as string,
+    raw_answer: (r.raw_answer as string | null) ?? null,
   }));
 }
 
@@ -1272,6 +1287,26 @@ export async function dismissTask(
  * and feed the answer back into the system so the Brain actually uses it —
  * logged as an episode AND recorded in Grower Memory (the Q→A as a fact).
  */
+/**
+ * Does this answer carry its own referent, or does it lean on the question?
+ * Self-contained → we can store it alone (less prompt noise). Anaphoric (a bare
+ * "כן"/"yes"/"twice") → we must keep the question title attached. Heuristic, He+En:
+ * has a digit, OR is long enough to stand alone, OR doesn't open with a bare
+ * affirmation/negation particle.
+ */
+function isSelfContainedAnswer(answer: string): boolean {
+  const a = answer.trim();
+  if (a.length === 0) return false;
+  if (/\d/.test(a)) return true;
+  if (a.length >= 25) return true;
+  const lead = a.toLowerCase().split(/[\s,.!?:;׳״"'()\-—]+/).filter(Boolean)[0] ?? "";
+  const particles = new Set([
+    "כן", "לא", "אולי", "נכון", "בטח", "אוקיי", "אוקי",
+    "yes", "no", "maybe", "ok", "okay", "sure", "yep", "nope", "none", "correct", "right",
+  ]);
+  return !particles.has(lead);
+}
+
 export async function answerTask(
   id: number,
   answer: string,
@@ -1293,7 +1328,7 @@ export async function answerTask(
     try {
       await s`
         UPDATE human_tasks
-        SET status = 'done', completed_at = NOW(), user_response = 'resolved with a duplicate answer'
+        SET status = 'done', completed_at = NOW(), user_response = ${answer}
         WHERE system_id = ${systemId} AND type = 'question' AND status = 'pending'
           AND title = ${title} AND id <> ${id}
       `;
@@ -1306,12 +1341,18 @@ export async function answerTask(
       console.error("[answerTask] addEpisode failed:", e);
     }
     try {
-      // The Brain reads grower_memory each cycle — store the Q→A so the answer
-      // informs every future decision (not just sits on the closed task).
+      // The Brain reads grower_memory each cycle — store the answer so it informs
+      // every future decision. We de-noise the Brain-facing `text` (drop the
+      // question title when the answer stands on its own) but ALWAYS keep the
+      // grower's verbatim Q→A in `raw_answer` so nothing is ever lost, and the
+      // render layer falls back to it for short/anaphoric answers.
+      const selfContained = isSelfContainedAnswer(answer);
       await addGrowerMemory(systemId, {
         kind: "fact",
-        text: `${title} — ${answer}`,
+        text: selfContained ? answer : `${title} — ${answer}`,
         source: "grower",
+        raw_answer: `${title} — ${answer}`,
+        source_flags: { raw_task_id: id, was_summarized: false },
       });
     } catch (e) {
       console.error("[answerTask] addGrowerMemory failed:", e);
