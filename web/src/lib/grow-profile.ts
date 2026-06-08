@@ -35,6 +35,17 @@ export type GrowProfile = {
    * cultivar cadence after each harvest; for single_terminal it's the one date.
    */
   harvest_plan?: HarvestPlan | null;
+  /**
+   * The grow's forward+past TIMELINE — milestones, harvests, prunes, water
+   * changes, maintenance. Generalizes harvest_plan into a full plan the Brain
+   * maintains (PR-2+), the grower can adjust+pin, and /grow renders as a
+   * calendar spine. Until the Brain writes it, /grow shows a derived view
+   * (deriveTimeline) built from existing data.
+   */
+  timeline?: TimelineEvent[] | null;
+  /** Anchor date the plan is reckoned from (many grows start at transplant, not sow). */
+  grow_anchor_date?: string | null;
+  grow_anchor_kind?: "sow" | "transplant" | null;
 };
 
 export type HarvestPlan = {
@@ -51,6 +62,121 @@ export type HarvestPlan = {
   /** ISO timestamp the Brain last updated the plan. */
   updated_at?: string | null;
 };
+
+// === Grow Timeline =========================================================
+
+export type TimelineEventStatus = "planned" | "due" | "done" | "skipped" | "superseded";
+
+export type TimelineEventType =
+  | "milestone" // sow, germinate, transplant, first-flower, end-of-grow
+  | "harvest" // a harvest/cut/pick (any mode)
+  | "prep" // heads-up before another event
+  | "prune" // pinch / top / sucker / defoliate / train
+  | "water_change" // full reservoir change — recirculating systems only
+  | "maintenance"; // probe clean, line/media flush, sanitize
+
+export type TimelineEvent = {
+  /** Stable slug; the recurrence/dedup + task-link key. NEVER match events by title. */
+  id: string;
+  type: TimelineEventType;
+  /** Grower-facing label; may be Hebrew or English (render via <bdi>). Empty → UI uses a type label. */
+  title: string;
+  /** ISO YYYY-MM-DD; null = trigger-only (observation-gated — no fabricated date). */
+  scheduled_date: string | null;
+  /** ± tolerance in days around scheduled_date. */
+  window_days: number;
+  /** Prose readiness signal when there's no honest date ("when 4+ true leaves appear"). */
+  trigger: string | null;
+  status: TimelineEventStatus;
+  source: "brain" | "grower";
+  /** Carried explicitly on harvest events (from the cultivar harvest model) — never re-derived. */
+  harvest_mode?: "cut_and_come_again" | "repeated_pick" | "single_terminal" | null;
+  /** English, for Brain reasoning. */
+  instructions: string;
+  /** Short Hebrew grower note. */
+  note?: string | null;
+  /** Growth stage this belongs to (gating). */
+  stage?: string | null;
+  /** Days between repeats; null = one-shot. */
+  cadence_days?: number | null;
+  /** Parent event ids — won't schedule before the parent's window. */
+  depends_on?: string[];
+  /** Grower contract: the Brain MUST NOT move/skip/drop a pinned event. */
+  pinned: boolean;
+  /** One line of why (provenance). */
+  provenance: string;
+  /** The pending human_task currently realizing this event (status-checked at use). */
+  task_id?: number | null;
+  decision_id?: number | null;
+  completed_at?: string | null;
+  /** Set when the Brain has flagged a pinned event suboptimal — so it doesn't re-nag. */
+  brain_flagged_at?: string | null;
+  updated_at: string;
+};
+
+/** Tolerance band for a dated event: a 2-day floor, ~20% of the offset above that. */
+export function timelineWindowDays(offsetDays: number): number {
+  return Math.max(2, Math.round(0.2 * Math.abs(offsetDays)));
+}
+
+/**
+ * Read-only timeline derived from data ALREADY on the grow profile — used by
+ * /grow until the Brain maintains a stored `timeline` (PR-2). When a stored
+ * timeline exists, prefer it (see the page). Pure; safe on client or server.
+ */
+export function deriveTimeline(profile: GrowProfile | null | undefined): TimelineEvent[] {
+  const p = profile ?? {};
+  const events: TimelineEvent[] = [];
+
+  if (p.onboarding_completed_at) {
+    const date = p.onboarding_completed_at.slice(0, 10);
+    events.push({
+      id: "grow-opened",
+      type: "milestone",
+      title: "",
+      scheduled_date: date,
+      window_days: 0,
+      trigger: null,
+      status: "done",
+      source: "grower",
+      instructions: "Onboarding complete — the grow's personal Brain was established.",
+      pinned: false,
+      provenance: "onboarding_completed_at",
+      completed_at: p.onboarding_completed_at,
+      updated_at: p.onboarding_completed_at,
+    });
+  }
+
+  const hp = p.harvest_plan;
+  if (hp && (hp.next_date || (hp.instructions && hp.instructions.trim()))) {
+    events.push({
+      id: "harvest-next",
+      type: "harvest",
+      title: "",
+      scheduled_date: hp.next_date ?? null,
+      window_days: 2,
+      trigger: hp.next_date ? null : "כשסימני הקציר מתקיימים",
+      status: "planned",
+      source: "brain",
+      harvest_mode: (["cut_and_come_again", "repeated_pick", "single_terminal"].includes(hp.mode)
+        ? (hp.mode as TimelineEvent["harvest_mode"])
+        : null),
+      instructions: hp.instructions ?? "",
+      note: hp.note ?? null,
+      pinned: false,
+      provenance: "derived from harvest_plan",
+      updated_at: hp.updated_at ?? hp.next_date ?? "",
+    });
+  }
+
+  // Chronological: dated events by date ascending, trigger-only (null date) last.
+  return events.sort((a, b) => {
+    if (a.scheduled_date && b.scheduled_date) return a.scheduled_date.localeCompare(b.scheduled_date);
+    if (a.scheduled_date) return -1;
+    if (b.scheduled_date) return 1;
+    return 0;
+  });
+}
 
 export type OnboardingQuestionType = "text" | "number" | "choice";
 

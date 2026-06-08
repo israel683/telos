@@ -5,8 +5,19 @@ import Link from "next/link";
 import { getGrow, answerOnboarding, type GrowView, type OnboardingView, type GrowContextField } from "@/lib/api";
 import { startVisibilityAwarePolling } from "@/lib/poll";
 import { useLang, statusLabel } from "@/lib/i18n";
+import { deriveTimeline, type TimelineEvent, type TimelineEventType, type GrowProfile } from "@/lib/grow-profile";
 
 const REFRESH_MS = 15_000;
+
+// Event-type → label + tint (existing palette vars; no invented colors).
+const TL_TYPE: Record<TimelineEventType, { label: [string, string]; tint: string }> = {
+  milestone:    { label: ["Milestone", "אבן דרך"],     tint: "var(--c-mineral)" },
+  harvest:      { label: ["Harvest", "קציר"],          tint: "var(--c-basil)" },
+  prep:         { label: ["Prep", "הכנה"],             tint: "var(--amber)" },
+  prune:        { label: ["Prune", "גיזום"],           tint: "var(--amber)" },
+  water_change: { label: ["Water change", "החלפת מים"], tint: "var(--c-mineral)" },
+  maintenance:  { label: ["Maintenance", "תחזוקה"],     tint: "var(--c-stone)" },
+};
 
 const MEMORY_KIND: Record<string, [string, string]> = {
   fact: ["fact", "עובדה"],
@@ -303,6 +314,70 @@ function EditableField({
   );
 }
 
+/**
+ * The grow's forward+past timeline — a calendar spine: past `done` (dimmed) →
+ * NOW → future planned. Read-only in PR-1 (the Brain will own + the grower will
+ * adjust it in later PRs). LTR tokens (dates) isolated with dir/<bdi> since the
+ * page is RTL in Hebrew and event titles may be either language.
+ */
+function GrowTimeline({ events }: { events: TimelineEvent[] }) {
+  const { t } = useLang();
+  if (!events.length) {
+    return (
+      <p style={{ fontSize: ".9rem", color: "var(--c-ash)" }}>
+        {t("No plan yet — TELOS lays out the grow's timeline as it gets to know this grow.", "עדיין אין תוכנית — TELOS יפרוס את ציר הגידול ככל שיכיר את הגידול הזה.")}
+      </p>
+    );
+  }
+  const firstFuture = events.findIndex((e) => e.status !== "done");
+
+  return (
+    <div>
+      {events.map((ev, i) => {
+        const meta = TL_TYPE[ev.type];
+        const done = ev.status === "done";
+        let when = "";
+        if (ev.scheduled_date && !done) {
+          const days = Math.ceil((new Date(`${ev.scheduled_date}T12:00:00`).getTime() - Date.now()) / 86_400_000);
+          when = days <= 0 ? t("now", "עכשיו") : days === 1 ? t("tomorrow", "מחר") : t(`in ${days} days`, `בעוד ${days} ימים`);
+        } else if (!ev.scheduled_date) {
+          when = t("when ready", "כשמוכן");
+        }
+        return (
+          <div key={ev.id}>
+            {i === firstFuture && firstFuture > 0 ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0 2px" }}>
+                <span style={{ flex: "none", fontSize: ".6rem", letterSpacing: ".14em", textTransform: "uppercase", color: "var(--c-basil)" }}>{t("now", "עכשיו")}</span>
+                <span style={{ flex: 1, height: 1, background: "color-mix(in srgb, var(--c-basil) 35%, transparent)" }} />
+              </div>
+            ) : null}
+            <div className="tk-le" style={done ? { opacity: 0.55 } : undefined}>
+              <div className="lt" dir="ltr">{ev.scheduled_date ?? "—"}</div>
+              <div className="lx">
+                <span
+                  className="tk-tag"
+                  style={{ color: meta.tint, background: `color-mix(in srgb, ${meta.tint} 16%, transparent)`, marginInlineEnd: 6 }}
+                >
+                  {t(...meta.label)}
+                </span>
+                <b><bdi>{ev.title || t(...meta.label)}</bdi></b>
+                {when ? <span className="by"> · {when}</span> : null}
+                {ev.instructions ? (
+                  <div style={{ marginTop: 4, color: "var(--c-ash)" }}><bdi>{ev.instructions}</bdi></div>
+                ) : null}
+                {ev.note ? <div style={{ marginTop: 2, color: "var(--c-fog)" }}><bdi>{ev.note}</bdi></div> : null}
+                {ev.trigger && !ev.scheduled_date ? (
+                  <div style={{ marginTop: 2, color: "var(--c-stone)", fontStyle: "italic" }}><bdi>{ev.trigger}</bdi></div>
+                ) : null}
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function GrowPage() {
   const { t, lang } = useLang();
   const [data, setData] = useState<GrowView | null>(null);
@@ -346,21 +421,18 @@ export default function GrowPage() {
   const latestEpisode =
     data.episodes.find((e) => e.status)?.summary ?? data.episodes[0]?.summary;
 
-  // The Brain's planned-ahead Optimal Harvest (it maintains this in grow_profile).
-  const harvestPlan = (data.grow_profile as Record<string, unknown> | null)?.harvest_plan as
-    | { mode?: string; next_date?: string | null; prep_lead_days?: number; instructions?: string; note?: string | null }
-    | undefined
-    | null;
-  const HARVEST_MODE: Record<string, [string, string]> = {
-    cut_and_come_again: ["Cut & come again", "קטיף חוזר"],
-    repeated_pick: ["Repeated picking", "קטיף חוזר"],
-    single_terminal: ["Final harvest", "קציר סופי"],
-  };
-  let harvestCountdown: string | null = null;
-  if (harvestPlan?.next_date) {
-    const days = Math.ceil((new Date(`${harvestPlan.next_date}T12:00:00`).getTime() - Date.now()) / 86_400_000);
-    harvestCountdown = days <= 0 ? t("due now", "מתבקש עכשיו") : days === 1 ? t("tomorrow", "מחר") : t(`in ${days} days`, `בעוד ${days} ימים`);
-  }
+  // The grow's forward+past timeline. Prefer a Brain-maintained stored timeline
+  // once it exists (PR-2); until then derive a read-only view from existing data
+  // (the harvest plan + onboarding milestone).
+  const profile = (data.grow_profile ?? null) as GrowProfile | null;
+  const timelineEvents =
+    profile?.timeline && profile.timeline.length ? profile.timeline : deriveTimeline(profile);
+  const timelineImminent = timelineEvents.some(
+    (e) =>
+      e.status !== "done" &&
+      e.scheduled_date &&
+      (new Date(`${e.scheduled_date}T12:00:00`).getTime() - Date.now()) / 86_400_000 <= 3
+  );
 
   return (
     <div dir={lang === "he" ? "rtl" : "ltr"} style={{ maxWidth: 1180, margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}>
@@ -396,32 +468,9 @@ export default function GrowPage() {
         </div>
       </section>
 
-      {harvestPlan && (harvestPlan.next_date || harvestPlan.instructions) ? (
-        <Card title={t("Optimal harvest", "קציר אופטימלי")} icon="ph-scissors" glow>
-          <div style={{ display: "flex", alignItems: "baseline", gap: 12, flexWrap: "wrap", marginBottom: 8 }}>
-            {harvestPlan.next_date ? (
-              <>
-                <span style={{ fontFamily: "var(--f-display)", fontSize: "1.4rem", color: "var(--c-parchment)" }} dir="ltr">{harvestPlan.next_date}</span>
-                {harvestCountdown ? <span style={{ fontSize: ".9rem", color: "var(--c-basil)" }}>· {harvestCountdown}</span> : null}
-              </>
-            ) : (
-              <span style={{ fontSize: ".9rem", color: "var(--c-ash)" }}>{t("date being planned", "תאריך בתכנון")}</span>
-            )}
-            {harvestPlan.mode && HARVEST_MODE[harvestPlan.mode] ? (
-              <span className="tk-tag" style={{ marginInlineStart: "auto" }}>{t(...HARVEST_MODE[harvestPlan.mode])}</span>
-            ) : null}
-          </div>
-          {harvestPlan.note ? <p style={{ fontSize: ".92rem", color: "var(--c-fog)", marginBottom: 8 }}>{harvestPlan.note}</p> : null}
-          {harvestPlan.instructions ? (
-            <p style={{ fontSize: ".88rem", color: "var(--c-ash)", lineHeight: 1.55 }}>
-              <span style={{ color: "var(--c-stone)" }}>{t("How", "איך")}: </span>{harvestPlan.instructions}
-            </p>
-          ) : null}
-          {typeof harvestPlan.prep_lead_days === "number" ? (
-            <p style={{ fontSize: ".78rem", color: "var(--c-stone)", marginTop: 8 }}>
-              {t(`Heads-up ${harvestPlan.prep_lead_days} day(s) before · TELOS will open the harvest task at the right time.`, `תזכורת היערכות ${harvestPlan.prep_lead_days} ימים לפני · TELOS יפתח את משימת הקציר בזמן.`)}
-            </p>
-          ) : null}
+      {timelineEvents.length > 0 ? (
+        <Card title={t("Grow timeline", "ציר הגידול")} icon="ph-calendar-blank" glow={timelineImminent}>
+          <GrowTimeline events={timelineEvents} />
         </Card>
       ) : null}
 
