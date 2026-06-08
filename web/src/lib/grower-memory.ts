@@ -17,10 +17,12 @@ export type GrowerMemoryEntry = {
   id: number;
   ts: Date;
   kind: GrowerMemoryKind;
-  /** The thing the grower taught, in their words (Hebrew, grower-facing). */
+  /** The Brain-facing form — may be de-noised/normalized from the raw answer. */
   text: string;
   /** Where it came from — 'grower' (said it) or 'agent_confirmed' (agent inferred + grower confirmed). */
   source: string;
+  /** The grower's verbatim words, preserved even when `text` is normalized. Used as a fidelity fallback. */
+  raw_answer?: string | null;
 };
 
 export const GROWER_MEMORY_KINDS: GrowerMemoryKind[] = [
@@ -67,7 +69,12 @@ export function renderGrowerMemory(entries: GrowerMemoryEntry[] | null | undefin
     "(Authoritative over your general knowledge for THIS grow. NEVER overrides the safety hard-limits. If a new reading contradicts a remembered fact, surface it to the grower rather than silently ignoring either.)",
   ];
   for (const e of entries) {
-    lines.push(`  - [${e.kind}] ${e.text}`);
+    // Fidelity fallback: if the normalized text is too short to carry its own
+    // referent (e.g. a bare "כן"/"yes"), show the verbatim raw answer instead —
+    // so the Brain never reads a stripped answer it can't interpret.
+    const shown =
+      e.raw_answer && e.text.trim().split(/\s+/).length < 3 ? e.raw_answer : e.text;
+    lines.push(`  - [${e.kind}] ${shown}`);
   }
   return lines.join("\n");
 }
