@@ -110,6 +110,12 @@ export default function Dashboard() {
   const stagePair = STAGE_LABEL[sp.growth_stage];
   const stage = stagePair ? t(...stagePair) : sp.growth_stage;
 
+  let nextWhen: string | null = null;
+  if (snap?.next?.scheduled_date) {
+    const dd = Math.ceil((new Date(`${snap.next.scheduled_date}T12:00:00`).getTime() - Date.now()) / 86_400_000);
+    nextWhen = dd <= 0 ? t("now", "עכשיו") : dd === 1 ? t("tomorrow", "מחר") : t(`in ${dd} days`, `בעוד ${dd} ימים`);
+  }
+
   return (
     <main dir={lang === "he" ? "rtl" : "ltr"} style={{ maxWidth: 1180, width: "100%", margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Topbar */}
@@ -129,29 +135,41 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Timeline snapshot — next milestone + last action, links to the full tab */}
+      {/* What's next — TELOS's forward focus, stated in the agent's voice */}
       {snap && (snap.next || snap.last) ? (
-        <Link href="/grow/timeline" style={{ textDecoration: "none" }}>
-          <section className="tk-card hover" style={{ padding: "14px 18px", display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
-            <i className="ph-light ph-clock-countdown" style={{ color: "var(--amber)", fontSize: "1.15rem", flex: "none" }} />
-            {snap.next ? (
-              <div style={{ minWidth: 0 }}>
-                <div style={{ fontSize: ".6rem", letterSpacing: ".12em", textTransform: "uppercase", color: "var(--c-stone)" }}>{t("Next", "הבא")}</div>
-                <div style={{ fontSize: ".88rem", color: "var(--c-parchment)" }}>
-                  <bdi>{snap.next.title || t("Harvest", harvestNounHe(snap.next.harvest_mode))}</bdi>
-                  {snap.next.scheduled_date ? <span dir="ltr" style={{ color: "var(--c-basil)", marginInlineStart: 6 }}>· {snap.next.scheduled_date}</span> : null}
+        <Link href="/grow/timeline" style={{ textDecoration: "none", color: "inherit" }}>
+          <section
+            className="tk-card hover glow"
+            style={{ padding: "clamp(18px,3.2vw,26px) clamp(18px,3.4vw,30px)", display: "flex", gap: 16, alignItems: "flex-start" }}
+          >
+            <span className="tk-live" style={{ marginTop: 10 }} aria-hidden="true" />
+            <div style={{ minWidth: 0, flex: 1 }}>
+              <div className="t-eyebrow" style={{ color: "var(--c-basil)" }}>{t("TELOS · what's next", "TELOS · הצעד הבא")}</div>
+              {snap.next ? (
+                <>
+                  <div style={{ fontFamily: "var(--f-display)", fontWeight: 500, fontSize: "clamp(1.4rem,2.7vw,2.05rem)", color: "var(--c-parchment)", lineHeight: 1.22, marginTop: 8 }}>
+                    <bdi>{snap.next.title || t("Harvest", harvestNounHe(snap.next.harvest_mode))}</bdi>
+                  </div>
+                  {nextWhen ? (
+                    <div style={{ marginTop: 7, fontSize: "1.02rem", color: "var(--c-basil)" }}>
+                      {nextWhen}
+                      {snap.next.scheduled_date ? <span dir="ltr" style={{ color: "var(--c-stone)", marginInlineStart: 8 }}>{snap.next.scheduled_date}</span> : null}
+                    </div>
+                  ) : null}
+                </>
+              ) : (
+                <div style={{ fontFamily: "var(--f-display)", fontSize: "clamp(1.25rem,2.5vw,1.75rem)", color: "var(--c-fog)", marginTop: 8 }}>
+                  {t("Watching over your grow", "שומר על הגידול שלך")}
                 </div>
-              </div>
-            ) : null}
-            {snap.last ? (
-              <div style={{ minWidth: 0, marginInlineStart: "auto", textAlign: "end" as const, maxWidth: "55%" }}>
-                <div style={{ fontSize: ".6rem", letterSpacing: ".12em", textTransform: "uppercase", color: "var(--c-stone)" }}>{t("Last", "אחרון")}</div>
-                <div style={{ fontSize: ".82rem", color: "var(--c-ash)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  <bdi>{snap.last.title}</bdi>
+              )}
+              {snap.last ? (
+                <div style={{ marginTop: 13, fontSize: ".9rem", color: "var(--c-ash)", display: "flex", gap: 7, alignItems: "baseline", flexWrap: "wrap" }}>
+                  <span style={{ color: "var(--c-stone)" }}>{t("Recently", "לאחרונה")}:</span>
+                  <bdi style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{snap.last.title}</bdi>
                 </div>
-              </div>
-            ) : null}
-            <i className={"ph-light " + (lang === "he" ? "ph-arrow-left" : "ph-arrow-right")} style={{ color: "var(--c-stone)", fontSize: ".9rem", flex: "none" }} />
+              ) : null}
+            </div>
+            <i className={"ph-light " + (lang === "he" ? "ph-arrow-left" : "ph-arrow-right")} style={{ color: "var(--c-stone)", fontSize: "1.05rem", flex: "none", marginTop: 8 }} />
           </section>
         </Link>
       ) : null}
