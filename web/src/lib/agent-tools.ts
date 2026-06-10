@@ -22,6 +22,9 @@ import {
   addGrowerMemory,
   getGrowerMemory,
   deactivateGrowerMemory,
+  mergeGrowProfileKey,
+  supersedeTask,
+  supersedeTasksForEvent,
   DEFAULT_SYSTEM_ID,
 } from "./db";
 import { GROWER_MEMORY_KINDS } from "./grower-memory";
@@ -37,7 +40,9 @@ import { getPrimingState } from "./priming";
 import {
   unansweredQuestions,
   isOnboardingComplete,
+  harvestNounHe,
   type GrowProfile,
+  type HarvestPlan,
 } from "./grow-profile";
 import { allCultivarIds, getCultivarRecord } from "./cultivars";
 
@@ -1212,6 +1217,60 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
       execute: async ({ id }) => {
         await deactivateGrowerMemory(systemId, id);
         return { ok: true, id, note: "Retracted. The Brain will stop using this from the next cycle." };
+      },
+    }),
+
+    adjustHarvestPlan: tool({
+      description:
+        "Move (or update) this grow's planned HARVEST / PICKING date when the grower asks — 'delay the harvest to the 19th', 'I already picked, push it out', 'bring the harvest forward'. " +
+        "This is the SINGLE SOURCE OF TRUTH for the harvest date: setting it here updates the dashboard, the grow page, the timeline AND the Brain's analysis at once, and closes any open harvest/prep task that is now stale. The autonomous Brain will respect the grower's date and stop resetting it. " +
+        "If you can see an open harvest/prep task for this grow (from getPendingTasks) that should now be cancelled, pass its id as close_task_id. After calling this, confirm the new date to the grower in Hebrew using the correct word: קטיף for cut-and-come crops like basil, קציר only for a single final harvest.",
+      inputSchema: z.object({
+        next_date: z.string().describe("The new harvest date the grower wants — ISO YYYY-MM-DD."),
+        reason_he: z
+          .string()
+          .describe("The grower's reason, in their words (Hebrew) — stored as a correction so the Brain remembers why the date moved."),
+        close_task_id: z
+          .number()
+          .int()
+          .optional()
+          .describe("Id of an open harvest/prep task to cancel as superseded (from getPendingTasks), if one is showing."),
+      }),
+      execute: async ({ next_date, reason_he, close_task_id }) => {
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(next_date)) {
+          return { ok: false, error: `next_date must be ISO YYYY-MM-DD; got "${next_date}". Ask the grower for the exact date.` };
+        }
+        const sys = await getSystem(systemId);
+        const cur: GrowProfile = sys?.grow_profile ?? {};
+        const prev = cur.harvest_plan ?? null;
+        const now = new Date().toISOString();
+        const harvestPlan: HarvestPlan = {
+          mode: prev?.mode ?? "cut_and_come_again",
+          next_date,
+          prep_lead_days: prev?.prep_lead_days ?? 1,
+          instructions: prev?.instructions ?? "",
+          note: prev?.note ?? null,
+          updated_at: now,
+          grower_moved_at: now,
+        };
+        // KEY-LEVEL write — the cron can't clobber this, and every surface reads
+        // harvest_plan, so the new date is coherent everywhere at once.
+        await mergeGrowProfileKey(systemId, "harvest_plan", harvestPlan);
+        // Close the now-stale task(s): any FUTURE task linked by payload to this
+        // event, plus the specific open one the agent sees (legacy/unlinked).
+        const reason = `התוכנית עודכנה — הקטיף ל-${next_date}.`;
+        let closed = await supersedeTasksForEvent("harvest-next", systemId, reason);
+        if (typeof close_task_id === "number") {
+          if (await supersedeTask(close_task_id, systemId, reason)) closed++;
+        }
+        await addGrowerMemory(systemId, { kind: "correction", text: reason_he, source: "grower" });
+        const word = harvestNounHe(harvestPlan.mode);
+        return {
+          ok: true,
+          next_date,
+          closed_tasks: closed,
+          note: `The harvest date is now ${next_date} across the whole system (dashboard, grow page, timeline, Brain) and the Brain will respect it. Confirm to the grower in Hebrew using "${word}".`,
+        };
       },
     }),
 

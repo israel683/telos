@@ -814,6 +814,90 @@ export async function updateSystem(
   return getSystem(id);
 }
 
+/**
+ * Race-safe, KEY-LEVEL write into the `grow_profile` JSONB — sets exactly one
+ * top-level key, leaving siblings untouched. Unlike `updateSystem({grow_profile})`
+ * (which serializes a whole blob built from a possibly-stale in-memory snapshot
+ * and can clobber a concurrent writer), this is a single atomic UPDATE whose
+ * `jsonb_set` reads + writes the live row, so two concurrent writers (chat move
+ * vs cron persist) serialize on the row instead of overwriting each other. This
+ * is the safe write path for the harvest SSOT.
+ */
+export async function mergeGrowProfileKey(
+  systemId: string,
+  key: string,
+  value: unknown
+): Promise<void> {
+  await ensureSchema();
+  const s = sql();
+  const json = JSON.stringify(value);
+  await s.query(
+    `UPDATE systems
+       SET grow_profile = jsonb_set(COALESCE(grow_profile, '{}'::jsonb), ARRAY[$1], $2::jsonb, true)
+     WHERE id = $3`,
+    [key, json, systemId]
+  );
+}
+
+/**
+ * Supersede a single pending task because the plan it belonged to changed (e.g.
+ * the grower moved the harvest). Closes it as `dismissed` (so it leaves the
+ * pending surfaces + stops nagging) with an honest grower-facing reason, and
+ * logs an honest episode — distinct from `completeTask`'s "המגדל ביצע" happy path.
+ * Returns true if a pending task was actually closed.
+ */
+export async function supersedeTask(
+  id: number,
+  systemId: string,
+  reasonHe: string
+): Promise<boolean> {
+  await ensureSchema();
+  const s = sql();
+  const rows = (await s`
+    UPDATE human_tasks
+    SET status = 'dismissed', completed_at = NOW(), user_response = ${reasonHe}
+    WHERE id = ${id} AND system_id = ${systemId} AND status = 'pending'
+    RETURNING title
+  `) as unknown as Array<{ title: string }>;
+  if (rows[0]) {
+    try {
+      await addEpisode(systemId, { status: null, summary: `התוכנית עודכנה — בוטלה המשימה "${rows[0].title}".` });
+    } catch (e) {
+      console.error("[supersedeTask] addEpisode failed:", e);
+    }
+  }
+  return rows.length > 0;
+}
+
+/**
+ * Supersede ALL pending tasks linked (by `payload.timeline_event_id`) to a
+ * timeline event whose plan changed — the authoritative, link-based supersession
+ * (never matches by title). Returns how many were closed.
+ */
+export async function supersedeTasksForEvent(
+  eventId: string,
+  systemId: string,
+  reasonHe: string
+): Promise<number> {
+  await ensureSchema();
+  const s = sql();
+  const rows = (await s`
+    UPDATE human_tasks
+    SET status = 'dismissed', completed_at = NOW(), user_response = ${reasonHe}
+    WHERE system_id = ${systemId} AND status = 'pending'
+      AND payload->>'timeline_event_id' = ${eventId}
+    RETURNING title
+  `) as unknown as Array<{ title: string }>;
+  for (const r of rows) {
+    try {
+      await addEpisode(systemId, { status: null, summary: `התוכנית עודכנה — בוטלה המשימה "${r.title}".` });
+    } catch (e) {
+      console.error("[supersedeTasksForEvent] addEpisode failed:", e);
+    }
+  }
+  return rows.length;
+}
+
 // === Grower Memory ===
 
 export async function addGrowerMemory(

@@ -61,6 +61,13 @@ export type HarvestPlan = {
   note?: string | null;
   /** ISO timestamp the Brain last updated the plan. */
   updated_at?: string | null;
+  /**
+   * Set when the GROWER moved this date (via chat). While present, this date is
+   * the single source of truth and the autonomous Brain MUST NOT reset it — the
+   * cron preserves it across cycles. Cleared only when the grower hands the date
+   * back to the Brain.
+   */
+  grower_moved_at?: string | null;
 };
 
 // === Grow Timeline =========================================================

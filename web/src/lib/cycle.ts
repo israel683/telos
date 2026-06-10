@@ -26,6 +26,9 @@ import {
   saveDecision,
   saveAction,
   createHumanTask,
+  mergeGrowProfileKey,
+  // updateSystem removed — harvest_plan now persists via the race-safe
+  // mergeGrowProfileKey; re-add if another whole-row update is needed.
   expireOldTasks,
   saveChatMessage,
   setNextCheckAt,
@@ -34,7 +37,6 @@ import {
   addEpisode,
   hasRecentTaskOfType,
   getSystem,
-  updateSystem,
   type SystemRow,
 } from "@/lib/db";
 import { analyzeAndDecide } from "@/lib/brain";
@@ -234,13 +236,19 @@ export async function runSystemCycle(
     sys.id
   );
 
-  // Persist a harvest-plan update if the Brain emitted one this cycle. Merge
-  // into grow_profile (don't clobber other fields). null = no change.
+  // Persist a harvest-plan update if the Brain emitted one this cycle. KEY-LEVEL
+  // write (race-safe — never clobbers a concurrent grower move via chat). And if
+  // the GROWER has moved the date (grower_moved_at set), that date is the single
+  // source of truth: keep the grower's next_date + stamp, accept only the Brain's
+  // instructions/note/mode refresh. This is what stops the cron from re-setting
+  // the harvest to "today" after the grower delayed it in chat.
   if (decision.harvest_plan) {
     try {
-      await updateSystem(sys.id, {
-        grow_profile: { ...(sys.grow_profile ?? {}), harvest_plan: decision.harvest_plan },
-      });
+      const stored = sys.grow_profile?.harvest_plan;
+      const hp = stored?.grower_moved_at
+        ? { ...decision.harvest_plan, next_date: stored.next_date, grower_moved_at: stored.grower_moved_at }
+        : decision.harvest_plan;
+      await mergeGrowProfileKey(sys.id, "harvest_plan", hp);
     } catch (e) {
       console.error(`[cycle] persist harvest_plan failed for system=${sys.id}: ${e}`);
     }

@@ -178,7 +178,10 @@ harvest/prep task and note with the correct word for the cultivar's mode:
 - About \`prep_lead_days\` before \`next_date\`: OPEN a \`manual_action\` heads-up task
   titled "הכנה לקטיף" (cut_and_come_again/repeated_pick) or "הכנה לקציר"
   (single_terminal) — what to ready. When \`next_date\` arrives and the markers are
-  met: OPEN the \`manual_action\` task with the execution instructions.
+  met: OPEN the \`manual_action\` task with the execution instructions. On BOTH
+  the prep and the harvest task, set \`payload.timeline_event_id: "harvest-next"\`
+  so that if the grower later moves the harvest date in chat, the now-stale task
+  is closed automatically (single source of truth).
 - After a harvest is reported done: ROLL \`next_date\` forward by the cadence
   (cut_and_come_again / repeated_pick), or close the grow (single_terminal).
 - Emit \`harvest_plan\` ONLY when creating or changing it; omit it otherwise — the
@@ -710,6 +713,11 @@ export function buildUserPrompt(opts: {
     sections.push(`  Mode: ${hp.mode} · Next harvest: ${hp.next_date ?? "not set"} · prep heads-up ${hp.prep_lead_days}d before`);
     sections.push(`  Instructions: ${hp.instructions}`);
     if (hp.note) sections.push(`  Note: ${hp.note}`);
+    if (hp.grower_moved_at) {
+      sections.push(
+        `  ⚑ The GROWER set this date themselves (on ${hp.grower_moved_at}). This is the single source of truth — do NOT change next_date or emit a harvest_plan that resets it. You MAY refine instructions/note. Only move it if the grower asks again.`
+      );
+    }
     sections.push("");
   }
 
