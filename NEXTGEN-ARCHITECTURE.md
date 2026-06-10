@@ -160,3 +160,75 @@ Jebao directly). To make it copyable:
 - Rich onboarding UX (minimal questionnaire for the POC).
 - Bringing `Knowledge/` under version control alongside `Code/` (flagged: the brand
   book currently sits outside the git repo).
+
+---
+
+## 8 · Current production state (TS / Vercel) — what's actually shipped
+
+> This section is the ground truth for the running system. Where it differs from the
+> planned names in §5, **§8 wins** (§5 is the original design intent).
+
+**Knowledge layers — as built.**
+- **Network Knowledge** — the cultivar registry: `growk/cultivars/*.json` → `npm run
+  sync:cultivars` → committed `web/src/lib/cultivars.generated.ts` (stage bands,
+  `stress_signatures`, `harvest_markers`, `story`, and a `harvest` model:
+  `mode` ∈ cut_and_come_again | repeated_pick | single_terminal, cadence, instructions).
+  Inheritance via `inherits` (`resolveCultivarStage` / `resolveCultivarHarvest`).
+- **Grow Context** — `systems.grow_profile` **JSONB** (one blob, not a separate
+  `grow_profiles` table): onboarding answers, `onboarding_completed_at`, `harvest_plan`,
+  `timeline[]` (+ `grow_anchor_date/kind`).
+- **Grower Memory** — table `grower_memory` (not `grower_facts`): `kind`, `text`,
+  `source`, plus fidelity columns `raw_answer` + `source_flags` (the grower's verbatim
+  words are preserved even when the Brain-facing `text` is de-noised; a render fallback
+  shows the raw for short/anaphoric answers).
+- **Episodic memory** — table `grow_episodes` (not `grow_events`): the Brain's
+  newest-first narrative log of each cycle.
+
+**The autonomous loop (Vercel crons, `vercel.json`).**
+- `/api/cron/poll` — `*/15 * * * *` (sensor poll).
+- `/api/cron/cycle` — `17 */2 * * *` (the Brain decision cycle, every 2h at :17).
+- `/api/cron/daily-report` — `0 8 * * *` (morning summary).
+- **Cycle gate** (`lib/cycle-gate.ts`) — a local pre-check that runs the LLM only when
+  it's worth it: stale sensor, critical envelope, **out-of-tolerance-band** drift,
+  pending high-priority task, or an elapsed next-check. Band-aware (ignores normal
+  diurnal swing). **water_temp is deliberately NOT a wake trigger** (structural heat on
+  an outdoor rig can't be dosed away; the real danger end is still caught by the
+  critical envelope, and `water_temp_critical_high` is 34 °C — near the 35 °C dosing
+  block).
+- **Safety** (`lib/safety.ts`) — pH titration controller: opposite-direction lockout,
+  settle window, per-dose / hourly / daily caps, bottle floor, sensor-freshness gate.
+
+**Harvest = the Single Source of Truth (coherence across all surfaces).**
+- `grow_profile.harvest_plan` is the one stored harvest date; every surface (dashboard,
+  grow page, `/grow/timeline`, the Brain's analysis) reads it (directly or via
+  `deriveTimeline`).
+- The grower can move it in chat (`adjustHarvestPlan`), which stamps `grower_moved_at`;
+  the Brain then **respects** that date (prompt surfaces it; the cron preserves it) and
+  cannot reset it. Moving it **supersedes** the now-stale harvest/prep task (honest
+  `dismissed` + episode), linked by `payload.timeline_event_id`.
+- All `grow_profile` writes on this path go through `mergeGrowProfileKey` — a single
+  atomic **key-level** `jsonb_set` (no whole-blob clobber / write race).
+
+**The Grow Timeline + backward Journal.**
+- `grow_profile.timeline: TimelineEvent[]` — a forward plan (PR-1 derives it read-only
+  from `harvest_plan` + onboarding; full Brain-ownership is the next track).
+- `GET /api/timeline` — `forward` (the plan) + `past` (a grower-safe JOURNAL of episodes
+  + grower/manual tasks). **IP boundary is structural**: `lib/journal.ts` builds each
+  event from a fixed allowlist of named fields (never spreads a source row), so
+  confidential columns (`raw_response`, `tokens_*`, `decision_id`, `system_id`,
+  `payload`) cannot leak. `?snapshot=1` serves the dashboard's compact next/last.
+
+**IP-confidentiality doctrine** (`brand/voice.ts`). The agent explains grow STATES and
+WHY a guardrail exists in agronomic terms, but never reveals model/vendor/prompt/tools/
+code/DB/rules. Enforced in chat (anti-injection block) and surfaced wherever grower-facing
+text is produced. The `/architecture` page is gated behind `NEXT_PUBLIC_SHOW_ARCHITECTURE`;
+the `/changelog` page is benefit-framed and always visible.
+
+**Owner-only observability.** The chat route emits a tool-activity log (names + token
+usage only — never inputs/outputs) to server stderr, gated on `OWNER_DEBUG_ENABLED`
+(a plain, non-`NEXT_PUBLIC_` server env var) — owner forensics that never reach a client.
+
+**Resilience / lean compute.** Fail-fast Neon driver (`neonConfig.fetchFunction` with an
+8s `AbortSignal.timeout`); visibility-aware polling (the UI polls only when the tab is
+visible); on-demand (non-polling) reads for the timeline tab; key-level + `RETURNING`
+writes to bound round-trips. (See the compute-budget doctrine.)

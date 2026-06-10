@@ -93,11 +93,11 @@ const BLOCKS: Block[] = [
   {
     id: "cron-poll",
     title_he: "Cron — קריאת חיישנים",
-    title_en: "Cron: /api/cron/poll (every 5 min)",
+    title_en: "Cron: /api/cron/poll (every 15 min)",
     layer: "server",
     icon: "📡",
     summary_he:
-      "רץ כל 5 דקות (vercel.json).  עובר על כל המערכות הפעילות, מושך קריאה מ-Tuya דרך readTuyaSensor, שומר ל-sensor_readings.  אין קריאה ל-LLM כאן — חיישנים בלבד.",
+      "רץ כל 15 דקות (vercel.json).  עובר על כל המערכות הפעילות, מושך קריאה מ-Tuya דרך readTuyaSensor, שומר ל-sensor_readings.  אין קריאה ל-LLM כאן — חיישנים בלבד.",
     files: ["src/app/api/cron/poll/route.ts", "vercel.json"],
     concepts: [
       {
@@ -108,7 +108,7 @@ const BLOCKS: Block[] = [
       {
         he: "אין LLM",
         detail:
-          "החיסכון העיקרי — 288 קריאות poll/יום עולות $0.  כל הצריכה ב-LLM היא רק במחזור /cycle או בצ'אט.",
+          "החיסכון העיקרי — ~96 קריאות poll/יום עולות $0.  כל הצריכה ב-LLM היא רק במחזור /cycle או בצ'אט.",
       },
     ],
     depends_on: ["tuya-sensor"],
@@ -117,11 +117,11 @@ const BLOCKS: Block[] = [
   {
     id: "cron-cycle",
     title_he: "Cron — מחזור החלטה",
-    title_en: "Cron: /api/cron/cycle (hourly at :17)",
+    title_en: "Cron: /api/cron/cycle (every 2h at :17)",
     layer: "server",
     icon: "🧠",
     summary_he:
-      "המנוע האוטונומי.  כל שעה ב-:17 הוא מנסה לקרוא ל-Claude — אבל קודם עובר ב-cycle-gate שבודק אם בכלל יש מה לעשות.  ההחלטות יכולות להיות 'לדלג' (token=0), 'להציע task לאישור', או 'לירות מנה ישירות' (רק אם autonomous_dosing_enabled=true).",
+      "המנוע האוטונומי.  כל שעתיים ב-:17 הוא מנסה לקרוא ל-Claude — אבל קודם עובר ב-cycle-gate שבודק אם בכלל יש מה לעשות.  ההחלטות יכולות להיות 'לדלג' (token=0), 'להציע task לאישור', או 'לירות מנה ישירות' (רק אם autonomous_dosing_enabled=true).",
     files: ["src/app/api/cron/cycle/route.ts"],
     concepts: [
       {
