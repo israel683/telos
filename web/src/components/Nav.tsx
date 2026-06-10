@@ -22,6 +22,7 @@ const LINKS = [
   { href: "/grow/timeline", en: "Timeline", he: "ציר הזמן", icon: "ph-clock-countdown" },
   { href: "/chat", en: "Chat", he: "שיחה", icon: "ph-chat-circle" },
   { href: "/decisions", en: "Decisions", he: "החלטות", icon: "ph-list-checks" },
+  { href: "/changelog", en: "Change Log", he: "עדכונים", icon: "ph-scroll" },
   ...(SHOW_ARCHITECTURE
     ? [{ href: "/architecture", en: "Architecture", he: "ארכיטקטורה", icon: "ph-tree-structure" }]
     : []),
