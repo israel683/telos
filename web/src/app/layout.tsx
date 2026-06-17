@@ -59,7 +59,7 @@ export const metadata: Metadata = {
 // `themeColor` + `viewport` belong on the Viewport export in Next 15+
 // (the Metadata export type no longer accepts themeColor).
 export const viewport: Viewport = {
-  themeColor: "#10b981",
+  themeColor: "#0c0c0a",
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover", // notch / safe-area awareness
