@@ -12,11 +12,11 @@ export default function ChangelogPage() {
       dir={dir}
       style={{ maxWidth: 760, margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}
     >
-      <header>
-        <h1 style={{ fontFamily: "var(--f-display)", fontWeight: 500, fontSize: "1.7rem", color: "var(--c-parchment)" }}>
+      <header className="tk-rise">
+        <h1 style={{ fontFamily: "var(--f-display)", fontWeight: 300, fontSize: "clamp(1.9rem,3.5vw,2.6rem)", color: "var(--c-parchment)", lineHeight: 1.04, letterSpacing: "-.01em" }}>
           {t("Change Log", "עדכונים")}
         </h1>
-        <p style={{ fontSize: ".88rem", color: "var(--c-ash)", marginTop: 4 }}>
+        <p style={{ fontSize: ".95rem", color: "var(--c-ash)", marginTop: 8 }}>
           {t(
             "How TELOS has grown — the capabilities it has gained over time, newest first.",
             "איך TELOS התפתח — היכולות שנוספו לאורך הזמן, מהחדש לישן.",
