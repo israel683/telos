@@ -138,3 +138,21 @@
 .tk-live::before{ content:"";position:absolute;inset:0;border-radius:50%;background:var(--c-basil);box-shadow:0 0 8px color-mix(in srgb,var(--c-basil) 60%,transparent); }
 .tk-live::after{ content:"";position:absolute;inset:0;border-radius:50%;background:var(--c-basil);animation:tk-pulse-ring 2.6s var(--ease-out,ease-out) infinite; }
 @media (prefers-reduced-motion:reduce){ .tk-live::after{ animation:none } }
+
+/* ── Cultivar gallery — cinematic spotlit-on-void tiles (the canon) ── */
+.tk-cult-grid{ display:grid;grid-template-columns:repeat(auto-fill,minmax(clamp(260px,30vw,330px),1fr));gap:clamp(14px,2vw,24px); }
+.tk-cult{ position:relative;aspect-ratio:4/3;border-radius:var(--r-soft);overflow:hidden;background:var(--c-void);
+  border:1px solid var(--c-bark);box-shadow:var(--glow-shadow);
+  transition:transform .55s var(--ease-out),box-shadow .55s var(--ease-out),border-color .55s var(--ease-out); }
+.tk-cult:hover{ transform:translateY(-6px);border-color:color-mix(in srgb,var(--c-basil) 42%,transparent);
+  box-shadow:0 28px 64px rgba(0,0,0,.6),0 0 0 1px color-mix(in srgb,var(--c-basil) 16%,transparent); }
+.tk-cult img{ position:absolute;inset:0;width:100%;height:100%;object-fit:cover;filter:saturate(1.02);
+  transition:transform .8s var(--ease-out),filter .8s var(--ease-out); }
+.tk-cult:hover img{ transform:scale(1.055);filter:saturate(1.12) brightness(1.07); }
+.tk-cult .scrim{ position:absolute;inset:0;z-index:1;pointer-events:none;
+  background:linear-gradient(to top,rgba(8,8,6,.93) 0%,rgba(8,8,6,.5) 34%,transparent 64%); }
+.tk-cult .meta{ position:absolute;inset-inline:0;bottom:0;z-index:2;padding:clamp(16px,2vw,24px); }
+.tk-cult .meta .nm{ font-family:var(--f-display);font-weight:500;font-size:clamp(1.35rem,1.9vw,1.75rem);color:var(--c-parchment);line-height:1.12; }
+.tk-cult .meta .sub{ margin-top:6px;font-size:.95rem;color:var(--c-fog);letter-spacing:.01em; }
+.tk-cult .coded{ position:absolute;top:13px;inset-inline-end:13px;z-index:2; }
+@media (prefers-reduced-motion:reduce){ .tk-cult,.tk-cult img{ transition:none } .tk-cult:hover{ transform:none } .tk-cult:hover img{ transform:none } }

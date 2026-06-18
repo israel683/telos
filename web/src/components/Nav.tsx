@@ -20,6 +20,7 @@ const LINKS = [
   { href: "/", en: "Dashboard", he: "לוח בקרה", icon: "ph-squares-four" },
   { href: "/grow", en: "The Grow", he: "הגידול", icon: "ph-plant" },
   { href: "/grow/timeline", en: "Timeline", he: "ציר הזמן", icon: "ph-clock-countdown" },
+  { href: "/cultivars", en: "Cultivars", he: "קולטיברים", icon: "ph-leaf" },
   { href: "/chat", en: "Chat", he: "שיחה", icon: "ph-chat-circle" },
   { href: "/decisions", en: "Decisions", he: "החלטות", icon: "ph-list-checks" },
   { href: "/changelog", en: "Change Log", he: "עדכונים", icon: "ph-scroll" },
