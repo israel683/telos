@@ -139,7 +139,7 @@ export default function Dashboard() {
       {snap && (snap.next || snap.last) ? (
         <Link href="/grow/timeline" style={{ textDecoration: "none", color: "inherit" }}>
           <section
-            className="tk-card hover glow"
+            className="tk-card hover glow tk-rise"
             style={{ padding: "clamp(18px,3.2vw,26px) clamp(18px,3.4vw,30px)", display: "flex", gap: 16, alignItems: "flex-start" }}
           >
             <span className="tk-live" style={{ marginTop: 10 }} aria-hidden="true" />

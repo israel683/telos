@@ -77,7 +77,15 @@ export function Nav() {
       // paddingTop carries the nav's own --c-soil up through the iOS safe-area
       // (notch/status bar) in standalone PWA mode — keeping `top-0` so a `top`
       // offset can't leave a wrong-colored gap above it. 0px on desktop/Android.
-      style={{ background: "var(--c-soil)", paddingTop: "env(safe-area-inset-top)", borderBottom: "1px solid color-mix(in srgb, var(--c-parchment) 6%, transparent)" }}
+      style={{
+        // Glass chrome — translucent soil over a blur, so content drifts beneath
+        // the nav (premium depth). paddingTop carries it through the iOS notch.
+        background: "color-mix(in srgb, var(--c-soil) 78%, transparent)",
+        backdropFilter: "blur(18px) saturate(1.3)",
+        WebkitBackdropFilter: "blur(18px) saturate(1.3)",
+        paddingTop: "env(safe-area-inset-top)",
+        borderBottom: "1px solid color-mix(in srgb, var(--c-parchment) 8%, transparent)",
+      }}
     >
       <div className="max-w-6xl mx-auto px-3 sm:px-6 pt-2 pb-2 flex flex-col gap-2">
         {/* Row 1 — brand + scope (start) · status + overflow (end) */}
