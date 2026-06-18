@@ -60,12 +60,12 @@ export default function TimelinePage() {
       dir={dir}
       style={{ maxWidth: 860, margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}
     >
-      <header style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+      <header className="tk-rise" style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
         <div>
-          <h1 style={{ fontFamily: "var(--f-display)", fontWeight: 500, fontSize: "1.6rem", color: "var(--c-parchment)" }}>
+          <h1 style={{ fontFamily: "var(--f-display)", fontWeight: 300, fontSize: "clamp(1.9rem,3.5vw,2.6rem)", color: "var(--c-parchment)", lineHeight: 1.04, letterSpacing: "-.01em" }}>
             {t("Grow timeline", "ציר הגידול")}
           </h1>
-          <p style={{ fontSize: ".85rem", color: "var(--c-ash)", marginTop: 2 }}>
+          <p style={{ fontSize: ".95rem", color: "var(--c-ash)", marginTop: 6 }}>
             {t("What's ahead, and everything that's happened to this grow.", "מה לפנינו, וכל מה שקרה לגידול הזה.")}
           </p>
         </div>

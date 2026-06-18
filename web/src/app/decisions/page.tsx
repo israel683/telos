@@ -77,7 +77,7 @@ export default function DecisionsPage() {
 
   return (
     <main className="flex-1 max-w-6xl w-full mx-auto p-6">
-      <header className="mb-5">
+      <header className="mb-5 tk-rise">
         <h1 style={{ fontFamily: "var(--f-display)", fontWeight: 300, fontSize: "clamp(1.9rem,3.5vw,2.6rem)", color: "var(--c-parchment)", lineHeight: 1, letterSpacing: "-.01em" }}>
           {t("Decision history", "היסטוריית החלטות")}
         </h1>
