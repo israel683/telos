@@ -14,7 +14,9 @@
   padding:18px;
   display:flex;flex-direction:column;min-height:0;
 }
-.tk-card.hover:hover{ background:var(--c-earth); }
+.tk-card.hover{ transition:background .35s var(--ease-out),transform .45s var(--ease-out),box-shadow .45s var(--ease-out); }
+.tk-card.hover:hover{ background:var(--c-earth);transform:translateY(-3px);box-shadow:0 22px 50px rgba(0,0,0,.5); }
+@media (prefers-reduced-motion:reduce){ .tk-card.hover:hover{ transform:none; } }
 /* Standard glow tier — a soft amber pool, fades to transparent */
 .tk-card.glow{ position:relative;overflow:hidden; }
 .tk-card.glow::before{

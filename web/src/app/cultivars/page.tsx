@@ -12,7 +12,7 @@ export default function CultivarsPage() {
       dir={dir}
       style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(1.8rem,4vw,3rem) clamp(0.9rem,3vw,1.6rem) 5rem", display: "flex", flexDirection: "column", gap: "clamp(22px,3vw,38px)" }}
     >
-      <header style={{ maxWidth: "44ch" }}>
+      <header className="tk-rise" style={{ maxWidth: "44ch" }}>
         <div className="t-eyebrow">{t("Network knowledge", "ידע הרשת")}</div>
         <h1 style={{ fontFamily: "var(--f-display)", fontWeight: 300, fontSize: "clamp(2.6rem,5vw,4.2rem)", lineHeight: 1.04, color: "var(--c-parchment)", margin: "10px 0 0", letterSpacing: "-.01em" }}>
           {t("The cultivar canon", "מאגר הקולטיברים")}
@@ -25,7 +25,7 @@ export default function CultivarsPage() {
         </p>
       </header>
 
-      <div className="tk-cult-grid">
+      <div className="tk-cult-grid tk-rise-2">
         {CULTIVARS.map((c) => (
           <article key={c.slug} className="tk-cult">
             {/* eslint-disable-next-line @next/next/no-img-element -- cinematic cultivar render, pre-optimized webp */}

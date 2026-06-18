@@ -163,6 +163,39 @@
    generosity, without per-element edits. */
 html {
   font-size: 17px;
+  scroll-behavior: smooth;
+}
+
+/* ════════════════════════════════════════════════════════════════
+   Cinematic layer — depth, motion, premium detailing. Futuristic but
+   calm (the device is olive + amber under-glow; the UI echoes it).
+   ════════════════════════════════════════════════════════════════ */
+
+/* Basil text selection + a quiet keyboard focus ring (premium detail). */
+::selection { background: color-mix(in srgb, var(--c-basil) 30%, transparent); color: var(--c-parchment); }
+:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ground-warm), 0 0 0 4px color-mix(in srgb, var(--c-basil) 55%, transparent);
+  border-radius: var(--r-sm);
+}
+
+/* Thin, on-brand scrollbars. */
+* { scrollbar-width: thin; scrollbar-color: var(--c-bark) transparent; }
+*::-webkit-scrollbar { width: 10px; height: 10px; }
+*::-webkit-scrollbar-thumb { background: var(--c-bark); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
+*::-webkit-scrollbar-thumb:hover { background: var(--c-stone); }
+
+/* Cinematic entrance — content rises into the light. Runs once per mount
+   (i.e. per page navigation), not per data re-render. Stagger with -2/-3/-4. */
+@keyframes tk-rise { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+.tk-rise   { animation: tk-rise .7s var(--ease-out) both; }
+.tk-rise-2 { animation: tk-rise .7s var(--ease-out) .08s both; }
+.tk-rise-3 { animation: tk-rise .7s var(--ease-out) .16s both; }
+.tk-rise-4 { animation: tk-rise .7s var(--ease-out) .24s both; }
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .tk-rise, .tk-rise-2, .tk-rise-3, .tk-rise-4 { animation: none; }
 }
 
 /* TELOS is a DARK system by default.  We don't auto-switch on

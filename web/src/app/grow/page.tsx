@@ -455,7 +455,7 @@ export default function GrowPage() {
   return (
     <div dir={lang === "he" ? "rtl" : "ltr"} style={{ maxWidth: 1180, margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}>
       {/* HERO — cinematic image + spotlit statement */}
-      <section className="tk-focus">
+      <section className="tk-focus tk-rise">
         <div className="tk-focus-visual">
           {/* eslint-disable-next-line @next/next/no-img-element -- cinematic hero */}
           <img src={cultivarImage(data.cultivar?.id, data.system.crop_type) ?? "/brand/founding-basil.png"} alt={data.cultivar?.name ?? data.system.crop_type} />
