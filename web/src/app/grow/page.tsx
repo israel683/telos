@@ -6,6 +6,7 @@ import { getGrow, answerOnboarding, type GrowView, type OnboardingView, type Gro
 import { startVisibilityAwarePolling } from "@/lib/poll";
 import { useLang, statusLabel } from "@/lib/i18n";
 import { deriveTimeline, harvestNounHe, type TimelineEvent, type TimelineEventType, type GrowProfile } from "@/lib/grow-profile";
+import { cultivarImage } from "@/lib/cultivar-images";
 
 const REFRESH_MS = 15_000;
 
@@ -457,7 +458,7 @@ export default function GrowPage() {
       <section className="tk-focus">
         <div className="tk-focus-visual">
           {/* eslint-disable-next-line @next/next/no-img-element -- cinematic hero */}
-          <img src="/brand/founding-basil.png" alt={data.cultivar?.name ?? data.system.crop_type} />
+          <img src={cultivarImage(data.cultivar?.id, data.system.crop_type) ?? "/brand/founding-basil.png"} alt={data.cultivar?.name ?? data.system.crop_type} />
           <div className="grad" />
           <div className="dust" />
           <div className="vtag">
