@@ -87,7 +87,22 @@ export default function Dashboard() {
     refresh();
   }
 
-  if (loading) return <main style={{ flex: 1, display: "grid", placeItems: "center", color: "var(--c-ash)" }}>{t("Loading…", "טוען נתונים…")}</main>;
+  if (loading)
+    return (
+      <main style={{ flex: 1, display: "grid", placeItems: "center", padding: 32 }}>
+        <div style={{ textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 22 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- cinematic device render, pre-optimized webp */}
+          <img
+            src="/brand/telos-brain.webp"
+            alt="TELOS"
+            className="tk-breathe"
+            style={{ width: "clamp(150px,30vw,220px)", height: "auto", filter: "drop-shadow(0 26px 64px rgba(168,120,60,.3))" }}
+          />
+          <div className="t-wordmark" style={{ fontSize: "1.5rem" }}>TELOS</div>
+          <div style={{ fontSize: ".75rem", letterSpacing: ".22em", textTransform: "uppercase", color: "var(--c-stone)" }}>{t("Waking the Brain", "מעיר את המוח")}</div>
+        </div>
+      </main>
+    );
   // Only show the full error screen when we have NOTHING to show. Once state has
   // loaded, a transient poll failure must NOT blank the dashboard — keep the
   // last-known view (StatusChip carries the offline signal) and let the next
@@ -95,9 +110,15 @@ export default function Dashboard() {
   if (!state) {
     return (
       <main style={{ flex: 1, display: "grid", placeItems: "center", padding: 32 }}>
-        <div style={{ maxWidth: 420, textAlign: "center" }}>
-          <h2 style={{ fontFamily: "var(--f-display)", fontSize: "1.5rem", color: "var(--c-parchment)", marginBottom: 8 }}>{t("Can't reach TELOS", "אין כרגע קשר ל‑TELOS")}</h2>
-          <p style={{ fontSize: ".85rem", color: "var(--c-ash)" }}>{t("Reconnecting on its own — this page refreshes automatically.", "מתחבר מחדש מעצמו — העמוד יתרענן אוטומטית.")}</p>
+        <div style={{ maxWidth: 460, textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 18 }}>
+          {/* eslint-disable-next-line @next/next/no-img-element -- cinematic device render, pre-optimized webp */}
+          <img
+            src="/brand/telos-brain.webp"
+            alt="TELOS"
+            style={{ width: "clamp(130px,26vw,180px)", height: "auto", opacity: 0.45, filter: "grayscale(0.35)" }}
+          />
+          <h2 style={{ fontFamily: "var(--f-display)", fontSize: "clamp(1.7rem,3vw,2.2rem)", color: "var(--c-parchment)", lineHeight: 1.1 }}>{t("Can't reach TELOS", "אין כרגע קשר ל‑TELOS")}</h2>
+          <p style={{ fontSize: ".98rem", color: "var(--c-ash)", lineHeight: 1.5 }}>{t("Reconnecting on its own — this page refreshes automatically.", "מתחבר מחדש מעצמו — העמוד יתרענן אוטומטית.")}</p>
         </div>
       </main>
     );
@@ -247,7 +268,7 @@ export default function Dashboard() {
 function Reading({ label, value, unit, digits, icon }: { label: string; value: number | null | undefined; unit?: string; digits: number; icon?: string }) {
   const display = value === null || value === undefined ? "—" : value.toFixed(digits);
   return (
-    <div className="tk-card hover" style={{ padding: 18 }}>
+    <div className="tk-card hover" style={{ padding: "clamp(18px,2.4vw,26px)" }}>
       <div className="tk-reading">
         <div className="l">{icon ? <i className={"ph-light " + icon} /> : null}{label}</div>
         <div className="v" dir="ltr">{display}{unit ? <span className="u">{unit}</span> : null}</div>

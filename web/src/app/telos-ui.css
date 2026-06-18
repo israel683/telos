@@ -29,11 +29,12 @@
 .tk-card-h .more{ font-size:.6rem;color:var(--c-stone);letter-spacing:.1em; }
 
 /* ── reading (metric) ──────────────────────────────────────────────────── */
-.tk-reading{ display:flex;flex-direction:column;gap:6px; }
-.tk-reading .v{ font-family:var(--f-display);font-weight:300;font-size:2rem;color:var(--c-parchment);line-height:.95; }
-.tk-reading .v .u{ font-family:var(--f-body);font-size:.8rem;color:var(--c-stone);font-weight:400;margin-inline-start:4px; }
-.tk-reading .l{ font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--c-stone);display:flex;align-items:center;gap:7px; }
-.tk-reading .l i{ font-size:1rem;color:var(--amber);letter-spacing:0; }
+/* The instrument cluster — big, calm, tabular numerals (the metric IS the hero). */
+.tk-reading{ display:flex;flex-direction:column;gap:10px; }
+.tk-reading .v{ font-family:var(--f-display);font-weight:300;font-size:clamp(2.6rem,4.6vw,3.7rem);color:var(--c-parchment);line-height:.9;letter-spacing:-.015em;font-variant-numeric:tabular-nums; }
+.tk-reading .v .u{ font-family:var(--f-body);font-size:.92rem;color:var(--c-stone);font-weight:400;margin-inline-start:6px;letter-spacing:.02em; }
+.tk-reading .l{ font-size:.72rem;letter-spacing:.16em;text-transform:uppercase;color:var(--c-ash);display:flex;align-items:center;gap:8px; }
+.tk-reading .l i{ font-size:1.15rem;color:var(--amber);letter-spacing:0; }
 .tk-reading .d{ font-size:.64rem;color:var(--c-basil); }
 .tk-reading .d.warn{ color:var(--c-terra); }
 

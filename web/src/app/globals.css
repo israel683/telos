@@ -193,9 +193,13 @@ html {
 .tk-rise-3 { animation: tk-rise .7s var(--ease-out) .16s both; }
 .tk-rise-4 { animation: tk-rise .7s var(--ease-out) .24s both; }
 
+/* A slow "alive" breathe for the device on the loading/offline screens. */
+@keyframes tk-breathe { 0%, 100% { opacity: .82; transform: scale(1); } 50% { opacity: 1; transform: scale(1.015); } }
+.tk-breathe { animation: tk-breathe 4.5s ease-in-out infinite; }
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
-  .tk-rise, .tk-rise-2, .tk-rise-3, .tk-rise-4 { animation: none; }
+  .tk-rise, .tk-rise-2, .tk-rise-3, .tk-rise-4, .tk-breathe { animation: none; }
 }
 
 /* TELOS is a DARK system by default.  We don't auto-switch on
