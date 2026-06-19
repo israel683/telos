@@ -22,10 +22,20 @@ export async function GET(req: Request) {
     const priorityCounts: Record<string, number> = { urgent: 0, high: 0, medium: 0, low: 0 };
     for (const t of pending) priorityCounts[t.priority] = (priorityCounts[t.priority] || 0) + 1;
 
+    // Seconds until the next autonomous analysis. The real schedule is
+    // `next_check_at` (set by the cycle from Claude's next_check_minutes +
+    // the stage-aware proactive cadence), NOT the legacy `ai_cycle_minutes`
+    // field — which is never updated and made the dashboard countdown lie
+    // (always "60 min"). Fall back to ai_cycle_minutes only when no cycle has
+    // run yet; clamp at 0 (an elapsed check fires on the next cron tick).
+    const nextAiSeconds = sys.next_check_at
+      ? Math.max(0, Math.round((sys.next_check_at.getTime() - Date.now()) / 1000))
+      : sys.ai_cycle_minutes * 60;
+
     return NextResponse.json({
       agent: {
         cycle_count: decisions.length,
-        next_ai_seconds: sys.ai_cycle_minutes * 60,
+        next_ai_seconds: nextAiSeconds,
         mock_mode: false,
         model: process.env.CHAT_MODEL || "claude-sonnet-4-6",
       },

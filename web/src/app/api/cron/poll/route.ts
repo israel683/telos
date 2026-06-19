@@ -5,7 +5,7 @@
  * system's own tuya_device_id if set, else the env default) and writes one
  * row to sensor_readings scoped by system_id.
  *
- * Configured via vercel.json to run every 5 minutes.
+ * Configured via vercel.json to run every 15 minutes.
  */
 import { NextResponse } from "next/server";
 import { saveReading, listSystems } from "@/lib/db";

@@ -3,8 +3,8 @@
  * should actually invoke Claude this tick, or skip the LLM and log a cheap
  * "stable, no decision needed" record.
  *
- * Design rationale: the cron fires hourly, but a 60L NFT reservoir simply
- * doesn't change meaningfully in an hour when things are healthy.  Token
+ * Design rationale: the cron fires every 2 hours, but a 60L NFT reservoir
+ * simply doesn't change meaningfully in that window when things are healthy.  Token
  * spend on `analyzeAndDecide` for those quiet hours is pure waste — and
  * the Claude response *itself* tells us "check again in 2-6 hours" when
  * status=healthy.  This gate honours that hint and adds a delta-based
@@ -45,12 +45,6 @@ export const CYCLE_GATE = {
   ph_stable_delta: 0.15,
   ec_stable_delta: 75,
   water_temp_stable_delta: 1.5,
-
-  // Minimum spacing between LLM cycles when status=healthy.  The cron itself
-  // ticks every 2 hours (vercel.json: "17 */2 * * *"); this floor keeps us
-  // from re-engaging on the very next tick if Claude said "next_check in 4h".
-  // Floor in MINUTES.
-  min_skip_minutes: 150,
 
   // After a SKIP decision we still want to re-evaluate sooner than a normal
   // healthy next_check (Claude wasn't in the loop to say otherwise), so the

@@ -132,7 +132,7 @@ const BLOCKS: Block[] = [
       {
         he: "Honor next_check_at",
         detail:
-          "כל החלטה של Claude מחזירה next_check_minutes.  המחזור מכבד את זה (עם floor של 90 דק' במצב healthy) ומעדכן את systems.next_check_at.",
+          "כל החלטה של Claude מחזירה next_check_minutes.  המחזור מכבד את זה כשיש פעולה או מצב לא-healthy; כשהכל רגוע ובריא הוא קובע קדנס פרואקטיבי תלוי-שלב (seedling/flowering ~6 שעות, vegetative ~12, fruiting ~8) ומעדכן את systems.next_check_at.",
       },
       {
         he: "Autonomous gate",
@@ -175,7 +175,7 @@ const BLOCKS: Block[] = [
       {
         he: "BYPASS triggers",
         detail:
-          "1) חיישן >10 דק' ישן  2) ערך קריטי (pH <5/>7.5 EC <200/>3000 temp <10/>30)  3) מחוץ לתוך tolerance band  4) משימת high/urgent ממתינה  5) ההחלטה הקודמת לא healthy  6) drift גדול לעומת ההחלטה הקודמת.",
+          "1) חיישן >10 דק' ישן  2) ערך קריטי (pH <5/>7.5 EC <200/>3000 temp <10/>34)  3) מחוץ ל-tolerance band  4) משימת high/urgent ממתינה  5) ההחלטה הקודמת לא healthy  6) drift גדול לעומת ההחלטה הקודמת.",
       },
       {
         he: "SKIP rationale",
@@ -775,7 +775,7 @@ export default function ArchitecturePage() {
 function FlowDiagram({ onSelect }: { onSelect: (id: string) => void }) {
   const STAGES: Array<{ id: string; label_he: string; icon: string }> = [
     { id: "tuya-sensor", label_he: "חיישנים", icon: "🌡️" },
-    { id: "cron-poll", label_he: "Poll 5min", icon: "📡" },
+    { id: "cron-poll", label_he: "Poll 15min", icon: "📡" },
     { id: "cycle-gate", label_he: "Cycle Gate", icon: "🚦" },
     { id: "brain", label_he: "Brain", icon: "🤖" },
     { id: "safety", label_he: "Safety", icon: "🛡️" },

@@ -476,7 +476,7 @@ export type SystemRow = {
   bottle_verified_at: Record<string, string> | null;
   /**
    * Where sensor readings come from for this system.
-   *  - 'tuya_cloud' (default): cron-poll pulls from Tuya every 5 min.
+   *  - 'tuya_cloud' (default): cron-poll pulls from Tuya every 15 min.
    *  - 'home_assistant': cron-poll skips this system; readings arrive via
    *    POST /api/sensor/ingest pushed by a Home Assistant automation.
    *  - 'webhook_generic': any other push source.

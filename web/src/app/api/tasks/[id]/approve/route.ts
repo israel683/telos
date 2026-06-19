@@ -11,7 +11,7 @@
  * (completeTask endpoint, untouched).
  */
 import { NextResponse } from "next/server";
-import { completeTask, saveAction, sql, ensureSchema } from "@/lib/db";
+import { completeTask, saveAction, decrementBottle, sql, ensureSchema } from "@/lib/db";
 import { reevalSystem } from "@/lib/cycle";
 import { systemIdFromRequest } from "@/lib/system-ctx";
 import { getDosingConfig } from "@/lib/dosing-config";
@@ -155,6 +155,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     );
   } catch (e) {
     console.error("[task/approve] failed to log action:", e);
+  }
+  // Decrement the bottle on a confirmed-success pump fire — same bookkeeping
+  // the chat (executeDose) and the autonomous cron path already do. Without
+  // this, dashboard-approved doses silently drift the tracked bottle level,
+  // corrupting the safety floor + days-until-empty forecast.
+  if (r.success) {
+    try {
+      await decrementBottle(systemId, channel, amountMl);
+    } catch (e) {
+      console.error("[task/approve] decrementBottle failed:", e);
+    }
   }
   try {
     await completeTask(taskId, r.success ? "approved + executed" : `approved but failed: ${r.error}`, systemId);

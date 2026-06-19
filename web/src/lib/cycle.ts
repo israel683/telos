@@ -268,6 +268,15 @@ export async function runSystemCycle(
   };
   const createdTasks: typeof decision.human_tasks = [];
   for (const t of decision.human_tasks) {
+    // dose_approval is owned EXCLUSIVELY by the proposed_doses path below, which
+    // guarantees a payload with channel + amount_ml (what /approve needs to fire
+    // the pump). A dose_approval coming through the generic human_tasks channel
+    // would either duplicate that task or carry no usable payload — so drop it
+    // here. Dose recommendations must arrive as `actions[]`, not human_tasks.
+    if (t.type === "dose_approval") {
+      console.log(`[cycle] system=${sys.id} dropped dose_approval from human_tasks (owned by the dose path)`);
+      continue;
+    }
     // A grower-action re-eval must not re-interrogate the grower they just
     // engaged with — this is what made an answered question "reappear".
     if (t.type === "question" && suppressNewQuestions) {
