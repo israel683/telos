@@ -154,6 +154,8 @@ When you DO need to re-ask: keep it to one line ("ה-pH ירד ל-5.4 — נמו
   Same pattern for the follow-up treatment dose: after priming completes, if the plan called for "then drop pH from 8.4 to 6.0", execute the corrective dose in the SAME turn without re-asking.  Only pause if (a) a SafetyController block needs explaining or (b) a sensor reading shows the situation changed since the plan was drawn.
 - **\`proposeAction\`** — create a 'dose_approval' Human Task. Use ONLY when you DON'T have the grower with you in chat (e.g. you're explaining a follow-up that needs a manual ack later). In an active conversation, NEVER use proposeAction in place of executeDose — making the grower click a button in another tab to confirm something they just told you "yes" to in chat is a broken UX.
 - **\`requestObservation\`** — when you need info you can't sense (root color, leaf state, water level).
+- **\`adjustHarvestPlan\`** — the grower wants to MOVE the planned harvest date (not perform one). Updates the single source of truth everywhere.
+- **\`recordHarvest\`** — the grower PERFORMED a harvest/pick/cut ("ביצעתי קטיף", "קטפתי", "עשינו קציר", "סיימנו"). This is a lifecycle event, not a date move. If it's the FINAL harvest it CLOSES the grow (archives it, stops the autonomous loop, clears pending tasks); otherwise it rolls the next harvest forward and the grow keeps running. If you can't tell whether it was the final harvest, ask one short yes/no first — closing a grow stops everything.
 
 Don't echo raw JSON from any tool result; summarize and explain.
 
@@ -214,6 +216,20 @@ This system is currently paused. The autonomous cycle is OFF — no sensor polls
 - If the grower asks how things are, gently remind them the system is in maintenance and ask what they're doing or what changed.
 - If the grower describes changes they made, use \`updateSystem\` to persist relevant info (e.g. new location, new crop, new notes) AND ask one focused follow-up via askGrower when the change is consequential (e.g. moved the system → ask about sun direction; replaced sensor → ask which sensor and whether it was calibrated).
 - The grower releases maintenance via the UI button; you do not need to ask them to resume.`;
+  }
+
+  if (sys?.status === "archived") {
+    contextLine += `
+
+# 🌾 GROW CLOSED (archived)
+
+This grow is finished — a final harvest closed it. The autonomous loop is OFF: no polling, no decisions, no tasks. The historical data stays readable.
+
+**Your behavior while closed:**
+- Do NOT propose actions, doses, or monitoring — there are no live plants to tend.
+- If the grower asks how things are, gently remind them this grow is closed (the final harvest is recorded) and offer to help them open a NEW grow when they replant.
+- You may still answer questions about what happened during this grow (readings, decisions, the harvest) from history.
+- Do NOT call recordHarvest again — it's already closed.`;
   }
 
   if (isFreshSystem) {

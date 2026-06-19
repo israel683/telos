@@ -477,6 +477,35 @@ const BLOCKS: Block[] = [
     produces_for: ["chat-ui"],
   },
   {
+    id: "grow-lifecycle",
+    title_he: "מחזור-חיים של גידול",
+    title_en: "Grow lifecycle — harvest → close transition",
+    layer: "control",
+    icon: "🌾",
+    summary_he:
+      "מכונת-המצבים של גידול: onboarding → establishing → growing → harvest_window → closed.  כלי recordHarvest הופך 'ביצעתי קטיף' מהערה בצ'אט למעבר-מצב אמיתי: קטיף סופי (או זן single_terminal) סוגר את הגידול — מארכב את המערכת, מכבה את הלולאה האוטונומית ומבטל משימות פתוחות.  קטיף חוזר מגלגל את התאריך הבא קדימה.",
+    files: ["src/lib/grow-lifecycle.ts", "src/lib/agent-tools.ts (recordHarvest)", "src/lib/grow-profile.ts (harvest_plan.completed_at)"],
+    concepts: [
+      {
+        he: "הבאג שנסגר",
+        detail:
+          "קודם לכן ל-cron אין אלא status='active' (listSystems().filter(active)), ושום מסלול קטיף לא שינה אותו — אז גידול שנקטף סופית המשיך להידגם, להחליט ולהטריד.  recordHarvest קורא ל-archiveSystem ועוצר את הלולאה.",
+      },
+      {
+        he: "close vs continue",
+        detail:
+          "resolveHarvestOutcome(mode, is_final, cadence): single_terminal או is_final=true → close (archive + dismiss tasks + harvest_plan.completed_at).  אחרת → continue (next_date מתגלגל לפי cadence הזן).",
+      },
+      {
+        he: "מודעות מצב בצ'אט",
+        detail:
+          "כשstatus='archived' ה-chat route מזריק בלוק 'GROW CLOSED' — הסוכן לא מנטר/מזריק, רק עונה מההיסטוריה ומציע לפתוח גידול חדש בשתילה הבאה.",
+      },
+    ],
+    depends_on: ["db", "tolerance"],
+    produces_for: ["cron-cycle", "chat-route", "tasks"],
+  },
+  {
     id: "tasks",
     title_he: "Human Task Queue",
     title_en: "human_tasks + approval/complete/dismiss endpoints",

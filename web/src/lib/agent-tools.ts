@@ -26,6 +26,8 @@ import {
   supersedeTask,
   supersedeTasksForEvent,
   addEpisode,
+  archiveSystem,
+  dismissAllPendingTasks,
   DEFAULT_SYSTEM_ID,
 } from "./db";
 import { GROWER_MEMORY_KINDS } from "./grower-memory";
@@ -45,7 +47,8 @@ import {
   type GrowProfile,
   type HarvestPlan,
 } from "./grow-profile";
-import { allCultivarIds, getCultivarRecord } from "./cultivars";
+import { allCultivarIds, getCultivarRecord, resolveCultivarHarvest } from "./cultivars";
+import { resolveHarvestOutcome } from "./grow-lifecycle";
 
 export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
   // Resolve the per-system dosing layout once per chat request so all tools
@@ -1278,6 +1281,111 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           next_date,
           closed_tasks: closed,
           note: `The harvest date is now ${next_date} across the whole system (dashboard, grow page, timeline, Brain) and the Brain will respect it. Confirm to the grower in Hebrew using "${word}".`,
+        };
+      },
+    }),
+
+    recordHarvest: tool({
+      description:
+        "Record that the grower PERFORMED a harvest/pick/cut on this grow — call this the moment they say so ('ביצעתי קטיף', 'קטפתי', 'עשינו קציר', 'סיימנו את הגידול'). " +
+        "This is the lifecycle transition the system was missing: a FINAL harvest CLOSES the grow — it archives the system, STOPS the autonomous loop (no more polling / decisions / nagging), and dismisses every pending task. A recurring harvest (cut-and-come-again / repeated pick) instead rolls the next harvest date forward and the grow keeps running. " +
+        "Set `is_final` carefully: for a single_terminal cultivar (head lettuce, radicchio, mâche) ANY harvest is final. For cut-and-come crops (basil, leaf herbs) it's final ONLY when the grower says they're done with this grow / pulling the plants. " +
+        "If you genuinely can't tell whether this was the FINAL harvest, ASK the grower first (a short yes/no via askGrower) — closing a grow stops everything, so don't guess. After this runs, confirm to the grower in Hebrew what happened (closed, or next harvest date).",
+      inputSchema: z.object({
+        is_final: z
+          .boolean()
+          .describe(
+            "True = this was the LAST harvest; the grow is finished → close + archive it. False = a recurring harvest; the plant lives on and the next harvest rolls forward."
+          ),
+        notes_he: z
+          .string()
+          .optional()
+          .describe("What was harvested / yield / observation, in Hebrew — stored as an observation so the Brain (and the network) learn from this grow's outcome."),
+      }),
+      execute: async ({ is_final, notes_he }) => {
+        const sys = await getSystem(systemId);
+        if (!sys) return { ok: false, error: `System '${systemId}' not found.` };
+        if (sys.status === "archived") {
+          return { ok: false, error: "This grow is already closed (archived). Nothing to harvest.", already_closed: true };
+        }
+        const cur: GrowProfile = sys.grow_profile ?? {};
+        const plan = cur.harvest_plan ?? null;
+        const harvestModel = resolveCultivarHarvest(sys.cultivar_id ?? sys.crop_type ?? null);
+        const mode = (plan?.mode ?? harvestModel?.mode ?? "cut_and_come_again") as string;
+        const word = harvestNounHe(mode);
+        const now = new Date().toISOString();
+
+        // Always log the harvest as an observation + an episode — outcome feedback
+        // for the Brain (and, anonymised, the network) regardless of close/continue.
+        if (notes_he) {
+          await addGrowerMemory(systemId, { kind: "observation", text: `${word}: ${notes_he}`, source: "grower" });
+        }
+
+        const outcome = resolveHarvestOutcome({
+          mode,
+          isFinal: is_final,
+          cadenceDays: harvestModel?.cadence_days ?? null,
+        });
+
+        if (outcome.kind === "close") {
+          // 1) stop nagging: dismiss every pending task on a grow that's ending.
+          const dismissed = await dismissAllPendingTasks(systemId, `הגידול נסגר לאחר ${word} סופי.`);
+          // 2) stamp the harvest plan completed (SSOT every surface reads).
+          const completedPlan: HarvestPlan = {
+            mode,
+            next_date: null,
+            prep_lead_days: plan?.prep_lead_days ?? 1,
+            instructions: plan?.instructions ?? harvestModel?.instructions ?? "",
+            note: "הגידול הסתיים",
+            updated_at: now,
+            completed_at: now,
+          };
+          await mergeGrowProfileKey(systemId, "harvest_plan", completedPlan);
+          await addEpisode(systemId, {
+            status: null,
+            summary: `בוצע ${word} סופי — הגידול נסגר והבקרה האוטונומית כובתה.`,
+          });
+          // 3) the actual lifecycle transition: archive → the cron stops picking
+          //    this system up (listSystems().filter(status==='active')).
+          await archiveSystem(systemId);
+          return {
+            ok: true,
+            closed: true,
+            dismissed_tasks: dismissed,
+            note:
+              `Grow CLOSED (${outcome.reason}): the system is archived, the autonomous loop is OFF, and ${dismissed} pending task(s) were dismissed. ` +
+              `Confirm to the grower in Hebrew that the ${word} is recorded and TELOS has closed this grow — it will no longer monitor or send tasks. Offer to open a new grow when they replant.`,
+          };
+        }
+
+        // CONTINUE: roll the next harvest forward; the grow keeps running.
+        const rolled: HarvestPlan = {
+          mode,
+          next_date: outcome.next_date,
+          prep_lead_days: plan?.prep_lead_days ?? 1,
+          instructions: plan?.instructions ?? harvestModel?.instructions ?? "",
+          note: `ה${word} הבא מתוכנן`,
+          updated_at: now,
+          // Brain-owned again from here — the grower performed the harvest, the
+          // next date is derived from the cultivar cadence, not a grower pin.
+          grower_moved_at: null,
+        };
+        await mergeGrowProfileKey(systemId, "harvest_plan", rolled);
+        const superseded = await supersedeTasksForEvent(
+          "harvest-next",
+          systemId,
+          `בוצע ${word}; ה${word} הבא ל-${outcome.next_date}.`
+        );
+        await addEpisode(systemId, {
+          status: null,
+          summary: `בוצע ${word}; הגידול ממשיך, ה${word} הבא ב-${outcome.next_date}.`,
+        });
+        return {
+          ok: true,
+          closed: false,
+          next_date: outcome.next_date,
+          superseded_tasks: superseded,
+          note: `Harvest logged; grow CONTINUES (${outcome.reason}). Next ${word} rolled to ${outcome.next_date}. Confirm briefly to the grower in Hebrew with the new date.`,
         };
       },
     }),

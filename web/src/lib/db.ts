@@ -999,6 +999,28 @@ export async function archiveSystem(id: string): Promise<void> {
   await s`UPDATE systems SET status = 'archived', archived_at = NOW() WHERE id = ${id}`;
 }
 
+/**
+ * Dismiss EVERY pending task on a system in one shot — used when a grow CLOSES
+ * (final harvest → archive). Leftover dose-approvals, questions and chores must
+ * stop nagging a grow that no longer exists. Honest `dismissed` (not `done` —
+ * the grower didn't perform them), with a grower-facing reason. Returns how many
+ * were closed. See lib/grow-lifecycle.ts + the `recordHarvest` tool.
+ */
+export async function dismissAllPendingTasks(
+  systemId: string,
+  reasonHe: string
+): Promise<number> {
+  await ensureSchema();
+  const s = sql();
+  const rows = (await s`
+    UPDATE human_tasks
+    SET status = 'dismissed', completed_at = NOW(), user_response = ${reasonHe}
+    WHERE system_id = ${systemId} AND status = 'pending'
+    RETURNING id
+  `) as unknown as Array<{ id: number }>;
+  return rows.length;
+}
+
 // === Readings ===
 
 export async function saveReading(

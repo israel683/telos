@@ -68,6 +68,12 @@ export type HarvestPlan = {
    * back to the Brain.
    */
   grower_moved_at?: string | null;
+  /**
+   * Set when a FINAL/terminal harvest closed this grow (see lib/grow-lifecycle.ts
+   * + the `recordHarvest` tool). Once stamped, the grow is finished: the system is
+   * archived and the autonomous loop no longer runs. `next_date` is cleared.
+   */
+  completed_at?: string | null;
 };
 
 // === Grow Timeline =========================================================
@@ -165,7 +171,7 @@ export function deriveTimeline(profile: GrowProfile | null | undefined): Timelin
   }
 
   const hp = p.harvest_plan;
-  if (hp && (hp.next_date || (hp.instructions && hp.instructions.trim()))) {
+  if (hp && (hp.next_date || hp.completed_at || (hp.instructions && hp.instructions.trim()))) {
     const harvestMode = (["cut_and_come_again", "repeated_pick", "single_terminal"].includes(hp.mode)
       ? (hp.mode as TimelineEvent["harvest_mode"])
       : null);
@@ -173,16 +179,18 @@ export function deriveTimeline(profile: GrowProfile | null | undefined): Timelin
       id: "harvest-next",
       type: "harvest",
       title: "",
-      scheduled_date: hp.next_date ?? null,
+      scheduled_date: hp.next_date ?? (hp.completed_at ? hp.completed_at.slice(0, 10) : null),
       window_days: 2,
-      trigger: hp.next_date ? null : `כשסימני ה${harvestNounHe(harvestMode)} מתקיימים`,
-      status: "planned",
+      trigger: hp.next_date || hp.completed_at ? null : `כשסימני ה${harvestNounHe(harvestMode)} מתקיימים`,
+      // A completed (terminal) harvest is done, not still planned.
+      status: hp.completed_at ? "done" : "planned",
       source: "brain",
       harvest_mode: harvestMode,
       instructions: hp.instructions ?? "",
       note: hp.note ?? null,
       pinned: false,
       provenance: "derived from harvest_plan",
+      completed_at: hp.completed_at ?? null,
       updated_at: hp.updated_at ?? hp.next_date ?? "",
     });
   }
