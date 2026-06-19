@@ -41,6 +41,18 @@ export type PendingTaskCounts = {
   };
 };
 
+export type DecisionInfluences = {
+  trigger?: string;
+  source?: string;
+  current?: { ph: number | null; ec: number | null; water_temp: number | null; age_seconds: number } | null;
+  drift?: { ph?: number; ec?: number; water_temp?: number } | null;
+  bands?: { ph?: [number, number]; ec?: [number, number]; water_temp?: [number, number] } | null;
+  cultivar?: { id: string | null; crop: string; stage: string };
+  authority?: { autonomous_dosing: boolean; doser_verified: boolean };
+  bottles_low?: string[];
+  pending_tasks?: number;
+};
+
 export type DecisionRow = {
   id: number;
   timestamp: string;
@@ -48,6 +60,10 @@ export type DecisionRow = {
   analysis: string;
   message: string;
   raw_response: any;
+  /** Structured "what drove this decision" snapshot (lib/decision-inputs.ts). */
+  inputs?: DecisionInfluences | null;
+  /** Who initiated it: cron | reeval-<source> | chat-<action>. */
+  source?: string | null;
   // Token telemetry is internal-only (it reveals the LLM + cost structure) and
   // is NOT exposed by the customer-facing API. Optional so the type tolerates
   // its absence.

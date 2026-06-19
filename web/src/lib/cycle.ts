@@ -38,12 +38,14 @@ import {
   hasRecentTaskOfType,
   getSystem,
   type SystemRow,
+  type WaterReading,
 } from "@/lib/db";
 import { analyzeAndDecide } from "@/lib/brain";
 import { doseChannelByPhysical } from "@/lib/devices/jebao";
 import { getDosingConfig } from "@/lib/dosing-config";
 import { evaluateCycleGate } from "@/lib/cycle-gate";
 import { getEffectiveTargets } from "@/lib/tolerance";
+import { buildDecisionInputs } from "@/lib/decision-inputs";
 import { sendAlertEmail } from "@/lib/notify";
 
 /**
@@ -125,6 +127,30 @@ export async function runSystemCycle(
   const recentActions = await getRecentActions(24, sys.id);
   const pendingTasks = await getPendingTasks(sys.id);
 
+  // Influence-snapshot context, shared by the gate-skip row and the full
+  // decision below. The trigger is filled in by the gate (or the grower action
+  // that forced this run). `targets` + `referenceReading` are computed once here
+  // so both the gate AND the decision record reason on the same view.
+  const targets = getEffectiveTargets(sys);
+  let referenceReading: WaterReading | null = null;
+  let gateTrigger = `grower-action (${source})`;
+  const makeInputs = (trigger: string) =>
+    buildDecisionInputs({
+      trigger,
+      source,
+      current,
+      reference: referenceReading,
+      targets,
+      cultivarId: sys.cultivar_id,
+      crop: sys.crop_type,
+      stage: sys.growth_stage,
+      autonomousDosing: sys.autonomous_dosing_enabled,
+      doserVerified: sys.doser_verified,
+      bottleLevels: sys.bottle_levels,
+      bottleCapacities: sys.bottle_capacities,
+      pendingTasks: pendingTasks.length,
+    });
+
   // -------------------------------------------------------------------
   // Cycle gate — decide whether this tick is worth a Claude call.
   // A forced (grower-triggered) re-eval skips the gate entirely: the
@@ -135,7 +161,6 @@ export async function runSystemCycle(
     const lastDecision = lastDecisions[0] ?? null;
     // The reference reading is the one closest in time to the last
     // decision; readings is ordered chronologically so we walk backwards.
-    let referenceReading = null;
     if (lastDecision) {
       const lastTs = lastDecision.ts.getTime();
       for (let i = recent.length - 1; i >= 0; i--) {
@@ -148,7 +173,6 @@ export async function runSystemCycle(
     const highPriCount = pendingTasks.filter(
       (t) => t.priority === "high" || t.priority === "urgent"
     ).length;
-    const targets = getEffectiveTargets(sys);
     const gate = evaluateCycleGate({
       current,
       referenceReading,
@@ -168,6 +192,8 @@ export async function runSystemCycle(
           analysis: `[gate-skip] ${gate.skip_reason}`,
           message: "",
           raw_response: { gate_skipped: true, reason: gate.skip_reason },
+          inputs: makeInputs(`gate-skip: ${gate.skip_reason}`),
+          decision_source: source,
           tokens_input: 0,
           tokens_output: 0,
           cache_creation_tokens: 0,
@@ -187,6 +213,8 @@ export async function runSystemCycle(
         duration_ms: Date.now() - sysStart,
       };
     }
+    // The gate let this run — its reason IS the influence trigger for the row.
+    gateTrigger = gate.reason;
   }
 
   // Resolve once per cycle so the brain + dose loop share one view of
@@ -228,6 +256,8 @@ export async function runSystemCycle(
       analysis: decision.analysis,
       message: decision.message,
       raw_response: decision.raw_response,
+      inputs: makeInputs(gateTrigger),
+      decision_source: source,
       tokens_input: decision.tokens_input,
       tokens_output: decision.tokens_output,
       cache_creation_tokens: decision.cache_creation_tokens,

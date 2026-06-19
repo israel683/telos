@@ -506,6 +506,35 @@ const BLOCKS: Block[] = [
     produces_for: ["cron-cycle", "chat-route", "tasks"],
   },
   {
+    id: "decision-record",
+    title_he: "רשומת החלטה — השפעות + ריזונינג",
+    title_en: "Decision record — influences + reasoning",
+    layer: "lib",
+    icon: "🧾",
+    summary_he:
+      "כל החלטה אוטונומית נשמרת עם snapshot מובנה של מה שהשפיע עליה (inputs) לצד הריזונינג (analysis).  buildDecisionInputs אוסף ממה שהמחזור כבר מחזיק ביד: הטריגר שהעיר את המחזור, הקריאה החיה, drift מההחלטה הקודמת, תחומי הסבילות, הזן+שלב, הרשאת ביצוע, בקבוקים נמוכים ומשימות ממתינות.  מוצג ב-/decisions בבלוק 'מה השפיע'.",
+    files: ["src/lib/decision-inputs.ts", "src/lib/cycle.ts", "src/app/api/decisions/route.ts", "src/app/decisions/page.tsx"],
+    concepts: [
+      {
+        he: "inputs + decision_source",
+        detail:
+          "שתי עמודות additive ב-ai_decisions: inputs (JSONB עם ההשפעות) ו-decision_source (cron / reeval-<source>).  נכתבות גם בשורת gate-skip — אז גם 'דילגנו' מתועד עם הסיבה.",
+      },
+      {
+        he: "טריגר על שני המסלולים",
+        detail:
+          "ה-gate מחזיר reason גם כשהוא מחליט לרוץ (לא רק ב-skip).  cycle.ts לוכד אותו כ-trigger כדי שהרשומה תסביר למה המחזור התעורר.",
+      },
+      {
+        he: "גבול IP",
+        detail:
+          "ה-API חושף influences אגרונומיים/תפעוליים (קריאות, bands, drift, trigger) אבל לא tokens/מודל — אלה נשארים פנימיים.",
+      },
+    ],
+    depends_on: ["brain", "cycle-gate", "tolerance", "db"],
+    produces_for: ["grower"],
+  },
+  {
     id: "tasks",
     title_he: "Human Task Queue",
     title_en: "human_tasks + approval/complete/dismiss endpoints",

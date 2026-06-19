@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getDecisions } from "@/lib/api";
 import { startVisibilityAwarePolling } from "@/lib/poll";
-import type { DecisionRow, AgentStatus } from "@/lib/types";
+import type { DecisionRow, AgentStatus, DecisionInfluences } from "@/lib/types";
 import { useLang, statusLabel } from "@/lib/i18n";
 
 const STATUS_COLOR: Record<AgentStatus, string> = {
@@ -17,6 +17,77 @@ const STATUS_COLOR: Record<AgentStatus, string> = {
 function statusPill(status: AgentStatus): React.CSSProperties {
   const c = STATUS_COLOR[status] ?? "var(--c-stone)";
   return { color: c, background: `color-mix(in srgb, ${c} 16%, transparent)` };
+}
+
+/** The "what drove this decision" panel — influences, separate from the reasoning. */
+function Influences({ inp, t }: { inp: DecisionInfluences; t: (en: string, he: string) => string }) {
+  const rows: Array<{ label: string; value: string }> = [];
+  if (inp.trigger) rows.push({ label: t("Trigger", "טריגר"), value: inp.trigger });
+  if (inp.source) rows.push({ label: t("Initiated by", "מקור"), value: inp.source });
+  if (inp.current) {
+    const c = inp.current;
+    const parts: string[] = [];
+    if (c.ph != null) parts.push(`pH ${c.ph.toFixed(2)}`);
+    if (c.ec != null) parts.push(`EC ${Math.round(c.ec)}`);
+    if (c.water_temp != null) parts.push(`${c.water_temp.toFixed(1)}°C`);
+    rows.push({
+      label: t("Reading", "קריאה"),
+      value: `${parts.join(" · ") || "—"} (${Math.round(c.age_seconds / 60)}m)`,
+    });
+  }
+  if (inp.drift) {
+    const d = inp.drift;
+    const parts: string[] = [];
+    if (d.ph != null) parts.push(`ΔpH ${d.ph}`);
+    if (d.ec != null) parts.push(`ΔEC ${d.ec}`);
+    if (d.water_temp != null) parts.push(`Δ°C ${d.water_temp}`);
+    if (parts.length) rows.push({ label: t("Drift since last", "שינוי מאז הקודמת"), value: parts.join(" · ") });
+  }
+  if (inp.bands) {
+    const b = inp.bands;
+    const parts: string[] = [];
+    if (b.ph) parts.push(`pH [${b.ph[0]}–${b.ph[1]}]`);
+    if (b.ec) parts.push(`EC [${Math.round(b.ec[0])}–${Math.round(b.ec[1])}]`);
+    if (b.water_temp) parts.push(`°C [${b.water_temp[0]}–${b.water_temp[1]}]`);
+    if (parts.length) rows.push({ label: t("Tolerance bands", "תחום סבילות"), value: parts.join(" · ") });
+  }
+  if (inp.cultivar) {
+    rows.push({
+      label: t("Cultivar / stage", "זן / שלב"),
+      value: `${inp.cultivar.id || inp.cultivar.crop} · ${inp.cultivar.stage}`,
+    });
+  }
+  if (inp.authority) {
+    rows.push({
+      label: t("Execution", "הרשאת ביצוע"),
+      value: inp.authority.autonomous_dosing
+        ? t("autonomous", "אוטונומי")
+        : t("manual (proposals queue)", "ידני (הצעות בתור)"),
+    });
+  }
+  if (inp.bottles_low && inp.bottles_low.length) {
+    rows.push({ label: t("Low bottles", "בקבוקים נמוכים"), value: inp.bottles_low.join(", ") });
+  }
+  if (typeof inp.pending_tasks === "number" && inp.pending_tasks > 0) {
+    rows.push({ label: t("Pending tasks", "משימות ממתינות"), value: String(inp.pending_tasks) });
+  }
+  if (rows.length === 0) return null;
+
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-[var(--c-ash)] uppercase tracking-wide mb-1">
+        {t("What drove this", "מה השפיע")}
+      </h3>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm">
+        {rows.map((r) => (
+          <div key={r.label} className="contents">
+            <dt className="text-[var(--c-ash)] whitespace-nowrap">{r.label}</dt>
+            <dd dir="ltr" className="text-[var(--c-fog)] dark:text-[var(--c-stone)]">{r.value}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+  );
 }
 
 export default function DecisionsPage() {
@@ -138,10 +209,12 @@ export default function DecisionsPage() {
 
               {isOpen && (
                 <div className="p-4 border-t border-[rgba(238,237,232,0.08)] space-y-4 bg-[var(--c-void)]">
+                  {d.inputs && <Influences inp={d.inputs} t={t} />}
+
                   {d.analysis && (
                     <div>
                       <h3 className="text-xs font-semibold text-[var(--c-ash)] uppercase tracking-wide mb-1">
-                        {t("Analysis", "ניתוח")}
+                        {t("Reasoning", "ריזונינג")}
                       </h3>
                       <p className="text-sm leading-relaxed" dir="ltr">
                         {d.analysis}

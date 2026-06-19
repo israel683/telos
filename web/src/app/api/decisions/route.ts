@@ -21,6 +21,10 @@ export async function GET(req: Request) {
         analysis: d.analysis,
         message: d.message,
         raw_response: d.raw_response,
+        // Influence snapshot + initiator — agronomic/operational transparency
+        // (readings, bands, drift, trigger). NOT tokens/model (those stay internal).
+        inputs: d.inputs ?? null,
+        source: d.decision_source ?? null,
       })),
     });
   } catch (e) {

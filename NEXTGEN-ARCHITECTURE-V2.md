@@ -210,11 +210,12 @@ hard-coded, so tiers move without a code change.
 
 ## 4 · Sequenced workstreams
 
-1. **Grow lifecycle close** — ✅ shipped here (§6). The live bug.
-2. **Decision record** — add `inputs`/`reasoning`/`tier` columns; have `cycle.ts`
-   populate `inputs` from what it already gathers (gate reason, bands, drift,
-   memory IDs); surface on `/decisions`. Write a decision row for significant chat
-   actions.
+1. **Grow lifecycle close** — ✅ shipped (§6). The live bug.
+2. **Decision record** — ✅ shipped (§7): `inputs` (influences) + `decision_source`
+   on `ai_decisions`, populated by `cycle.ts` from what it already holds (gate
+   trigger, live reading, drift, bands, cultivar/stage, authority, low bottles,
+   pending count), surfaced on `/decisions`. **Remaining:** a `tier` column (with
+   WS3) and writing a decision row for significant *chat* actions.
 3. **Tiered models** — gate returns a `tier`; `brain.ts` selects the model from
    config; record the tier. Add optional light→heavy escalation.
 4. **Shared capability registry** — extract `agent-tools.ts` into a registry both
@@ -267,5 +268,28 @@ The live bug from §1.1 is fixed:
   and the "ask before closing if unsure" rule.
 - **`/architecture`** — a `grow-lifecycle` block so the map stays honest.
 
-The Brain consolidation, decision record, tiered models, and admin surface (§2.1,
-§2.3–2.5) are designed here and sequenced in §4 — not yet built.
+## 7 · Shipped in this change — the decision record (influences)
+
+§1.3's gap — decisions recorded *what* but not *why-from-what* — is closed for the
+autonomous path:
+
+- **`lib/decision-inputs.ts`** (new) — `buildDecisionInputs(...)` assembles a
+  structured **influence snapshot** from data the cycle already holds (no extra DB
+  round-trips): the gate **trigger** that woke the cycle, the live reading + age,
+  **drift** vs. the last decision, the effective **tolerance bands**, the
+  **cultivar + stage**, **execution authority** (autonomous vs. manual), **low
+  bottles**, and the **pending-task** count.
+- **`ai_decisions.inputs` JSONB + `ai_decisions.decision_source` TEXT** — additive,
+  lazy-migrated like every other column. `saveDecision` / `getRecentDecisions` carry
+  them.
+- **`lib/cycle.ts`** — captures the gate trigger on *both* paths (skip and run) and
+  writes `inputs` + `decision_source` on the gate-skip row AND the full decision, so
+  even a skipped tick records why it skipped.
+- **`/api/decisions` + `/decisions`** — the influences ship to the page (NOT tokens
+  / model — those stay internal per the IP doctrine). The expanded row now shows a
+  **"מה השפיע"** block (trigger, reading, drift, bands, cultivar/stage, authority,
+  low bottles, pending) above the **ריזונינג** (`analysis`).
+
+The Brain consolidation, **tiered models**, and the admin live surface (§2.1,
+§2.4–2.5) remain designed-and-sequenced in §4 — not yet built; plus the two
+WS2 remainders (a `tier` column, decision rows for significant chat actions).
