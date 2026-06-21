@@ -216,6 +216,11 @@ const BLOCKS: Block[] = [
         detail:
           "כל action שהמוח מחזיר עובר ב-validateCommand של ה-safety controller לפני שמתבצע.  המוח לא יכול לעקוף.",
       },
+      {
+        he: "מודלים מדורגים (tier)",
+        detail:
+          "ה-gate בוחר tier: סקירה פרואקטיבית רגועה בתוך ה-band → light (מודל זול/מהיר); חריגה/drift/קריטי/משימה דחופה/פעולת מגדל → heavy (המודל החכם).  אם ה-light מחליט שצריך לפעול (מנה/משימה/סטטוס לא-healthy) → escalation ל-heavy, 'מקצה שיפורים'.  המודלים דרך BRAIN_MODEL_LIGHT/HEAVY, וה-tier נשמר ב-ai_decisions (פנימי).",
+      },
     ],
     depends_on: ["prompt-engine", "tolerance", "bottle-status", "priming", "dosing-config"],
     produces_for: ["safety", "cron-cycle"],

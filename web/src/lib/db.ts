@@ -150,6 +150,9 @@ export async function ensureSchema(): Promise<void> {
   // so existing rows read back as NULL. See lib/decision-inputs.ts.
   await safeDdl(() => s`ALTER TABLE ai_decisions ADD COLUMN IF NOT EXISTS inputs JSONB`);
   await safeDdl(() => s`ALTER TABLE ai_decisions ADD COLUMN IF NOT EXISTS decision_source TEXT`);
+  // Model tier that reasoned this decision (light routine / heavy refinement).
+  // Internal-only (not exposed by the customer API). See lib/cycle-gate.ts.
+  await safeDdl(() => s`ALTER TABLE ai_decisions ADD COLUMN IF NOT EXISTS tier TEXT`);
   await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_actions_ts ON dosing_actions(system_id, ts DESC)`);
   await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_tasks_pending ON human_tasks(system_id, status, priority)`);
 
@@ -356,6 +359,8 @@ export type Decision = {
   inputs?: Record<string, unknown> | null;
   /** Who initiated the decision: 'cron' | 'reeval-<source>' | 'chat-<action>'. */
   decision_source?: string | null;
+  /** Model tier that reasoned it: 'light' | 'heavy' (internal-only). */
+  tier?: string | null;
   tokens_input: number;
   tokens_output: number;
   cache_creation_tokens: number;
@@ -1111,13 +1116,14 @@ export async function saveDecision(
   const ts = d.ts ?? new Date();
   const rows = (await s`
     INSERT INTO ai_decisions
-      (system_id, ts, status, analysis, message, raw_response, inputs, decision_source,
+      (system_id, ts, status, analysis, message, raw_response, inputs, decision_source, tier,
        tokens_input, tokens_output, cache_creation_tokens, cache_read_tokens)
     VALUES
       (${systemId}, ${ts.toISOString()}, ${d.status}, ${d.analysis}, ${d.message},
        ${JSON.stringify(d.raw_response)}::jsonb,
        ${d.inputs == null ? null : JSON.stringify(d.inputs)}::jsonb,
        ${d.decision_source ?? null},
+       ${d.tier ?? null},
        ${d.tokens_input}, ${d.tokens_output}, ${d.cache_creation_tokens}, ${d.cache_read_tokens})
     RETURNING id
   `) as unknown as Array<{ id: number }>;
@@ -1131,7 +1137,7 @@ export async function getRecentDecisions(
   await ensureSchema();
   const s = sql();
   const rows = (await s`
-    SELECT id, ts, status, analysis, message, raw_response, inputs, decision_source,
+    SELECT id, ts, status, analysis, message, raw_response, inputs, decision_source, tier,
            tokens_input, tokens_output, cache_creation_tokens, cache_read_tokens
     FROM ai_decisions
     WHERE system_id = ${systemId}
@@ -1145,6 +1151,7 @@ export async function getRecentDecisions(
     raw_response: Record<string, unknown>;
     inputs: Record<string, unknown> | null;
     decision_source: string | null;
+    tier: string | null;
     tokens_input: number;
     tokens_output: number;
     cache_creation_tokens: number;

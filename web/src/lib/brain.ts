@@ -13,6 +13,7 @@ import { createAnthropic } from "@ai-sdk/anthropic";
 import { generateText } from "ai";
 import { SYSTEM_PROMPT, buildUserPrompt, type SystemProfile } from "./prompt-engine";
 import { validateCommand, type DoserChannel } from "./safety";
+import type { BrainTier } from "./cycle-gate";
 import { DEFAULT_SYSTEM_ID, type WaterReading, type HumanTask, type TaskType, type TaskPriority } from "./db";
 import { allChannelKeys, getDosingConfig, type DosingConfig } from "./dosing-config";
 import { getProfile } from "./fertilizer-profiles";
@@ -69,6 +70,8 @@ export type DecisionResult = {
   next_check_minutes: number;
   /** Optional harvest-plan update the Brain emitted this cycle (persisted into grow_profile). null = no change. */
   harvest_plan: HarvestPlan | null;
+  /** Which model tier actually reasoned this pass (light routine / heavy refinement). */
+  tier: BrainTier;
   raw_response: Record<string, unknown>;
   tokens_input: number;
   tokens_output: number;
@@ -95,8 +98,15 @@ export async function analyzeAndDecide(opts: {
   dosingConfig?: DosingConfig;
   /** System id whose history we're reasoning about. Used for safety + DB scoping. */
   systemId?: string;
+  /**
+   * Which model tier to reason with. `light` = the routine proactive review on a
+   * cheap/fast model; `heavy` = the smart model for excursions, conflicts, and the
+   * refinement round. Defaults to `heavy` (the conservative choice when unset).
+   */
+  tier?: BrainTier;
 }): Promise<DecisionResult> {
   const systemId = opts.systemId ?? DEFAULT_SYSTEM_ID;
+  const tier: BrainTier = opts.tier ?? "heavy";
   const dosingConfig = opts.dosingConfig ?? (await getDosingConfig(systemId));
   const channels = allChannelKeys(dosingConfig);
   const fertilizerProfile = getProfile(dosingConfig.profile_id);
@@ -144,7 +154,13 @@ export async function analyzeAndDecide(opts: {
     })),
   });
 
-  const modelId = process.env.CHAT_MODEL || "claude-sonnet-4-6";
+  // Tiered model selection (config-driven so tiers move without a code change).
+  //  - heavy: the smart model — excursions, conflicts, the refinement round.
+  //  - light: a cheap/fast model for the routine in-band proactive review.
+  // CHAT_MODEL stays the heavy override for backward-compat with existing deploys.
+  const HEAVY_MODEL = process.env.BRAIN_MODEL_HEAVY || process.env.CHAT_MODEL || "claude-sonnet-4-6";
+  const LIGHT_MODEL = process.env.BRAIN_MODEL_LIGHT || "claude-haiku-4-5-20251001";
+  const modelId = tier === "light" ? LIGHT_MODEL : HEAVY_MODEL;
   const existingTaskTypes = new Set(opts.pendingTasks.map((t) => t.type));
 
   let result;
@@ -167,7 +183,7 @@ export async function analyzeAndDecide(opts: {
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("[brain] Claude error:", msg);
-    return fallback(`API error: ${msg}`);
+    return fallback(`API error: ${msg}`, tier);
   }
 
   const text = result.text;
@@ -175,7 +191,7 @@ export async function analyzeAndDecide(opts: {
   try {
     aiDecision = parseJsonResponse(text);
   } catch (e) {
-    return fallback(`JSON parse: ${e instanceof Error ? e.message : String(e)}`);
+    return fallback(`JSON parse: ${e instanceof Error ? e.message : String(e)}`, tier);
   }
 
   const approved: ApprovedCommand[] = [];
@@ -266,6 +282,7 @@ export async function analyzeAndDecide(opts: {
     concerns: Array.isArray(aiDecision.concerns) ? (aiDecision.concerns as string[]) : [],
     next_check_minutes: Number(aiDecision.next_check_minutes) || 60,
     harvest_plan: parseHarvestPlan(aiDecision.harvest_plan),
+    tier,
     raw_response: aiDecision,
     tokens_input: u.inputTokens || 0,
     tokens_output: u.outputTokens || 0,
@@ -314,7 +331,7 @@ function parseHarvestPlan(raw: unknown): HarvestPlan | null {
   };
 }
 
-function fallback(reason: string): DecisionResult {
+function fallback(reason: string, tier: BrainTier = "heavy"): DecisionResult {
   return {
     commands: [],
     blocked_commands: [],
@@ -326,6 +343,7 @@ function fallback(reason: string): DecisionResult {
     concerns: [reason],
     next_check_minutes: 5,
     harvest_plan: null,
+    tier,
     raw_response: { error: reason },
     tokens_input: 0,
     tokens_output: 0,

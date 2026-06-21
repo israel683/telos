@@ -216,8 +216,9 @@ hard-coded, so tiers move without a code change.
    trigger, live reading, drift, bands, cultivar/stage, authority, low bottles,
    pending count), surfaced on `/decisions`. **Remaining:** a `tier` column (with
    WS3) and writing a decision row for significant *chat* actions.
-3. **Tiered models** — gate returns a `tier`; `brain.ts` selects the model from
-   config; record the tier. Add optional light→heavy escalation.
+3. **Tiered models** — ✅ shipped (§8): gate returns a `tier`; `brain.ts` selects
+   the model from config; the tier is recorded; light→heavy escalation (the
+   refinement round) runs when the light pass wants to act.
 4. **Shared capability registry** — extract `agent-tools.ts` into a registry both
    the chat route and the autonomous cycle consume; the cron gains the ability to
    `recordHarvest` / `rememberFact` etc. when warranted (still safety-gated).
@@ -290,6 +291,28 @@ autonomous path:
   **"מה השפיע"** block (trigger, reading, drift, bands, cultivar/stage, authority,
   low bottles, pending) above the **ריזונינג** (`analysis`).
 
-The Brain consolidation, **tiered models**, and the admin live surface (§2.1,
-§2.4–2.5) remain designed-and-sequenced in §4 — not yet built; plus the two
-WS2 remainders (a `tier` column, decision rows for significant chat actions).
+## 8 · Shipped in this change — tiered models (light routine / heavy hinges)
+
+§1.4's "one model for every job" is closed for the autonomous path:
+
+- **`lib/cycle-gate.ts`** — the gate now returns a `tier` (`BrainTier`) alongside
+  its run decision: the routine in-band proactive review is **light**; every
+  excursion (critical / out-of-band / drift), an unhealthy prior, a pending
+  high-priority task, the first cycle, a stale sensor, and any grower-forced
+  re-eval are **heavy**.
+- **`lib/brain.ts`** — selects the model from config by tier:
+  `BRAIN_MODEL_HEAVY` (default `claude-sonnet-4-6`, with `CHAT_MODEL` as the
+  back-compat override) and `BRAIN_MODEL_LIGHT` (default `claude-haiku-4-5-…`).
+  Returns the tier it used.
+- **`lib/cycle.ts`** — runs the gate's tier, then **escalates light→heavy once**
+  (the "refinement round") when the light pass finds it actually wants to act (a
+  dose, a task, a non-healthy status, or a harvest move). The calm in-band
+  majority stays cheap; consequential calls get the smart model.
+- **`ai_decisions.tier`** — additive column; recorded per decision. Internal-only
+  (NOT in the customer API — tiering is not exposed, consistent with the IP
+  doctrine; it surfaces on the admin architecture view, WS5).
+
+## 9 · Still designed-and-sequenced (not yet built)
+
+The Brain consolidation (§2.1) and the admin live surface (§2.5) remain in §4,
+plus the WS2 remainder: decision rows for significant *chat* actions.

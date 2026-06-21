@@ -73,10 +73,22 @@ export type GateInput = {
   targets?: TargetRanges;
 };
 
+/**
+ * Which model tier should reason this cycle.
+ *  - `light`: the routine proactive review while everything is calm + in-band —
+ *    a cheap, frequent look (a small/fast model).
+ *  - `heavy`: a real reason to think hard — an excursion (critical / out-of-band /
+ *    drift), an unhealthy prior, a pending high-priority task, the first cycle, or
+ *    a grower action. The smart model. The light tier may also ESCALATE to heavy
+ *    (the "refinement round") when it finds it actually wants to act — see cycle.ts.
+ */
+export type BrainTier = "light" | "heavy";
+
 export type GateDecision =
   | {
       run_llm: true;
       reason: string;
+      tier: BrainTier;
     }
   | {
       run_llm: false;
@@ -164,13 +176,13 @@ export function evaluateCycleGate(input: GateInput): GateDecision {
   // BYPASS 1: stale sensor → Claude needs to see that we're flying blind.
   const sensorAgeSec = (now - input.current.ts.getTime()) / 1000;
   if (sensorAgeSec > CYCLE_GATE.max_sensor_age_seconds) {
-    return { run_llm: true, reason: `sensor stale (${sensorAgeSec.toFixed(0)}s)` };
+    return { run_llm: true, reason: `sensor stale (${sensorAgeSec.toFixed(0)}s)`, tier: "heavy" };
   }
 
   // BYPASS 2: current reading is in a critical envelope (safety bounds).
   const crit = critical(input.current);
   if (crit) {
-    return { run_llm: true, reason: `critical: ${crit}` };
+    return { run_llm: true, reason: `critical: ${crit}`, tier: "heavy" };
   }
 
   // BYPASS 2.5: reading is outside the per-system TOLERANCE band (looser
@@ -181,7 +193,7 @@ export function evaluateCycleGate(input: GateInput): GateDecision {
   // is normal and correcting it would chase noise.
   const band = outsideBand(input.current, input.targets);
   if (band) {
-    return { run_llm: true, reason: `outside tolerance band: ${band}` };
+    return { run_llm: true, reason: `outside tolerance band: ${band}`, tier: "heavy" };
   }
 
   // BYPASS 3: pending urgent/high task and we haven't reasoned since.
@@ -189,12 +201,13 @@ export function evaluateCycleGate(input: GateInput): GateDecision {
     return {
       run_llm: true,
       reason: `pending high-priority human tasks: ${input.pendingHighPriorityCount}`,
+      tier: "heavy",
     };
   }
 
   // BYPASS 4: no prior decision at all — first cycle for this system.
   if (!input.referenceReading) {
-    return { run_llm: true, reason: "no prior decision (first cycle)" };
+    return { run_llm: true, reason: "no prior decision (first cycle)", tier: "heavy" };
   }
 
   // BYPASS 5: prior decision wasn't healthy → don't fall asleep on a
@@ -206,13 +219,14 @@ export function evaluateCycleGate(input: GateInput): GateDecision {
     return {
       run_llm: true,
       reason: `last decision status was '${input.lastDecisionStatus}' (re-evaluate)`,
+      tier: "heavy",
     };
   }
 
   // BYPASS 6: sensor drift since the last decision's reference reading.
   const drift = driftAgainstReference(input.current, input.referenceReading);
   if (drift) {
-    return { run_llm: true, reason: `drift detected: ${drift}` };
+    return { run_llm: true, reason: `drift detected: ${drift}`, tier: "heavy" };
   }
 
   // SKIP path: respect next_check_at from the previous LLM cycle.
@@ -226,7 +240,8 @@ export function evaluateCycleGate(input: GateInput): GateDecision {
   }
 
   // SKIP path: next_check_at has elapsed but the system is still flat.
-  // Re-run Claude — it's been long enough since we asked.  This case
-  // exists so we don't silently skip forever just because nothing moved.
-  return { run_llm: true, reason: "next_check_at elapsed (periodic check-in)" };
+  // Re-run the Brain — it's been long enough since we asked.  This is the
+  // ROUTINE proactive review: nothing is wrong, so the LIGHT tier handles it.
+  // (It escalates to heavy on its own if it finds it actually wants to act.)
+  return { run_llm: true, reason: "next_check_at elapsed (periodic check-in)", tier: "light" };
 }

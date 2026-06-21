@@ -43,7 +43,7 @@ import {
 import { analyzeAndDecide } from "@/lib/brain";
 import { doseChannelByPhysical } from "@/lib/devices/jebao";
 import { getDosingConfig } from "@/lib/dosing-config";
-import { evaluateCycleGate } from "@/lib/cycle-gate";
+import { evaluateCycleGate, type BrainTier } from "@/lib/cycle-gate";
 import { getEffectiveTargets } from "@/lib/tolerance";
 import { buildDecisionInputs } from "@/lib/decision-inputs";
 import { sendAlertEmail } from "@/lib/notify";
@@ -134,6 +134,9 @@ export async function runSystemCycle(
   const targets = getEffectiveTargets(sys);
   let referenceReading: WaterReading | null = null;
   let gateTrigger = `grower-action (${source})`;
+  // Grower-forced re-evals always get the heavy tier (a human is engaged); the
+  // gate sets the tier for scheduled ticks (light routine vs heavy excursion).
+  let gateTier: BrainTier = "heavy";
   const makeInputs = (trigger: string) =>
     buildDecisionInputs({
       trigger,
@@ -213,15 +216,17 @@ export async function runSystemCycle(
         duration_ms: Date.now() - sysStart,
       };
     }
-    // The gate let this run — its reason IS the influence trigger for the row.
+    // The gate let this run — its reason IS the influence trigger for the row,
+    // and it chose the tier (light routine review vs heavy excursion).
     gateTrigger = gate.reason;
+    gateTier = gate.tier;
   }
 
   // Resolve once per cycle so the brain + dose loop share one view of
   // the rig's physical channel layout.
   const dosingConfig = await getDosingConfig(sys.id);
 
-  const decision = await analyzeAndDecide({
+  const brainArgs = {
     current,
     recent,
     systemProfile: {
@@ -248,7 +253,24 @@ export async function runSystemCycle(
     pendingTasks,
     dosingConfig,
     systemId: sys.id,
-  });
+  };
+
+  // Tiered reasoning. The gate picked a tier; run it. If the LIGHT routine pass
+  // finds it actually wants to ACT (a dose, a task, a non-healthy status, or a
+  // harvest-plan move), escalate ONCE to the heavy model — the "refinement
+  // round" — so the consequential decision is made by the smart model, while the
+  // calm in-band majority stays cheap. The light pass output is discarded.
+  let decision = await analyzeAndDecide({ ...brainArgs, tier: gateTier });
+  const lightWantsToAct =
+    decision.status !== "healthy" ||
+    decision.commands.length > 0 ||
+    decision.proposed_doses.length > 0 ||
+    decision.human_tasks.length > 0 ||
+    decision.harvest_plan != null;
+  if (gateTier === "light" && lightWantsToAct) {
+    console.log(`[cycle] system=${sys.id} light→heavy escalation (refinement round)`);
+    decision = await analyzeAndDecide({ ...brainArgs, tier: "heavy" });
+  }
 
   const decisionId = await saveDecision(
     {
@@ -258,6 +280,7 @@ export async function runSystemCycle(
       raw_response: decision.raw_response,
       inputs: makeInputs(gateTrigger),
       decision_source: source,
+      tier: decision.tier,
       tokens_input: decision.tokens_input,
       tokens_output: decision.tokens_output,
       cache_creation_tokens: decision.cache_creation_tokens,
