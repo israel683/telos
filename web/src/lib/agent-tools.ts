@@ -14,7 +14,6 @@ import {
   markSetupComplete,
   saveReading,
   saveAction,
-  decrementBottle,
   setBottleLevels,
   setDoserVerified,
   verifyBottleLevel,
@@ -36,6 +35,7 @@ import { getBottleStatusReport } from "./bottle-status";
 import { readTuyaSensor } from "./devices/tuya";
 import { doseChannelByPhysical } from "./devices/jebao";
 import { validateCommand } from "./safety";
+import { executeDoseGated } from "./dose-executor";
 import { PRIMING_DONE_SENTINEL, PRIMING_ML_PER_CHANNEL } from "./priming";
 import { getDosingConfig, allChannelKeys, type DosingConfig } from "./dosing-config";
 import { getProfile, listProfiles } from "./fertilizer-profiles";
@@ -230,76 +230,43 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
             error: `Channel '${params.channel}' is not configured. Available: ${channelKeys.join(", ") || "(none)"}.`,
           };
         }
-        const assignment = dosingConfig.assignments[params.channel];
-        if (!assignment) {
-          return { ok: false, error: `No physical channel mapped for '${params.channel}'` };
-        }
 
-        // Latest reading for the safety check.
-        const recent = await getRecentReadings(1, 1, systemId);
-        const current = recent[recent.length - 1] ?? null;
-        const safety = await validateCommand(
+        // Shared, safety-gated action layer (lib/dose-executor.ts) — the SAME
+        // primitive the cron loop + the dashboard approval use, so safety and
+        // bottle bookkeeping can't diverge. Pass the (possibly just-reconfigured)
+        // dosingConfig so a reconfigure-then-dose in this same turn uses it.
+        const res = await executeDoseGated(
+          systemId,
           {
             channel: params.channel,
             amount_ml: params.amount_ml,
             reason: params.reason_he,
-            // executeDose is grower-driven treatment, never priming.  Priming
-            // has its own tool (primeChannel) that sets is_priming=true on
-            // the safety call AND writes ai_status='priming' on the row.
-            is_priming: false,
+            aiStatus: "chat",
+            aiAnalysis: "Direct dose via chat (executeDose)",
           },
-          current,
-          { systemId, dosingConfig }
+          { dosingConfig }
         );
-        if (!safety.ok) {
+
+        if (res.noPhysicalChannel) {
+          return { ok: false, error: `No physical channel mapped for '${params.channel}'` };
+        }
+        if (res.blockedBySafety) {
           return {
             ok: false,
             blocked_by_safety: true,
-            reason: safety.reason,
+            reason: res.reason,
             note: "Safety controller refused this dose. Explain the reason to the grower; do not retry without addressing it.",
           };
         }
 
-        // Fire the actual pump.
-        const r = await doseChannelByPhysical(
-          assignment.physical,
-          params.amount_ml,
-          params.reason_he,
-          params.channel
-        );
-        // Log either way so the audit trail stays honest.
-        try {
-          await saveAction(
-            {
-              channel: params.channel,
-              amount_ml: params.amount_ml,
-              reason: r.success ? params.reason_he : `FAILED: ${r.error}`,
-              success: r.success,
-              ai_status: "chat",
-              ai_analysis: "Direct dose via chat (executeDose)",
-            },
-            systemId
-          );
-        } catch (e) {
-          console.error("[executeDose] failed to log action:", e);
-        }
-        // Decrement bottle level on confirmed-success treatment doses.
-        if (r.success) {
-          try {
-            await decrementBottle(systemId, params.channel, params.amount_ml);
-          } catch (e) {
-            console.error("[executeDose] decrementBottle failed:", e);
-          }
-        }
-
         return {
-          ok: r.success,
+          ok: res.ok,
           channel: params.channel,
-          physical_channel: assignment.physical,
+          physical_channel: res.physicalChannel,
           amount_ml: params.amount_ml,
-          runtime_seconds: r.runtime_seconds,
-          error: r.error,
-          note: r.success
+          runtime_seconds: res.runtimeSeconds,
+          error: res.error,
+          note: res.ok
             ? "Dose fired. Briefly confirm to the grower (channel + ml) and offer to poll the sensor in a few minutes to see the effect."
             : "Dose attempt failed. Share the error with the grower and suggest the next step (retry / check hardware / call a human task).",
         };

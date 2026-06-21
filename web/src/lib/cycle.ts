@@ -24,7 +24,6 @@ import {
   getPendingTasks,
   getRecentDecisions,
   saveDecision,
-  saveAction,
   createHumanTask,
   mergeGrowProfileKey,
   // updateSystem removed — harvest_plan now persists via the race-safe
@@ -32,7 +31,6 @@ import {
   expireOldTasks,
   saveChatMessage,
   setNextCheckAt,
-  decrementBottle,
   getLastCronChatPush,
   addEpisode,
   hasRecentTaskOfType,
@@ -41,7 +39,7 @@ import {
   type WaterReading,
 } from "@/lib/db";
 import { analyzeAndDecide } from "@/lib/brain";
-import { doseChannelByPhysical } from "@/lib/devices/jebao";
+import { executeDoseGated } from "@/lib/dose-executor";
 import { getDosingConfig } from "@/lib/dosing-config";
 import { evaluateCycleGate, type BrainTier } from "@/lib/cycle-gate";
 import { getEffectiveTargets } from "@/lib/tolerance";
@@ -413,44 +411,30 @@ export async function runSystemCycle(
     }
   } else {
     for (const cmd of decision.commands) {
-      const phys = dosingConfig.assignments[cmd.channel]?.physical;
-      if (!phys) {
-        executed.push({
-          channel: cmd.channel,
-          amount_ml: cmd.amount_ml,
-          success: false,
-          error: `no physical channel mapped for '${cmd.channel}'`,
-        });
-        continue;
-      }
-      const r = await doseChannelByPhysical(phys, cmd.amount_ml, cmd.reason, cmd.channel);
-      await saveAction(
+      // Shared, safety-gated action layer (lib/dose-executor.ts) — same primitive
+      // the chat tool + dashboard approval use. It re-validates against the latest
+      // reading right before firing, fires, logs, and decrements the bottle.
+      const res = await executeDoseGated(
+        sys.id,
         {
           channel: cmd.channel,
           amount_ml: cmd.amount_ml,
-          reason: r.success ? cmd.reason : `FAILED: ${r.error}`,
-          success: r.success,
-          ai_status: decision.status,
-          ai_analysis: decision.analysis,
-          decision_id: decisionId,
+          reason: cmd.reason,
+          aiStatus: decision.status,
+          aiAnalysis: decision.analysis,
+          decisionId,
         },
-        sys.id
+        { current, dosingConfig }
       );
-      // Bottle-level bookkeeping — decrement only on confirmed-success
-      // and only for non-priming actions (priming flows handle their
-      // own decrement in the agent tool).
-      if (r.success) {
-        try {
-          await decrementBottle(sys.id, cmd.channel, cmd.amount_ml);
-        } catch (e) {
-          console.error(`[cycle] decrementBottle failed: ${e}`);
-        }
-      }
       executed.push({
         channel: cmd.channel,
         amount_ml: cmd.amount_ml,
-        success: r.success,
-        error: r.error,
+        success: res.ok,
+        error: res.noPhysicalChannel
+          ? `no physical channel mapped for '${cmd.channel}'`
+          : res.blockedBySafety
+          ? `safety blocked: ${res.reason}`
+          : res.error,
       });
     }
   }

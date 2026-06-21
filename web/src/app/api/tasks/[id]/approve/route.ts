@@ -11,13 +11,11 @@
  * (completeTask endpoint, untouched).
  */
 import { NextResponse } from "next/server";
-import { completeTask, saveAction, decrementBottle, sql, ensureSchema } from "@/lib/db";
+import { completeTask, saveAction, sql, ensureSchema } from "@/lib/db";
 import { reevalSystem } from "@/lib/cycle";
 import { systemIdFromRequest } from "@/lib/system-ctx";
 import { getDosingConfig } from "@/lib/dosing-config";
-import { doseChannelByPhysical } from "@/lib/devices/jebao";
-import { validateCommand } from "@/lib/safety";
-import { getRecentReadings } from "@/lib/db";
+import { executeDoseGated } from "@/lib/dose-executor";
 
 export const maxDuration = 30;
 
@@ -114,77 +112,47 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     });
   }
 
-  // Safety check against the latest reading.
-  const recent = await getRecentReadings(1, 1, systemId);
-  const current = recent[recent.length - 1] ?? null;
-  const safety = await validateCommand(
-    { channel, amount_ml: amountMl, reason: "dose_approval task" },
-    current,
-    { systemId, dosingConfig: cfg }
+  // Fire through the shared, safety-gated action layer (lib/dose-executor.ts) —
+  // the SAME primitive chat (executeDose) and the autonomous cron use. It runs
+  // the SafetyController, fires the pump, logs the action, AND decrements the
+  // bottle (the bookkeeping this route used to forget).
+  const res = await executeDoseGated(
+    systemId,
+    {
+      channel,
+      amount_ml: amountMl,
+      reason: `approved via dashboard (task #${taskId})`,
+      aiStatus: "approved",
+      aiAnalysis: `Dose approved by grower from dashboard task #${taskId}`,
+    },
+    { dosingConfig: cfg }
   );
-  if (!safety.ok) {
+  if (res.blockedBySafety) {
     return NextResponse.json(
-      { ok: false, blocked_by_safety: true, reason: safety.reason },
+      { ok: false, blocked_by_safety: true, reason: res.reason },
       { status: 422 }
     );
   }
 
-  // Fire the pump.
-  const r = await doseChannelByPhysical(
-    assignment.physical,
-    amountMl,
-    `approved dose_approval #${taskId}`,
-    channel
-  );
-
-  // Log + complete the task regardless of pump success, so the audit
-  // trail captures the attempt and the task doesn't stay "pending forever".
+  // Complete the task regardless of pump success so it doesn't stay pending forever.
   try {
-    await saveAction(
-      {
-        channel,
-        amount_ml: amountMl,
-        reason: r.success
-          ? `approved via dashboard (task #${taskId})`
-          : `FAILED approved dose (task #${taskId}): ${r.error}`,
-        success: r.success,
-        ai_status: "approved",
-        ai_analysis: `Dose approved by grower from dashboard task #${taskId}`,
-      },
-      systemId
-    );
-  } catch (e) {
-    console.error("[task/approve] failed to log action:", e);
-  }
-  // Decrement the bottle on a confirmed-success pump fire — same bookkeeping
-  // the chat (executeDose) and the autonomous cron path already do. Without
-  // this, dashboard-approved doses silently drift the tracked bottle level,
-  // corrupting the safety floor + days-until-empty forecast.
-  if (r.success) {
-    try {
-      await decrementBottle(systemId, channel, amountMl);
-    } catch (e) {
-      console.error("[task/approve] decrementBottle failed:", e);
-    }
-  }
-  try {
-    await completeTask(taskId, r.success ? "approved + executed" : `approved but failed: ${r.error}`, systemId);
+    await completeTask(taskId, res.ok ? "approved + executed" : `approved but failed: ${res.error}`, systemId);
   } catch (e) {
     console.error("[task/approve] failed to mark task complete:", e);
   }
 
   // Re-derive the Brain's state now that a dose actually fired, so every
   // surface reflects the post-dose reality rather than the last cron snapshot.
-  const reeval = r.success ? await reevalSystem(systemId, "grower-dose") : null;
+  const reeval = res.ok ? await reevalSystem(systemId, "grower-dose") : null;
 
   return NextResponse.json({
-    ok: r.success,
+    ok: res.ok,
     task_id: taskId,
     channel,
-    physical_channel: assignment.physical,
+    physical_channel: res.physicalChannel ?? assignment.physical,
     amount_ml: amountMl,
-    runtime_seconds: r.runtime_seconds,
+    runtime_seconds: res.runtimeSeconds,
     reeval_status: (reeval?.status as string) ?? null,
-    error: r.error,
+    error: res.error,
   });
 }

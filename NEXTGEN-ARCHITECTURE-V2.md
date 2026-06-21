@@ -219,9 +219,12 @@ hard-coded, so tiers move without a code change.
 3. **Tiered models** — ✅ shipped (§8): gate returns a `tier`; `brain.ts` selects
    the model from config; the tier is recorded; light→heavy escalation (the
    refinement round) runs when the light pass wants to act.
-4. **Shared capability registry** — extract `agent-tools.ts` into a registry both
-   the chat route and the autonomous cycle consume; the cron gains the ability to
-   `recordHarvest` / `rememberFact` etc. when warranted (still safety-gated).
+4. **Shared capability registry** — 🟡 started (§10): the dose action — the most
+   safety-critical, and the one that lived in three divergent copies — is unified
+   into one gated primitive (`lib/dose-executor.ts`) that chat, cron, and the
+   approval route all call. Remaining: lift the rest of the capabilities
+   (recordHarvest / rememberFact / raiseTask …) into the registry so the cron can
+   invoke them too.
 5. **Admin-gated live architecture surface** — real auth; live phase + decisions.
 6. **Replant** — a `closed` grow can spawn a fresh grow (new lifecycle, reusing
    rig config) instead of needing a brand-new system.
@@ -312,7 +315,25 @@ autonomous path:
   (NOT in the customer API — tiering is not exposed, consistent with the IP
   doctrine; it surfaces on the admin architecture view, WS5).
 
-## 9 · Still designed-and-sequenced (not yet built)
+## 10 · Shipped in this change — the shared dose action layer (WS4, step 1)
 
-The Brain consolidation (§2.1) and the admin live surface (§2.5) remain in §4,
-plus the WS2 remainder: decision rows for significant *chat* actions.
+The first concrete piece of "one Brain over one safety-gated action layer" (§2.1):
+
+- **`lib/dose-executor.ts`** (new) — `executeDoseGated(systemId, req, opts)`: the
+  ONE primitive that resolves the physical channel, runs the SafetyController
+  against the freshest reading, fires the pump, logs `dosing_actions`, and
+  decrements the bottle.
+- Three callers now share it instead of carrying divergent copies:
+  - **chat** `executeDose` (`lib/agent-tools.ts`),
+  - **cron** autonomous loop (`lib/cycle.ts`) — which now also re-validates safety
+    right before firing,
+  - **dashboard** `/api/tasks/:id/approve`.
+- This is also the structural fix for the class of bug §1.1-style drift produced:
+  the approve copy had silently *forgotten to decrement the bottle*. With one
+  primitive, safety + bookkeeping can't diverge again.
+
+## 11 · Still designed-and-sequenced (not yet built)
+
+The rest of the capability registry (cron-callable recordHarvest / rememberFact /
+raiseTask), the full Brain consolidation (§2.1), and the admin live surface (§2.5)
+remain in §4, plus the WS2 remainder: decision rows for significant *chat* actions.

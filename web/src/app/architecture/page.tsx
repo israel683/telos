@@ -402,12 +402,17 @@ const BLOCKS: Block[] = [
     icon: "🎯",
     summary_he:
       "doseChannelByPhysical(physical, ml, reason, channelKey) — מפעיל את המשאבה, מחכה למשך זמן, מכבה.  Wrappers: executeDose (chat, treatment), primeChannel + primeAllChannels (chat, priming), /api/dose/test, /api/dose/prime, ה-cron /cycle.",
-    files: ["src/lib/devices/jebao.ts", "src/lib/agent-tools.ts", "src/app/api/dose/test/route.ts", "src/app/api/dose/prime/route.ts"],
+    files: ["src/lib/dose-executor.ts", "src/lib/devices/jebao.ts", "src/lib/agent-tools.ts", "src/app/api/tasks/[id]/approve/route.ts"],
     concepts: [
+      {
+        he: "פרימיטיב אחד משותף (dose-executor)",
+        detail:
+          "executeDoseGated הוא המקום היחיד שמזריק מנת-טיפול: resolve ערוץ פיזי → SafetyController → ירייה → log → decrement בקבוק.  שלושת הקוראים (צ'אט executeDose, לולאת ה-cron, ו-/approve) עוברים דרכו — אז בטיחות וספירת מלאי לא יכולות להתפצל שוב (הבאג שבו /approve שכח decrement).",
+      },
       {
         he: "executeDose — chat-driven treatment",
         detail:
-          "is_priming=false, decrementBottle אחרי הצלחה, logging ב-ai_status='chat'.",
+          "קורא ל-executeDoseGated עם ai_status='chat'.  decrement אחרי הצלחה, מטופל בפרימיטיב.",
       },
       {
         he: "primeChannel — chat-driven tube fill",
