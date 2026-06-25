@@ -1299,6 +1299,12 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           .array(z.string())
           .optional()
           .describe("Routine grower practices to ADD (append) to the profile"),
+        control_mode: z
+          .enum(["advisor_only", "brain_doser", "hybrid"])
+          .optional()
+          .describe(
+            "How much the Brain does itself: advisor_only (Brain RECOMMENDS, grower doses by hand — every dose becomes an approval task) · brain_doser (Brain doses autonomously) · hybrid. This sets POSTURE only — it can never by itself enable a pump; autonomous dosing still requires the grower's separate doser verification + master toggle."
+          ),
         mark_complete: z
           .boolean()
           .optional()
@@ -1320,11 +1326,18 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
         if (patch.practices && patch.practices.length) {
           next.practices = Array.from(new Set([...(cur.practices ?? []), ...patch.practices]));
         }
+        if (patch.control_mode !== undefined) next.control_mode = patch.control_mode;
         if (patch.mark_complete) {
           next.onboarding_completed_at = new Date().toISOString();
         }
 
-        await updateSystem(systemId, { grow_profile: next });
+        // Race-safe per-key write (not whole-blob) so a concurrent cron write to a
+        // sibling key — timeline / harvest_plan — is never clobbered by this merge.
+        const curRec = cur as Record<string, unknown>;
+        const nextRec = next as Record<string, unknown>;
+        for (const k of Object.keys(nextRec)) {
+          if (nextRec[k] !== curRec[k]) await mergeGrowProfileKey(systemId, k, nextRec[k]);
+        }
         const stillMissing = unansweredQuestions(next);
         return {
           ok: true,

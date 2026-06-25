@@ -27,7 +27,7 @@ import {
   saveAction,
   createHumanTask,
   mergeGrowProfileKey,
-  // updateSystem removed — harvest_plan now persists via the race-safe
+  // updateSystem removed — harvest_plan / onboarding persist via the race-safe
   // mergeGrowProfileKey; re-add if another whole-row update is needed.
   expireOldTasks,
   saveChatMessage,
@@ -41,6 +41,7 @@ import {
   type SystemRow,
 } from "@/lib/db";
 import { analyzeAndDecide } from "@/lib/brain";
+import { resolveExecutionPosture } from "@/lib/control-mode";
 import { doseChannelByPhysical } from "@/lib/devices/jebao";
 import { getDosingConfig } from "@/lib/dosing-config";
 import { evaluateCycleGate } from "@/lib/cycle-gate";
@@ -194,6 +195,12 @@ export async function runSystemCycle(
   // the rig's physical channel layout.
   const dosingConfig = await getDosingConfig(sys.id);
 
+  // Execution posture from the grower's control_mode (subtract-only): decides
+  // whether the Brain fires pumps or queues every dose as a recommendation. The
+  // Brain sees the EFFECTIVE posture (not the raw toggle), so its proposals match
+  // what actually happens — advisor_only ⇒ it recommends, never expects execution.
+  const posture = resolveExecutionPosture(sys);
+
   const decision = await analyzeAndDecide({
     current,
     recent,
@@ -206,8 +213,10 @@ export async function runSystemCycle(
       outdoor: sys.outdoor,
       // Feed the safety-critical context so the brain knows whether
       // its proposals execute or queue, and which bottles can
-      // actually deliver liquid right now.
-      autonomous_dosing_enabled: sys.autonomous_dosing_enabled,
+      // actually deliver liquid right now. This is the EFFECTIVE posture
+      // (control_mode × toggle × doser_verified), so advisor_only correctly
+      // reads as "recommend, don't execute" even if the raw toggle is on.
+      autonomous_dosing_enabled: posture === "autonomous",
       doser_verified: sys.doser_verified,
       bottle_levels: sys.bottle_levels,
     },
@@ -297,14 +306,14 @@ export async function runSystemCycle(
 
   const executed: Array<{ channel: string; amount_ml: number; success: boolean; error?: string }> = [];
 
-  // CRITICAL SAFETY GATE: do not let the autonomous loop fire pumps
-  // on a system whose grower hasn't explicitly enabled autonomous
-  // dosing.  Instead, materialise each command as a dose_approval
-  // Human Task so the grower can review + click "אשר ובצע" from the
-  // dashboard.  This stops the failure mode where a fresh install's
-  // brain ran overnight, burned through pH Down and nutrients, and
-  // the grower woke up to empty bottles.
-  if (!sys.autonomous_dosing_enabled) {
+  // CRITICAL SAFETY GATE: fire pumps ONLY when the resolved posture is
+  // `autonomous` (control_mode brain_doser × autonomous_dosing_enabled ×
+  // doser_verified — all true). In any `advise` posture (advisor_only, hybrid,
+  // toggle off, or doser unverified) every proposed dose is materialised as a
+  // dose_approval Human Task for the grower to review + click "אשר ובצע". Keying
+  // on posture (not the raw toggle) means the grower's advisor_only choice can
+  // never be bypassed — the mode is the outer guard.
+  if (posture !== "autonomous") {
     // Surface the Brain's proposed doses to the grower as dose_approval
     // tasks — using `proposed_doses` (every dose it recommended), NOT just
     // the safety-approved `commands`. Under manual dosing the grower acts
