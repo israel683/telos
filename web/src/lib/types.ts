@@ -22,6 +22,11 @@ export type SystemProfile = {
   growth_stage: string;
   location: string;
   outdoor: boolean;
+  /** Grower's chosen control mode (effective, with backfill for legacy systems). */
+  control_mode: "advisor_only" | "brain_doser" | "hybrid";
+  /** Whether the Brain may fire pumps this cycle, or only advises (every
+   *  recommendation becomes a task). Derived from control_mode × safety state. */
+  posture: "autonomous" | "advise";
 };
 
 export type AgentInfo = {
