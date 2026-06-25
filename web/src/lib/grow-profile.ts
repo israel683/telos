@@ -13,8 +13,9 @@
 export type GrowProfile = {
   /** Source water before any nutrient is added — RO, tap, well, rainwater. */
   water_source?: string;
-  /** Baseline of the source water (pre-nutrient) so the Brain reasons from zero. */
-  water_baseline?: { ph?: number; ec?: number };
+  /** Baseline of the source water (pre-nutrient) so the Brain reasons from zero.
+   *  Hardness is load-bearing: it selects the hard/soft Micro variant of a 3-part line. */
+  water_baseline?: { ph?: number; ec?: number; hardness_mg_l?: number; is_hard?: boolean };
   /** Light regime — full sun outdoors, or LED type + hours. */
   light?: string;
   /** Local climate / exposure in the grower's words (later enriched by a weather feed). */
@@ -25,6 +26,61 @@ export type GrowProfile = {
   target_buyer?: string;
   /** Things the grower does routinely that the Brain must account for. */
   practices?: string[];
+
+  // ── Onboarding setup (~/onboarding-spec.md). The grower gives short answers;
+  // the Brain DECOMPRESSES each against the knowledge tables. Safety-adjacent
+  // fields are advisory only — they never gate dosing. ──
+
+  // L0 — Operator & mode. control_mode is ADVISORY: the real execution gate stays
+  // systems.autonomous_dosing_enabled × doser_verified. NEVER read this to dose.
+  control_mode?: "advisor_only" | "brain_doser" | "hybrid";
+  operator_profile?: string;
+  experience_level?: "first_grow" | "some_cycles" | "seasoned_commercial";
+
+  // L1 — System (reservoir → systems.reservoir_liters; method → systems.system_type).
+  system_scale?: { units?: number; sites_per_unit?: number; total_sites?: number; detail?: string };
+
+  // L2 — Environment.
+  enclosure?: "sealed" | "greenhouse" | "open";
+  light_source?: "sunlight" | "led_artificial" | "hybrid";
+  /** Self-reported (unsensed) — Brain asks only when relevant, never required. */
+  air_temp?: { day?: number; night?: number; detail?: string };
+  humidity?: { rh?: number; detail?: string };
+
+  // L3 — Cultivars (cultivar → systems.cultivar_id; multi-cultivar reconciliation deferred).
+  planting_mix?: "single" | "multi_separate" | "multi_shared";
+  start_stage?: "from_seed" | "seedling_transplant" | "already_planted";
+  /** Weeks already in-system when start_stage = already_planted. */
+  weeks_in?: number;
+  /** Grower's harvest INTENT (baby-leaf vs head, single cut vs cut-and-come). Brain
+   *  never reads this as the plan — distinct from harvest_plan + the cultivar harvest model. */
+  harvest_target?: string;
+  seed_source?: string;
+
+  // L4 — Water (source + baseline above; this is the root-zone temperature control).
+  water_temp_control?: { has_chiller?: boolean; setpoint?: number };
+
+  // L5 — Nutrients & pH. Decompressed via the nutrient-brand / pH-product knowledge tables.
+  nutrient_brand?: string;
+  /** Confirmed / label-entered composition when the brand isn't on file. */
+  nutrient_composition?: string;
+  ph_up_product?: string | null; // null = grower uses none
+  ph_down_product?: string | null; // null = grower uses none
+  /** The targets the grower runs TODAY — the "current" picture. The "recommended"
+   *  picture is derived LIVE from the cultivar band (it shifts with stage), never stored. */
+  grower_current?: { ph?: number; ec?: number; note?: string };
+
+  // L6 — Additives & habits (intent preserved so the Brain never strips a deliberate practice).
+  additives?: Array<{ name: string; stage?: string; intent?: string }>;
+  history_flags?: string[];
+
+  // L7 — Goals & baseline.
+  primary_goal?: "max_yield" | "best_flavour" | "chef_look" | "fastest_cycle" | "most_uniform";
+  success_metric?: string;
+  monitoring_capability?: string[];
+  /** Immutable snapshot locked at onboarding completion — the case-study anchor. */
+  baseline?: GrowBaseline | null;
+
   /** ISO timestamp when onboarding was marked complete; null/absent = in progress. */
   onboarding_completed_at?: string | null;
   /**
@@ -209,6 +265,27 @@ export type OnboardingQuestion = {
   choices?: string[];
   /** A grow can't be fully understood without these; the Brain keeps asking. */
   required?: boolean;
+  /** Which onboarding layer (0–7) this belongs to — for grouping the review card. */
+  layer?: number;
+  /** Conditional: only relevant/asked when another field holds a given value
+   *  (e.g. mist_cycle only when system_type = aeroponics). */
+  when?: { field: string; equals: string };
+  /** The Brain can default/derive this; ask only if genuinely uncertain. */
+  inferable?: boolean;
+};
+
+/**
+ * The immutable baseline locked at onboarding completion — the snapshot every
+ * later grow decision (and the case study) is measured against. Stored at
+ * grow_profile.baseline; distinct from the Brain-maintained timeline / anchor.
+ */
+export type GrowBaseline = {
+  locked_at: string; // ISO
+  /** The resolved onboarding field set at lock (grower inputs + Brain inferences). */
+  inputs: Record<string, unknown>;
+  /** The Brain's recommended targets at lock time, frozen (the "recommended" picture). */
+  recommended?: { ph?: number; ec?: number } | null;
+  note?: string | null;
 };
 
 /**
