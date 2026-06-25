@@ -313,6 +313,22 @@ export async function ensureSchema(): Promise<void> {
   `);
   await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_episodes_ts ON grow_episodes(system_id, ts DESC)`);
 
+  // Web Push subscriptions — one row per browser/device the grower granted
+  // notification permission on (PWA on the home screen). The cron sends task
+  // alerts here so a closed app still reaches the grower. endpoint is unique so
+  // a re-subscribe upserts; a 410/404 from the push service prunes the row.
+  await safeDdl(() => s`
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id          BIGSERIAL PRIMARY KEY,
+      system_id   TEXT NOT NULL DEFAULT 'default',
+      endpoint    TEXT NOT NULL UNIQUE,
+      p256dh      TEXT NOT NULL,
+      auth        TEXT NOT NULL,
+      created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  await safeDdl(() => s`CREATE INDEX IF NOT EXISTS idx_push_system ON push_subscriptions(system_id)`);
+
   // NOTE: we used to auto-create a 'default' row on every bootstrap so the
   // single-system POC always had a parent for incoming readings.  That made
   // the systems table impossible to truly empty — every API hit would
@@ -896,6 +912,41 @@ export async function supersedeTasksForEvent(
     }
   }
   return rows.length;
+}
+
+// === Web Push subscriptions ===
+
+export type PushSubscriptionRecord = { endpoint: string; p256dh: string; auth: string };
+
+/** Upsert a browser/device push subscription for a system (re-subscribe = update). */
+export async function savePushSubscription(
+  systemId: string,
+  sub: PushSubscriptionRecord
+): Promise<void> {
+  await ensureSchema();
+  const s = sql();
+  await s`
+    INSERT INTO push_subscriptions (system_id, endpoint, p256dh, auth)
+    VALUES (${systemId}, ${sub.endpoint}, ${sub.p256dh}, ${sub.auth})
+    ON CONFLICT (endpoint) DO UPDATE
+      SET system_id = ${systemId}, p256dh = ${sub.p256dh}, auth = ${sub.auth}
+  `;
+}
+
+export async function getPushSubscriptions(systemId: string): Promise<PushSubscriptionRecord[]> {
+  await ensureSchema();
+  const s = sql();
+  const rows = (await s`
+    SELECT endpoint, p256dh, auth FROM push_subscriptions WHERE system_id = ${systemId}
+  `) as unknown as Array<PushSubscriptionRecord>;
+  return rows.map((r) => ({ endpoint: r.endpoint, p256dh: r.p256dh, auth: r.auth }));
+}
+
+/** Remove a dead subscription (the push service returned 410 Gone / 404). */
+export async function deletePushSubscription(endpoint: string): Promise<void> {
+  await ensureSchema();
+  const s = sql();
+  await s`DELETE FROM push_subscriptions WHERE endpoint = ${endpoint}`;
 }
 
 // === Grower Memory ===

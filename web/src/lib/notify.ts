@@ -17,6 +17,9 @@
  *                       for testing; use a verified domain for production).
  */
 
+import webpush from "web-push";
+import { getPushSubscriptions, deletePushSubscription } from "./db";
+
 export type EmailResult =
   | { ok: true; id?: string }
   | { ok: false; skipped: true; reason: string }
@@ -63,4 +66,82 @@ export async function sendAlertEmail(subject: string, text: string): Promise<Ema
     console.error("[notify] sendAlertEmail failed:", error);
     return { ok: false, error };
   }
+}
+
+/* ── Web Push (PWA) — reaches a grower whose app is closed/backgrounded. The
+   public VAPID key isn't secret (it ships to the client), so it's embedded as a
+   default; the private key is server-env-only. Push goes live once
+   VAPID_PRIVATE_KEY is set in Vercel. Email (above) is the fallback channel. ── */
+
+const VAPID_PUBLIC =
+  process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ||
+  "BBqYfU0hZK3eXhF9-ctWt8mPmk3G45bV5qK3n-x8nuvezbu5ftMDyeomqwkITik0Jx-qfkOV6aLvfd0-4-HWhu8";
+const VAPID_PRIVATE = process.env.VAPID_PRIVATE_KEY || "";
+const VAPID_SUBJECT = process.env.VAPID_SUBJECT || "mailto:israel@ferrera.co";
+
+export function pushConfigured(): boolean {
+  return !!(VAPID_PRIVATE && VAPID_PUBLIC);
+}
+
+/**
+ * Send a Web Push notification to every device subscribed for this system.
+ * Best-effort, never throws; prunes dead subscriptions (410/404). No-op +
+ * {skipped} when VAPID_PRIVATE_KEY is unset.
+ */
+export async function sendWebPush(
+  systemId: string,
+  title: string,
+  body: string
+): Promise<{ sent: number; pruned: number; skipped?: boolean }> {
+  if (!pushConfigured()) {
+    console.log(`[notify] web-push skipped (no VAPID_PRIVATE_KEY) — "${title}"`);
+    return { sent: 0, pruned: 0, skipped: true };
+  }
+  try {
+    webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC, VAPID_PRIVATE);
+  } catch (e) {
+    console.error("[notify] invalid VAPID config:", e instanceof Error ? e.message : e);
+    return { sent: 0, pruned: 0, skipped: true };
+  }
+  let subs: Awaited<ReturnType<typeof getPushSubscriptions>>;
+  try {
+    subs = await getPushSubscriptions(systemId);
+  } catch (e) {
+    console.error("[notify] getPushSubscriptions failed:", e instanceof Error ? e.message : e);
+    return { sent: 0, pruned: 0 };
+  }
+  const payload = JSON.stringify({ title, body, url: "/" });
+  let sent = 0;
+  let pruned = 0;
+  for (const sub of subs) {
+    try {
+      await webpush.sendNotification(
+        { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+        payload,
+        { TTL: 86400 }
+      );
+      sent++;
+    } catch (e) {
+      const code = (e as { statusCode?: number })?.statusCode;
+      if (code === 410 || code === 404) {
+        await deletePushSubscription(sub.endpoint).catch(() => {});
+        pruned++;
+      } else {
+        console.error("[notify] web-push send failed:", e instanceof Error ? e.message : e);
+      }
+    }
+  }
+  return { sent, pruned };
+}
+
+/**
+ * Reach the grower out-of-app on BOTH channels (Web Push + email). Best-effort:
+ * each is independently gated + never throws, so a cron run is never at risk.
+ */
+export async function notifyGrower(systemId: string, subject: string, text: string): Promise<void> {
+  const pushBody = text.length > 180 ? `${text.slice(0, 177)}…` : text;
+  await Promise.allSettled([
+    sendWebPush(systemId, subject, pushBody),
+    sendAlertEmail(subject, text),
+  ]);
 }

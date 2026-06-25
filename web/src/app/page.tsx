@@ -14,6 +14,7 @@ import {
 } from "@/lib/api";
 import type { StateResponse, HumanTask, AgentStatus } from "@/lib/types";
 import { harvestNounHe } from "@/lib/grow-profile";
+import { NotifyOptIn } from "@/components/NotifyOptIn";
 import { SensorChart } from "@/components/SensorChart";
 import { BottleLevels } from "@/components/BottleLevels";
 import { startVisibilityAwarePolling } from "@/lib/poll";
@@ -194,6 +195,9 @@ export default function Dashboard() {
           </section>
         </Link>
       ) : null}
+
+      {/* Notification opt-in — contextual soft-ask (push/email) */}
+      <NotifyOptIn />
 
       {/* Primary readings */}
       <div className="tk-readings">

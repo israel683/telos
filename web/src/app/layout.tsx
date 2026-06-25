@@ -3,6 +3,7 @@ import { Plus_Jakarta_Sans, Noto_Serif_Hebrew, Rubik } from "next/font/google";
 import localFont from "next/font/local";
 import { Nav } from "@/components/Nav";
 import { LanguageProvider } from "@/lib/i18n";
+import { ServiceWorkerInit } from "@/components/ServiceWorkerInit";
 import "./globals.css";
 import "./telos-ui.css";
 
@@ -81,6 +82,7 @@ export default function RootLayout({
           the body font selected by html[lang] in globals.css. */}
       <body className="min-h-full flex flex-col bg-[var(--ground-warm)] text-[var(--c-parchment)]">
         <LanguageProvider>
+          <ServiceWorkerInit />
           <Nav />
           {children}
         </LanguageProvider>

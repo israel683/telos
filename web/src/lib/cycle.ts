@@ -46,7 +46,7 @@ import { doseChannelByPhysical } from "@/lib/devices/jebao";
 import { getDosingConfig } from "@/lib/dosing-config";
 import { evaluateCycleGate } from "@/lib/cycle-gate";
 import { getEffectiveTargets } from "@/lib/tolerance";
-import { sendAlertEmail } from "@/lib/notify";
+import { notifyGrower } from "@/lib/notify";
 
 /**
  * How often the agent does a PROACTIVE REVIEW when everything is calm + healthy
@@ -539,10 +539,9 @@ export async function runSystemCycle(
       if (newTasks.length) lines.push(`\nמשימות: ${newTasks.map((t) => t.title).join(" · ")}`);
       lines.push("\nפתח את TELOS כדי לפעול.");
       const subject = `TELOS · ${decision.status === "critical" ? "🔴 קריטי" : decision.status === "warning" ? "⚠ אזהרה" : "פעולה נדרשת"} — ${sys.name}`;
-      const mail = await sendAlertEmail(subject, lines.join("\n"));
-      if (!mail.ok && !("skipped" in mail && mail.skipped)) {
-        console.error(`[cycle] urgent email failed for system=${sys.id}`);
-      }
+      // Reaches the grower out-of-app on BOTH channels — Web Push (the PWA on
+      // their home screen) + email fallback. Best-effort, never throws.
+      await notifyGrower(sys.id, subject, lines.join("\n"));
     }
   }
 
