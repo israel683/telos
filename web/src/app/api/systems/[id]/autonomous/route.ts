@@ -35,6 +35,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       { status: 412 }
     );
   }
+  // The grower chose advisor-only mode (Brain recommends, never doses). Honour it
+  // at the WRITE boundary, not just in the cron read — enabling the toggle while
+  // control_mode is advisor_only would be a silent contradiction of their choice.
+  if (enabled && sys.grow_profile?.control_mode === "advisor_only") {
+    return NextResponse.json(
+      {
+        error:
+          "Cannot enable autonomous dosing — this grow is in advisor-only mode. Change the control mode first (via chat) if you want TELOS to dose.",
+      },
+      { status: 412 }
+    );
+  }
   await setAutonomousDosing(id, enabled);
   return NextResponse.json({
     ok: true,
