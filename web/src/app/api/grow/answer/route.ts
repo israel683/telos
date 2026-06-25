@@ -8,7 +8,7 @@
  * cycle picks up; running the LLM per answer would just burn compute.
  */
 import { NextResponse } from "next/server";
-import { getSystem, updateSystem } from "@/lib/db";
+import { getSystem, mergeGrowProfileKey } from "@/lib/db";
 import { systemIdFromRequest } from "@/lib/system-ctx";
 import {
   applyOnboardingAnswer,
@@ -49,7 +49,18 @@ export async function POST(req: Request) {
     );
   }
 
-  await updateSystem(systemId, { grow_profile: nextProfile });
+  // Write ONLY the top-level key(s) this answer changed, atomically per key — so
+  // a concurrent cron write to a sibling key (timeline / harvest_plan) is never
+  // clobbered by a whole-blob overwrite built from a stale snapshot.
+  // applyOnboardingAnswer always touches exactly one top-level key (the field,
+  // or `water_baseline` / `practices`); the diff resolves it generically.
+  const cur = (sys.grow_profile ?? {}) as Record<string, unknown>;
+  const next = nextProfile as Record<string, unknown>;
+  for (const k of Object.keys(next)) {
+    if (next[k] !== cur[k]) {
+      await mergeGrowProfileKey(systemId, k, next[k]);
+    }
+  }
 
   return NextResponse.json({
     ok: true,
