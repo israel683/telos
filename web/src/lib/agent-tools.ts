@@ -381,7 +381,9 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
 
     askGrower: tool({
       description:
-        "Ask the grower a question that needs a specific answer. If `options` are provided, the UI renders clickable cards (stacked-questions pattern) and the grower picks. If no options, the UI shows a normal text reply prompt. Use this for closed-set questions during system setup or follow-ups — much faster for the grower than typing. Always phrase questions in Hebrew unless context dictates otherwise.",
+        "Ask the grower a question that needs a specific answer. If `options` are provided, the UI renders clickable cards (stacked-questions pattern) and the grower picks. If no options, the UI shows a normal text reply prompt. Use this for closed-set questions during system setup or follow-ups — much faster for the grower than typing. " +
+        "Whenever the real-world answer set is open-ended (cultivar, nutrient brand, water source, anything where the grower might have something not in your list), set `allow_free_text: true` so the card shows an 'אחר — אקליד' escape and the grower is never trapped. NEVER offer a closed list for an open domain without it. " +
+        "Always phrase questions in Hebrew unless context dictates otherwise.",
       inputSchema: z.object({
         question: z.string().describe("The question text in Hebrew"),
         options: z
@@ -399,6 +401,13 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           .default(false)
           .optional()
           .describe("If true, the grower can pick multiple options"),
+        allow_free_text: z
+          .boolean()
+          .default(false)
+          .optional()
+          .describe(
+            "If true, add an 'אחר — אקליד' card that reveals a free-text box. Set true for any open domain (cultivar, brand, water source) so an off-list answer is captured, not blocked."
+          ),
       }),
       // This tool is UI-only — the chat client renders the question and sends
       // the grower's reply as the next message. The execute return is just so
@@ -1089,8 +1098,11 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
       inputSchema: z.object({
         name: z.string().optional().describe("Display name in Hebrew"),
         crop_type: z
-          .enum(["lettuce", "basil", "spinach", "strawberry", "tomato"])
-          .optional(),
+          .string()
+          .optional()
+          .describe(
+            "Generic crop/species (English lowercase, e.g. 'lettuce', 'basil', 'mint', 'arugula'). Free-form — NOT limited to a fixed list, so a grower's real crop is never coerced. Prefer `cultivar_id` when the grower names a registry cultivar; use crop_type for anything generic or off-registry."
+          ),
         cultivar_id: z
           .string()
           .optional()

@@ -837,7 +837,7 @@ function MessageBubble({
             // Active only on the latest assistant message so old questions
             // don't re-trigger.
             if (toolName === "askGrower") {
-              const input = (part as { input?: { question?: string; options?: Array<{ value: string; label: string; description?: string }>; multi?: boolean } }).input;
+              const input = (part as { input?: { question?: string; options?: Array<{ value: string; label: string; description?: string }>; multi?: boolean; allow_free_text?: boolean } }).input;
               if (input?.question && input?.options && input.options.length > 0) {
                 return (
                   <StackedQuestion
@@ -845,6 +845,7 @@ function MessageBubble({
                     question={input.question}
                     options={input.options}
                     multi={input.multi}
+                    allowOther={input.allow_free_text}
                     onAnswer={onAnswer}
                     disabled={!isLastAssistant || !awaitingAnswer}
                   />
