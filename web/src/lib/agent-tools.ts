@@ -45,7 +45,7 @@ import {
   type GrowProfile,
   type HarvestPlan,
 } from "./grow-profile";
-import { allCultivarIds, getCultivarRecord } from "./cultivars";
+import { allCultivarIds, getCultivarRecord, cultivarTargets } from "./cultivars";
 
 export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
   // Resolve the per-system dosing layout once per chat request so all tools
@@ -1376,7 +1376,7 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
 
     recordGrowProfile: tool({
       description:
-        "Persist the grower's onboarding answers into this grow's personal profile (Grow Context). Call this right after the grower answers an onboarding question. Pass only the fields you just learned — they deep-merge into the stored profile (water_baseline merges by key; practices append). Set mark_complete:true only once the grower has answered everything essential and you've confirmed nothing critical is missing.",
+        "Persist the grower's onboarding answers into this grow's personal profile (Grow Context). Call this right after the grower answers an onboarding question. Pass only the fields you just learned — they deep-merge into the stored profile (water_baseline merges by key; practices append). Set mark_complete:true only once the grower has answered everything essential, you've reflected the full picture back, and they've confirmed — it stamps onboarding complete AND locks the immutable baseline (the case-study anchor), which can never be re-locked.",
       inputSchema: z.object({
         water_source: z.string().optional().describe("e.g. מי ברז / אוסמוזה הפוכה / באר / מי גשם"),
         water_baseline: z
@@ -1439,6 +1439,42 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
         }
         if (patch.mark_complete) {
           next.onboarding_completed_at = new Date().toISOString();
+          // Lock the immutable baseline ONCE — the case-study anchor every later
+          // grow decision is measured against. Never overwrite an existing lock
+          // (a re-mark must not move the starting line). Captures the resolved
+          // grow_profile (grower answers + Brain inferences) + the system-column
+          // facts + the cultivar's recommended ph/ec at lock time (frozen).
+          if (!cur.baseline) {
+            const VOLATILE = new Set([
+              "baseline",
+              "timeline",
+              "harvest_plan",
+              "grow_anchor_date",
+              "grow_anchor_kind",
+              "onboarding_completed_at",
+            ]);
+            const inputs: Record<string, unknown> = {};
+            for (const [k, v] of Object.entries(next)) {
+              if (!VOLATILE.has(k)) inputs[k] = v;
+            }
+            inputs.crop_type = sys?.crop_type ?? null;
+            inputs.cultivar_id = sys?.cultivar_id ?? null;
+            inputs.growth_stage = sys?.growth_stage ?? null;
+            inputs.reservoir_liters = sys?.reservoir_liters ?? null;
+            inputs.location = sys?.location ?? null;
+            inputs.system_type = sys?.system_type ?? null;
+            const bands = sys?.cultivar_id
+              ? cultivarTargets(sys.cultivar_id, sys.growth_stage)
+              : null;
+            next.baseline = {
+              locked_at: next.onboarding_completed_at,
+              inputs,
+              recommended: bands
+                ? { ph: bands.ph?.target, ec: bands.ec?.target }
+                : null,
+              note: null,
+            };
+          }
         }
 
         // Race-safe per-key write (not whole-blob) so a concurrent cron write to a
