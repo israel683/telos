@@ -1317,6 +1317,20 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           .describe(
             "How much the Brain does itself: advisor_only (Brain RECOMMENDS, grower doses by hand — every dose becomes an approval task) · brain_doser (Brain doses autonomously) · hybrid. This sets POSTURE only — it can never by itself enable a pump; autonomous dosing still requires the grower's separate doser verification + master toggle."
           ),
+        experience_level: z
+          .enum(["first_grow", "some_cycles", "seasoned_commercial"])
+          .optional()
+          .describe(
+            "Grower's experience with the method: first_grow · some_cycles · seasoned_commercial. Tunes how much you explain vs assume — never gates a step."
+          ),
+        notifications: z
+          .object({
+            channel: z.enum(["push", "email", "both", "none"]).optional(),
+          })
+          .optional()
+          .describe(
+            "How the grower wants to receive tasks/alerts (push / email / both / none). Ask this for a MANUAL (advisor_only) rig, where receiving the task reliably is what keeps the grow safe."
+          ),
         mark_complete: z
           .boolean()
           .optional()
@@ -1339,6 +1353,10 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           next.practices = Array.from(new Set([...(cur.practices ?? []), ...patch.practices]));
         }
         if (patch.control_mode !== undefined) next.control_mode = patch.control_mode;
+        if (patch.experience_level !== undefined) next.experience_level = patch.experience_level;
+        if (patch.notifications !== undefined) {
+          next.notifications = { ...(cur.notifications ?? {}), ...patch.notifications };
+        }
         if (patch.mark_complete) {
           next.onboarding_completed_at = new Date().toISOString();
         }

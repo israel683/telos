@@ -36,6 +36,10 @@ export type GrowProfile = {
   control_mode?: "advisor_only" | "brain_doser" | "hybrid";
   operator_profile?: string;
   experience_level?: "first_grow" | "some_cycles" | "seasoned_commercial";
+  /** How the grower wants to receive tasks/alerts. Channel is captured at
+   *  onboarding (it matters most for a MANUAL rig, who must act on every dose);
+   *  quiet-hours/timezone refinement comes later. */
+  notifications?: { channel?: "push" | "email" | "both" | "none" };
 
   // L1 — System (reservoir → systems.reservoir_liters; method → systems.system_type).
   system_scale?: { units?: number; sites_per_unit?: number; total_sites?: number; detail?: string };
