@@ -36,6 +36,7 @@ import {
   getLastCronChatPush,
   addEpisode,
   hasRecentTaskOfType,
+  hasRecentTaskOfTypeForChannel,
   getSystem,
   type SystemRow,
 } from "@/lib/db";
@@ -313,8 +314,11 @@ export async function runSystemCycle(
     // pending or was raised in the last 3h.  (This same guard is what
     // stops a grower-triggered re-eval from immediately re-nagging the
     // dose the grower just confirmed.)
-    const dupePending = await hasRecentTaskOfType("dose_approval", 3, sys.id);
     for (const cmd of decision.proposed_doses) {
+      // Dedup PER CHANNEL (not one blanket boolean) so a pending pH dose can't
+      // silently swallow a fresh nutrient dose — in advisor mode the grower is
+      // the executor, so a dropped recommendation is a missed correction.
+      const dupePending = await hasRecentTaskOfTypeForChannel("dose_approval", cmd.channel, 3, sys.id);
       if (!dupePending) {
         try {
           await createHumanTask(
@@ -324,14 +328,20 @@ export async function runSystemCycle(
               title: `אישור מנה: ${cmd.channel} ${cmd.amount_ml}ml`,
               reason:
                 `המוח ממליץ ${cmd.amount_ml}ml ב-${cmd.channel}. ` +
-                `הסיבה: ${cmd.reason}. דישון מתבצע ידנית — בצע/י את המנה ואז סמן/י "בוצע", או "בטל" אם לא רלוונטי.`,
+                `הסיבה: ${cmd.reason}. דישון מתבצע ידנית — בצע/י את המנה, ` +
+                `⏱ המתן 30+ דקות לערבוב לפני מדידה או מנה נוספת, ואז סמן/י "בוצע" (או "בטל" אם לא רלוונטי).`,
               payload: {
                 channel: cmd.channel,
                 amount_ml: cmd.amount_ml,
                 reason_en: cmd.reason,
+                // Settling window — re-measuring/re-dosing before this risks "whipping"
+                // pH/EC back and forth and draining bottles. Surfaced to the grower.
+                settle_minutes: 30,
                 source: source === "cron" ? "cron-cycle-manual-dosing" : `reeval-${source}-manual-dosing`,
               },
-              expires_in_hours: 8,
+              // Advisor-mode recommendations must survive overnight: an 8h expiry on a
+              // 20:00 dose vanishes by 04:00 with nothing pending by morning.
+              expires_in_hours: 24,
               decision_id: decisionId,
             },
             sys.id

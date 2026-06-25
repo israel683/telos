@@ -19,21 +19,26 @@ export async function GET(req: Request) {
         : await getTasksByStatus(status, systemId);
     return NextResponse.json({
       system_id: systemId,
-      tasks: tasks.map((t) => ({
-        id: t.id,
-        system_id: t.system_id,
-        created_at: t.created_at.toISOString(),
-        type: t.type,
-        priority: t.priority,
-        title: t.title,
-        reason: t.reason,
-        payload: t.payload,
-        status: t.status,
-        expires_at: t.expires_at?.toISOString() || null,
-        completed_at: t.completed_at?.toISOString() || null,
-        user_response: t.user_response,
-        decision_id: t.decision_id,
-      })),
+      tasks: tasks.map((t) => {
+        // Grower-safe payload projection — the UI needs only {channel, amount_ml}
+        // (PendingTasksCard). Never ship the rest (reason_en, internal source,
+        // timeline_event_id) or decision_id to the client (IP-confidentiality).
+        const p = (t.payload ?? {}) as Record<string, unknown>;
+        return {
+          id: t.id,
+          system_id: t.system_id,
+          created_at: t.created_at.toISOString(),
+          type: t.type,
+          priority: t.priority,
+          title: t.title,
+          reason: t.reason,
+          payload: { channel: p.channel, amount_ml: p.amount_ml },
+          status: t.status,
+          expires_at: t.expires_at?.toISOString() || null,
+          completed_at: t.completed_at?.toISOString() || null,
+          user_response: t.user_response,
+        };
+      }),
     });
   } catch (e) {
     return NextResponse.json(
