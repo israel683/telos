@@ -31,8 +31,8 @@ import {
 import { GROWER_MEMORY_KINDS } from "./grower-memory";
 import { relAge, isoMinuteUtc } from "./time";
 import { getBottleStatusReport } from "./bottle-status";
-import { readTuyaSensor } from "./devices/tuya";
-import { doseChannelByPhysical } from "./devices/jebao";
+import { readTuyaSensor, getTuyaDeviceInfo } from "./devices/tuya";
+import { doseChannelByPhysical, listJebaoBindings } from "./devices/jebao";
 import { validateCommand } from "./safety";
 import { PRIMING_DONE_SENTINEL, PRIMING_ML_PER_CHANNEL } from "./priming";
 import { getDosingConfig, allChannelKeys, type DosingConfig } from "./dosing-config";
@@ -1291,6 +1291,72 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           closed_tasks: closed,
           note: `The harvest date is now ${next_date} across the whole system (dashboard, grow page, timeline, Brain) and the Brain will respect it. Confirm to the grower in Hebrew using "${word}".`,
         };
+      },
+    }),
+
+    confirmSensorBinding: tool({
+      description:
+        "During onboarding, look up the water sensor bound to THIS system on Tuya and report its NAME + online status, so the grower can CONFIRM it's theirs ('אני רואה חיישן בשם X, מקוון — זה שלך?'). Call this at the hardware-confirmation step BEFORE asserting the sensor is connected — never claim a connection you didn't verify. Honest when nothing is bound / Tuya unconfigured / the device is offline.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        const sys = await getSystem(systemId);
+        const info = await getTuyaDeviceInfo(sys?.tuya_device_id ?? undefined);
+        if (!info.configured) {
+          return {
+            ok: true,
+            status: "unconfigured",
+            message: "No Tuya sensor is configured for this system yet. Tell the grower we can continue and wire a sensor later — don't claim one is connected.",
+          };
+        }
+        if (!info.found) {
+          return {
+            ok: true,
+            status: "not_found",
+            deviceId: info.deviceId,
+            message: "A device id is set but Tuya couldn't find it (wrong id or a network error). Ask the grower to confirm the sensor id rather than asserting it's connected.",
+          };
+        }
+        return {
+          ok: true,
+          status: info.online ? "online" : "offline",
+          name: info.name,
+          deviceId: info.deviceId,
+          online: info.online,
+          message: info.online
+            ? "Sensor found and ONLINE. Tell the grower its name and ask them to confirm it's the one wired to their system."
+            : "Sensor found but reporting OFFLINE. Tell the grower its name, ask them to confirm it's theirs, and to check it's powered and in water.",
+        };
+      },
+    }),
+
+    confirmDoserBinding: tool({
+      description:
+        "During onboarding of an AUTONOMOUS (brain_doser) rig, list the Jebao doser(s) bound to the account and report NAME + online status, so the grower can CONFIRM the doser ('דוזר בשם X, מקוון — זה שלך?'). SKIP entirely for a MANUAL (advisor_only) rig — there is no doser to verify. Honest when nothing is bound / offline.",
+      inputSchema: z.object({}),
+      execute: async () => {
+        try {
+          const devices = await listJebaoBindings();
+          if (!devices.length) {
+            return {
+              ok: true,
+              status: "none",
+              message: "No Jebao doser is bound to the account. If this is a manual rig that's expected; otherwise tell the grower to check the doser's connection.",
+            };
+          }
+          return {
+            ok: true,
+            status: "found",
+            count: devices.length,
+            devices: devices.map((d) => ({ name: d.dev_alias ?? null, online: Boolean(d.is_online) })),
+            message: "Doser(s) found. Tell the grower the name(s) + online status and ask them to confirm it's theirs.",
+          };
+        } catch {
+          return {
+            ok: true,
+            status: "error",
+            message: "Couldn't reach the doser right now (network/auth). Offer to retry or to verify later — don't claim it's confirmed.",
+          };
+        }
       },
     }),
 
