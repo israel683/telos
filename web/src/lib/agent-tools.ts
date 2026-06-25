@@ -415,6 +415,20 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
       execute: async (params) => ({ rendered: true, ...params }),
     }),
 
+    requestNotificationOptIn: tool({
+      description:
+        "Render an inline 'enable push notifications' button in the chat so the grower can grant browser permission on the spot. Call this during onboarding RIGHT AFTER recording a notification preference that includes push (push / both) — push permission can only be granted from a user gesture, which the button provides; you cannot grant it yourself. Skip for email-only or 'none'. Mainly for a MANUAL (advisor_only) rig, where receiving the dose task reliably keeps the grow safe.",
+      inputSchema: z.object({
+        reason: z
+          .string()
+          .optional()
+          .describe("Optional one-line Hebrew nudge shown above the button, e.g. why alerts matter for a manual rig."),
+      }),
+      // UI-only — the chat client renders the enable-push button; the actual
+      // permission + subscribe handshake runs client-side on tap.
+      execute: async (params) => ({ rendered: true, ...params }),
+    }),
+
     configureFertilizer: tool({
       description:
         "Persist this system's dosing configuration: which fertilizer profile is installed (Terra Aquatica TriPart, AD HaMushlam, etc.) and which physical Jebao channel carries each bottle (nutrient components + pH up/down). " +
