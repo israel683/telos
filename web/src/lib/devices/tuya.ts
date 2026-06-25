@@ -101,6 +101,48 @@ async function signedGet(cfg: TuyaConfig, path: string): Promise<unknown> {
   return r.json();
 }
 
+/**
+ * Lightweight device identity + liveness from Tuya's device endpoint
+ * (/v1.0/devices/{id}) — the `name` the grower gave the sensor in the Tuya app
+ * plus its online flag. Used to CONFIRM the bound sensor during onboarding
+ * ("אני רואה חיישן בשם X, מקוון — זה שלך?"). Never throws: returns
+ * configured:false when Tuya env is absent, found:false on any API failure.
+ */
+export async function getTuyaDeviceInfo(deviceId?: string): Promise<{
+  configured: boolean;
+  found: boolean;
+  deviceId: string | null;
+  name: string | null;
+  online: boolean;
+}> {
+  const accessId = process.env.TUYA_ACCESS_ID;
+  const accessSecret = process.env.TUYA_ACCESS_SECRET;
+  const id = deviceId || process.env.TUYA_SENSOR_DEVICE_ID;
+  if (!accessId || !accessSecret || !id) {
+    return { configured: false, found: false, deviceId: id ?? null, name: null, online: false };
+  }
+  const cfg: TuyaConfig = {
+    accessId,
+    accessSecret,
+    endpoint: process.env.TUYA_API_ENDPOINT || "https://openapi.tuyaeu.com",
+    deviceId: id,
+  };
+  try {
+    const info = (await signedGet(cfg, `/v1.0/devices/${id}`)) as {
+      result?: { online?: boolean; name?: string };
+    };
+    return {
+      configured: true,
+      found: Boolean(info?.result),
+      deviceId: id,
+      name: info?.result?.name ?? null,
+      online: Boolean(info?.result?.online),
+    };
+  } catch {
+    return { configured: true, found: false, deviceId: id, name: null, online: false };
+  }
+}
+
 export async function readTuyaSensor(opts: { deviceId?: string } = {}): Promise<TuyaReading> {
   const cfg: TuyaConfig = {
     accessId: required("TUYA_ACCESS_ID"),
