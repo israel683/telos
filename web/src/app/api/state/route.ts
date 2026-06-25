@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getRecentReadings, getRecentDecisions, getPendingTasks, getSystem } from "@/lib/db";
 import { systemIdFromRequest } from "@/lib/system-ctx";
+import { effectiveControlMode, resolveExecutionPosture } from "@/lib/control-mode";
 
 export const maxDuration = 15;
 
@@ -63,6 +64,8 @@ export async function GET(req: Request) {
         growth_stage: sys.growth_stage,
         location: sys.location,
         outdoor: sys.outdoor,
+        control_mode: effectiveControlMode(sys),
+        posture: resolveExecutionPosture(sys),
       },
       system: {
         id: sys.id,

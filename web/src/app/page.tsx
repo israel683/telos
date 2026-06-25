@@ -256,11 +256,21 @@ export default function Dashboard() {
             <Row label={t("Next analysis", "ניתוח הבא")} value={t(`in ${Math.round(state.agent.next_ai_seconds / 60)} min`, `בעוד ${Math.round(state.agent.next_ai_seconds / 60)} ד'`)} />
             <Row label={t("Model", "מודל")} value={state.agent.model || "claude-sonnet-4-6"} />
             <Row label={t("Growth stage", "שלב גידול")} value={stage} />
+            <Row
+              label={t("Mode", "מצב")}
+              value={
+                state.system_profile.posture === "autonomous"
+                  ? t("Autonomous", "אוטונומי")
+                  : state.system_profile.control_mode === "advisor_only"
+                    ? t("Advisor — you dose", "ייעוץ — אתה מבצע")
+                    : t("Autonomous (inactive)", "אוטונומי (לא פעיל)")
+              }
+            />
           </dl>
         </section>
       </div>
 
-      <TasksPanel tasks={tasks} onApprove={handleApproveDose} onComplete={handleComplete} onDismiss={handleDismiss} onAnswer={handleAnswer} />
+      <TasksPanel tasks={tasks} posture={state.system_profile.posture} onApprove={handleApproveDose} onComplete={handleComplete} onDismiss={handleDismiss} onAnswer={handleAnswer} />
 
       <footer style={{ fontSize: ".7rem", color: "var(--c-stone)", textAlign: "center", paddingTop: 8 }}>
         {t(`Updates every ${REFRESH_MS / 1000}s`, `מתעדכן כל ${REFRESH_MS / 1000} שניות`)}
@@ -301,9 +311,10 @@ function Row({ label, value }: { label: string; value: string }) {
 }
 
 function TasksPanel({
-  tasks, onApprove, onComplete, onDismiss, onAnswer,
+  tasks, posture, onApprove, onComplete, onDismiss, onAnswer,
 }: {
   tasks: HumanTask[];
+  posture?: "autonomous" | "advise";
   onApprove: (id: number) => void;
   onComplete: (id: number) => void;
   onDismiss: (id: number) => void;
@@ -315,11 +326,16 @@ function TasksPanel({
   const hands = tasks.filter((t) => t.type !== "dose_approval" && t.type !== "question");
 
   if (tasks.length === 0) {
+    // Don't claim "running autonomously" for an advisor rig — it dose by hand.
+    const empty =
+      posture === "autonomous"
+        ? t("No pending tasks. The system is running autonomously.", "אין משימות ממתינות. המערכת רצה אוטונומית.")
+        : t("No pending tasks. The Brain is watching and will send one when something needs you.", "אין משימות ממתינות. המוח עוקב וישלח משימה כשיהיה צורך.");
     return (
       <section>
         <div className="tk-card-h"><span className="ct">{t("Pending tasks", "משימות ממתינות")}</span></div>
         <p className="tk-card" style={{ fontSize: ".88rem", color: "var(--c-stone)", textAlign: "center", padding: "2rem" }}>
-          {t("No pending tasks. The system is running autonomously.", "אין משימות ממתינות. המערכת רצה אוטונומית.")}
+          {empty}
         </p>
       </section>
     );
