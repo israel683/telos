@@ -1599,15 +1599,42 @@ export async function hasRecentTaskOfType(
   const s = sql();
   const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000).toISOString();
   // Suppress a duplicate only if a same-type task is STILL PENDING (any age —
-  // never stack two open tasks for the same concern) OR one was created within
-  // the recent window (covers a just-resolved/dismissed task so we don't re-nag
-  // immediately). A persistent need therefore resurfaces after the short window
-  // instead of going silent for a full day.
+  // never stack two open tasks for the same concern) OR the grower ACTED on one
+  // within the recent window (so we don't re-nag a just-done/dismissed task).
+  // Critically we do NOT suppress on a task that auto-EXPIRED unseen — that left
+  // user_response NULL, and the grower never saw the recommendation, so a fresh
+  // one must surface rather than be masked for the window.
   const rows = (await s`
     SELECT 1 FROM human_tasks
     WHERE system_id = ${systemId}
       AND type = ${t}
-      AND (status = 'pending' OR created_at > ${cutoff})
+      AND (status = 'pending' OR (user_response IS NOT NULL AND created_at > ${cutoff}))
+    LIMIT 1
+  `) as unknown as Array<unknown>;
+  return rows.length > 0;
+}
+
+/**
+ * Like hasRecentTaskOfType, but scoped to a single dosing CHANNEL (via
+ * payload.channel). The plain per-type check is channel-blind — one pending
+ * pH dose would suppress a fresh, unrelated nutrient dose. This lets the cron
+ * dedup per channel so no recommendation is silently dropped.
+ */
+export async function hasRecentTaskOfTypeForChannel(
+  t: TaskType,
+  channel: string,
+  hoursWindow: number,
+  systemId: string = DEFAULT_SYSTEM_ID
+): Promise<boolean> {
+  await ensureSchema();
+  const s = sql();
+  const cutoff = new Date(Date.now() - hoursWindow * 60 * 60 * 1000).toISOString();
+  const rows = (await s`
+    SELECT 1 FROM human_tasks
+    WHERE system_id = ${systemId}
+      AND type = ${t}
+      AND payload->>'channel' = ${channel}
+      AND (status = 'pending' OR (user_response IS NOT NULL AND created_at > ${cutoff}))
     LIMIT 1
   `) as unknown as Array<unknown>;
   return rows.length > 0;
