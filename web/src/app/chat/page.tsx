@@ -15,6 +15,7 @@ const MarkdownBlock = memo(function MarkdownBlock({ text }: { text: string }) {
   return <ReactMarkdown>{text}</ReactMarkdown>;
 });
 import { StackedQuestion } from "@/components/StackedQuestion";
+import { ChatNotifyButton } from "@/components/ChatNotifyButton";
 import { PendingTasksCard } from "@/components/PendingTasksCard";
 import { useLang, statusLabel } from "@/lib/i18n";
 
@@ -862,6 +863,11 @@ function MessageBubble({
                   <p className="text-xs text-[var(--c-ash)] mt-2">{t("Reply below in the message box ↓", "ענה למטה בתיבת ההודעות ↓")}</p>
                 </div>
               ) : null;
+            }
+            // requestNotificationOptIn renders an inline enable-push button.
+            if (toolName === "requestNotificationOptIn") {
+              const input = (part as { input?: { reason?: string } }).input;
+              return <ChatNotifyButton key={i} reason={input?.reason} />;
             }
             // updateSystem is a silent side-effect — don't render a card.
             if (toolName === "updateSystem") {
