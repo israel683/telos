@@ -66,6 +66,13 @@ export default function ChatPage() {
     }),
   });
 
+  // Live ref to the current messages so the live-update poll can diff against
+  // what's already shown without re-subscribing on every streamed token.
+  const messagesRef = useRef(messages);
+  useEffect(() => {
+    messagesRef.current = messages;
+  }, [messages]);
+
   // Load history + system metadata once we know which system is active.
   useEffect(() => {
     const sys = getActiveSystem();
@@ -125,6 +132,63 @@ export default function ChatPage() {
     };
   }, [setMessages]);
 
+  // === Live-update poll =====================================================
+  // History loads exactly once on mount; messages written server-side AFTER
+  // that — the cron cycle, a re-eval, a system note via saveChatMessage —
+  // persist to the DB but never reach the local useChat stream, so the grower
+  // had to refresh to see them. Poll the history endpoint while the tab is
+  // visible and idle (never mid-stream, so we don't clobber a live reply) and
+  // append only server-origin rows we haven't shown yet, keyed by id. We skip
+  // source==="chat" rows: those are the local turns, whose DB copies carry ids
+  // the client stream won't match and would otherwise duplicate. 13s cadence +
+  // visibility-gating respects the Neon compute budget.
+  useEffect(() => {
+    if (!historyLoaded) return;
+    let cancelled = false;
+    const poll = async () => {
+      if (cancelled) return;
+      if (typeof document !== "undefined" && document.visibilityState !== "visible") return;
+      if (status !== "ready") return; // never append into an in-flight stream
+      const sys = getActiveSystem();
+      const qs = sys && sys !== "default" ? `?system=${encodeURIComponent(sys)}` : "";
+      try {
+        const r = await fetch(`/api/chat/history${qs}`, { cache: "no-store" });
+        if (!r.ok || cancelled) return;
+        const j = (await r.json()) as { messages: HistoryMessage[] };
+        const shown = new Set(messagesRef.current.map((m) => m.id));
+        const fresh = j.messages.filter((m) => m.source !== "chat" && !shown.has(m.id));
+        if (!fresh.length || cancelled) return;
+        setMessageMeta((prev) => {
+          const next = { ...prev };
+          for (const m of fresh) {
+            next[m.id] = { source: m.source, decision_id: m.decision_id, status: m.status, ts: m.ts };
+          }
+          return next;
+        });
+        setMessages([
+          ...messagesRef.current,
+          ...fresh.map((m) => ({
+            id: m.id,
+            role: m.role as "user" | "assistant" | "system",
+            parts: m.parts as never,
+          })),
+        ]);
+      } catch {
+        // transient (network / compute cold start) — the next tick retries
+      }
+    };
+    const iv = setInterval(poll, 13000);
+    const onVis = () => {
+      if (document.visibilityState === "visible") poll();
+    };
+    document.addEventListener("visibilitychange", onVis);
+    return () => {
+      cancelled = true;
+      clearInterval(iv);
+      document.removeEventListener("visibilitychange", onVis);
+    };
+  }, [historyLoaded, status, setMessages]);
+
   const [input, setInput] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -183,8 +247,12 @@ export default function ChatPage() {
     const el = scrollRef.current;
     if (!el) return;
     const streaming = status === "streaming" || status === "submitted";
-    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
-    if (streaming && !nearBottom) return;
+    // Near-bottom guard applies to BOTH streaming and idle new messages: a
+    // freshly polled cron/agent message should pull a reader who's at the
+    // bottom down to it, but must never yank one who scrolled up to read
+    // backscroll. 240px ≈ a message or two of slack.
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 240;
+    if (!nearBottom) return;
     if (scrollTimerRef.current) clearTimeout(scrollTimerRef.current);
     scrollTimerRef.current = setTimeout(() => {
       bottomRef.current?.scrollIntoView({
