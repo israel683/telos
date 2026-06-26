@@ -280,6 +280,32 @@ DO NOT call \`getCurrentState\` or \`getRecentReadings\` until \`markSetupComple
   // is plain-string only.  Same pattern brain.ts uses for the autonomous
   // cycle's cached SYSTEM_PROMPT.
   const convertedHistory = await convertToModelMessages(trimmedMessages);
+  // Guard against a poisoned thread. If any PERSISTED tool call carries a
+  // non-object `input` — an interrupted/errored or no-argument tool call can
+  // serialize as "" / undefined — the Anthropic API rejects the ENTIRE request
+  // ("messages.N.content.M.tool_use.input: Input should be an object") on every
+  // subsequent turn, permanently bricking the conversation (the bad part is
+  // replayed each time). Coerce every tool-call input to a valid object so one
+  // malformed part can't take down the whole thread.
+  for (const m of convertedHistory) {
+    if (!Array.isArray(m.content)) continue;
+    for (const part of m.content) {
+      if (!part || (part as { type?: string }).type !== "tool-call") continue;
+      const tc = part as { input?: unknown };
+      const inp = tc.input;
+      if (inp === null || inp === undefined || typeof inp !== "object" || Array.isArray(inp)) {
+        if (typeof inp === "string" && inp.trim().startsWith("{")) {
+          try {
+            tc.input = JSON.parse(inp);
+          } catch {
+            tc.input = {};
+          }
+        } else {
+          tc.input = {};
+        }
+      }
+    }
+  }
   const modelMessages: ModelMessage[] = [
     {
       role: "system",
