@@ -68,43 +68,36 @@ export function StackedQuestion({
     onAnswer(parts.join(" · "));
   }
 
+  // Brand-themed (matches the rest of the app: warm surfaces, basil-green accent).
+  const optionCls = (active: boolean) =>
+    `w-full text-right rounded-xl border p-3 transition-colors flex items-start gap-3 ${
+      active
+        ? "border-[var(--c-basil)] bg-[color-mix(in_srgb,var(--c-basil)_14%,transparent)]"
+        : "border-[var(--c-bark)] hover:bg-[var(--c-earth)]"
+    } disabled:opacity-50 disabled:cursor-not-allowed`;
+  const markCls = (active: boolean) =>
+    `mt-0.5 inline-flex items-center justify-center w-4 h-4 ${
+      multi ? "rounded-sm" : "rounded-full"
+    } border-2 shrink-0 ${
+      active
+        ? "border-[var(--c-basil)] bg-[var(--c-basil)] text-[var(--c-void)]"
+        : "border-[var(--c-stone)]"
+    }`;
+
   return (
-    <div className="bg-white dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800 p-4 my-2 max-w-md">
-      <p className="font-medium text-sm leading-relaxed mb-3">{question}</p>
+    <div className="bg-[var(--surface-warm)] border border-[var(--c-bark)] rounded-2xl p-4 my-2 max-w-md">
+      <p className="font-medium text-sm leading-relaxed mb-3 text-[var(--c-parchment)]">{question}</p>
       <ul className="space-y-2">
         {options.map((opt) => {
           const isPicked = picked.has(opt.value);
           return (
             <li key={opt.value}>
-              <button
-                type="button"
-                onClick={() => toggle(opt.value)}
-                disabled={disabled}
-                className={`w-full text-right rounded-lg border p-3 transition-colors flex items-start gap-3 ${
-                  isPicked
-                    ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40"
-                    : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
-                } disabled:opacity-50 disabled:cursor-not-allowed`}
-              >
-                <span
-                  className={`mt-0.5 inline-flex items-center justify-center w-4 h-4 rounded-${
-                    multi ? "sm" : "full"
-                  } border-2 shrink-0 ${
-                    isPicked
-                      ? "border-emerald-500 bg-emerald-500 text-white"
-                      : "border-zinc-300 dark:border-zinc-700"
-                  }`}
-                >
+              <button type="button" onClick={() => toggle(opt.value)} disabled={disabled} className={optionCls(isPicked)}>
+                <span className={markCls(isPicked)}>
                   {isPicked && (
                     <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none">
                       {multi ? (
-                        <path
-                          d="M2 6l2.5 2.5L10 3.5"
-                          stroke="currentColor"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
+                        <path d="M2 6l2.5 2.5L10 3.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
                       ) : (
                         <circle cx="6" cy="6" r="2" fill="currentColor" />
                       )}
@@ -112,11 +105,9 @@ export function StackedQuestion({
                   )}
                 </span>
                 <div className="flex-1">
-                  <div className="text-sm font-medium leading-snug">{opt.label}</div>
+                  <div className="text-sm font-medium leading-snug text-[var(--c-parchment)]">{opt.label}</div>
                   {opt.description && (
-                    <div className="text-xs text-zinc-500 mt-0.5 leading-snug">
-                      {opt.description}
-                    </div>
+                    <div className="text-xs text-[var(--c-ash)] mt-1 leading-relaxed">{opt.description}</div>
                   )}
                 </div>
               </button>
@@ -125,25 +116,8 @@ export function StackedQuestion({
         })}
         {allowOther && (
           <li>
-            <button
-              type="button"
-              onClick={pickOther}
-              disabled={disabled}
-              className={`w-full text-right rounded-lg border p-3 transition-colors flex items-start gap-3 ${
-                otherActive
-                  ? "border-emerald-500 bg-emerald-50 dark:bg-emerald-950/40"
-                  : "border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60"
-              } disabled:opacity-50 disabled:cursor-not-allowed`}
-            >
-              <span
-                className={`mt-0.5 inline-flex items-center justify-center w-4 h-4 rounded-${
-                  multi ? "sm" : "full"
-                } border-2 shrink-0 ${
-                  otherActive
-                    ? "border-emerald-500 bg-emerald-500 text-white"
-                    : "border-zinc-300 dark:border-zinc-700"
-                }`}
-              >
+            <button type="button" onClick={pickOther} disabled={disabled} className={optionCls(otherActive)}>
+              <span className={markCls(otherActive)}>
                 {otherActive && (
                   <svg viewBox="0 0 12 12" className="w-3 h-3" fill="none">
                     <circle cx="6" cy="6" r="2" fill="currentColor" />
@@ -151,7 +125,7 @@ export function StackedQuestion({
                 )}
               </span>
               <div className="flex-1">
-                <div className="text-sm font-medium leading-snug">אחר — אקליד</div>
+                <div className="text-sm font-medium leading-snug text-[var(--c-parchment)]">אחר — אקליד</div>
               </div>
             </button>
             {otherActive && (
@@ -163,21 +137,21 @@ export function StackedQuestion({
                 disabled={disabled}
                 rows={2}
                 placeholder="הקלד/י את התשובה…"
-                className="mt-2 w-full text-right text-sm rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 p-2.5 resize-none focus:outline-none focus:border-emerald-500 disabled:opacity-50"
+                className="mt-2 w-full text-right text-sm rounded-xl border border-[var(--c-bark)] bg-[var(--ground-warm)] text-[var(--c-parchment)] p-2.5 resize-none focus:outline-none focus:border-[var(--c-basil)] disabled:opacity-50"
               />
             )}
           </li>
         )}
       </ul>
       <div className="mt-3 flex items-center justify-between gap-2">
-        <span className="text-xs text-zinc-400">
+        <span className="text-xs text-[var(--c-stone)]">
           {multi ? "ניתן לבחור יותר מאחד" : "בחירה אחת"}
         </span>
         <button
           type="button"
           onClick={submit}
           disabled={!canSubmit}
-          className="text-sm bg-emerald-600 text-white px-4 py-1.5 rounded-lg hover:bg-emerald-700 disabled:bg-zinc-300 dark:disabled:bg-zinc-700 disabled:cursor-not-allowed"
+          className="text-sm font-medium bg-[var(--c-basil)] text-[var(--c-void)] px-4 py-1.5 rounded-lg transition hover:brightness-110 disabled:bg-[var(--c-bark)] disabled:text-[var(--c-stone)] disabled:cursor-not-allowed"
         >
           שלח תשובה
         </button>
