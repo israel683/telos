@@ -87,7 +87,7 @@ export function Nav() {
         borderBottom: "1px solid color-mix(in srgb, var(--c-parchment) 8%, transparent)",
       }}
     >
-      <div className="max-w-6xl mx-auto px-3 sm:px-6 pt-2 pb-2 flex flex-col gap-2">
+      <div className="max-w-[var(--page-max)] mx-auto px-3 sm:px-6 pt-2 pb-2 flex flex-col gap-2">
         {/* Row 1 — brand + scope (start) · status + overflow (end) */}
         <div className="flex items-center justify-between gap-3 min-w-0">
           <div className="flex items-center gap-3 min-w-0">
