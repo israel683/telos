@@ -151,7 +151,14 @@ export async function analyzeAndDecide(opts: {
   try {
     result = await generateText({
       model: anthropic(modelId),
-      maxOutputTokens: 2048,
+      // 2048 truncated the JSON mid-string on rich systems (Hebrew analysis +
+      // harvest_plan + concerns/tasks), which then failed to parse and fell
+      // back to "AI unavailable". 4096 gives comfortable headroom.
+      maxOutputTokens: 4096,
+      // Fail the call fast if the model hangs, so one slow system degrades to
+      // the graceful fallback instead of letting the whole cron hit the 60s
+      // function limit (504, no decision written for any later system).
+      abortSignal: AbortSignal.timeout(45_000),
       messages: [
         {
           role: "system",
@@ -171,11 +178,21 @@ export async function analyzeAndDecide(opts: {
   }
 
   const text = result.text;
+  // A truncated response (finishReason "length") is the usual cause of the
+  // "unterminated string" parse failure — surface it explicitly so the cause
+  // isn't invisible.
+  if (result.finishReason === "length") {
+    console.error(`[brain] output truncated at maxOutputTokens (${text.length} chars) — raising the cap may be needed`);
+  }
   let aiDecision: Record<string, unknown>;
   try {
     aiDecision = parseJsonResponse(text);
   } catch (e) {
-    return fallback(`JSON parse: ${e instanceof Error ? e.message : String(e)}`);
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error(
+      `[brain] JSON parse failed (finishReason=${result.finishReason}, ${text.length} chars): ${msg}\n--- response head ---\n${text.slice(0, 600)}`
+    );
+    return fallback(`JSON parse: ${msg}`);
   }
 
   const approved: ApprovedCommand[] = [];
