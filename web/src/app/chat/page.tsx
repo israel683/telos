@@ -266,6 +266,24 @@ export default function ChatPage() {
     };
   }, [messages.length, status]);
 
+  // Turn-completion scroll. When a turn settles (submitted/streaming → ready)
+  // the now-complete reply renders all at once and may be tall — taller than
+  // the near-bottom guard above tolerates, so that effect would skip it. The
+  // grower explicitly triggered this turn and is waiting for the answer, so
+  // land them on it UNCONDITIONALLY here (two RAFs so the markdown has painted).
+  const prevStatusRef = useRef(status);
+  useEffect(() => {
+    const was = prevStatusRef.current;
+    prevStatusRef.current = status;
+    if ((was === "submitted" || was === "streaming") && status === "ready") {
+      requestAnimationFrame(() =>
+        requestAnimationFrame(() =>
+          bottomRef.current?.scrollIntoView({ block: "end", behavior: "smooth" })
+        )
+      );
+    }
+  }, [status]);
+
   // Attached files (images for now — Claude Sonnet 4.6 has vision input).
   // AI SDK 6's DefaultChatTransport handles the multipart upload + base64
   // serialisation automatically; on the server convertToModelMessages
@@ -506,6 +524,11 @@ export default function ChatPage() {
         {messages.map((m, idx) => {
           const isLast = idx === messages.length - 1;
           const isAssistant = m.role === "assistant";
+          // No typing effect: while the assistant turn is still in flight, hide
+          // the partial bubble entirely and show a single "thinking" indicator
+          // below. The message renders complete, all at once, when the turn
+          // settles — and the scroll effect then lands the grower on it.
+          if (isLast && isAssistant && isStreaming) return null;
           const meta = messageMeta[m.id];
           return (
             <MessageBubble
@@ -519,7 +542,7 @@ export default function ChatPage() {
           );
         })}
 
-        {isStreaming && messages[messages.length - 1]?.role !== "assistant" && (
+        {isStreaming && (
           <div className="flex items-center gap-2 text-[var(--c-ash)] text-sm">
             <Spinner /> {t("Thinking…", "חושב...")}
           </div>
