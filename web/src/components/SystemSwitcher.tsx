@@ -46,9 +46,9 @@ export function SystemSwitcher() {
   /**
    * Conversational onboarding path.  Create a minimal placeholder row
    * (name = sentinel "מערכת חדשה", defaults for the rest) and jump straight
-   * to chat — the agronomist takes it from there using askGrower to walk
-   * through name / crop / stage / reservoir / location / notes one card at
-   * a time, calling updateSystem after each answer.  No modal forms.
+   * to the CHAT — a fresh system has nothing to show on the dashboard yet;
+   * the chat IS where the system gets set up. The agronomist takes it from
+   * there with the ordered onboarding interview. No modal forms.
    */
   async function handleCreateNew() {
     if (creating) return;
@@ -56,7 +56,10 @@ export function SystemSwitcher() {
     setError(null);
     try {
       const r = await createSystem({ name: "מערכת חדשה" });
-      pick(r.system.id);
+      setActiveSystem(r.system.id);
+      // Full navigation (not reload) so the chat page mounts on the new active
+      // system and the onboarding kickoff fires.
+      window.location.href = "/chat";
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
       setCreating(false);

@@ -70,7 +70,10 @@ The flow (skip any step whose answer you already have):
 
   1. **Name** — plain text "איך תרצה לקרוא למערכת הזאת?" → \`updateSystem({ name })\`.
   2. **Experience** — CARD "זו הפעם הראשונה שאתה מגדל הידרופוני, או שכבר יש לך ניסיון?" · options: ראשון / כמה סבבים / ותיק מסחרי → \`recordGrowProfile({ experience_level })\`. Sets how much you explain; gates nothing.
-  3. **Control mode — THE branch point** — CARD "איך תרצה שאעבוד — שאזריק לבד אוטומטית, או שרק אמליץ ואתה תבצע ידנית?" · options: אוטונומי / ידני → \`recordGrowProfile({ control_mode })\` (אוטונומי = brain_doser, ידני = advisor_only). In ידני the Brain only RECOMMENDS — every dose becomes a task you approve and do by hand; control_mode can NEVER by itself turn on a pump. This answer decides steps 8 and 10–11.
+  3. **Control mode — THE branch point** — CARD. Question EXACTLY: "איך תרצה שאני אעבוד?". Offer EXACTLY these two options (value · label · description):
+     • value \`brain_doser\` · label "מצב אוטונומי מוחלט" · description "אני מחליט על המינונים ומבצע את הדישונים והתקשורת עם מערכות נוספות. (הערה: מצב אוטונומי מוחלט דורש התחברות לחיישנים, למערכת ההזנה ולמערכות נוספות במידת הצורך)."
+     • value \`advisor_only\` · label "מצב ידני" · description "אני ממליץ לך על פעולות ומוציא לך משימות לביצוע."
+     → \`recordGrowProfile({ control_mode })\` with the chosen value. control_mode can NEVER by itself turn on a pump — even "מצב אוטונומי מוחלט" still requires doser verification + the master toggle before anything doses. This answer decides steps 8 and 10–11.
   4. **Cultivar** — CARD with \`allow_free_text: true\` "איזה גידול אתה מגדל?" · offer your on-file cultivars as options (e.g. חסה / בזיליקום / עולש / עגבנייה / פלפל / מאשה / רוקט) PLUS the built-in "אחר" escape. If they pick a known cultivar → \`updateSystem({ cultivar_id })\`; if generic or off-list → \`updateSystem({ crop_type })\` (free text). NEVER offer crops without the "אחר" escape.
   5. **Growth stage** — CARD: נבט / וגטטיבי / פריחה / פירות → \`updateSystem({ growth_stage })\`.
   6. **Reservoir** — plain text number "כמה ליטר מים במאגר?" → \`updateSystem({ reservoir_liters })\`.
