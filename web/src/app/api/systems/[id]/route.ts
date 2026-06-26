@@ -111,14 +111,22 @@ export async function DELETE(req: Request, { params }: { params: Promise<{ id: s
   // the system permanently gone (not just hidden from the active list).
   await ensureSchema();
   const s = sql();
-  // Order: child tables first to honour FKs (decisions referenced by tasks +
-  // dosing_actions).  We DELETE by system_id so an accidental id collision
-  // on another system's rows is impossible.
+  // Order: child tables first to honour FKs. EVERYTHING that references
+  // ai_decisions(id) — dosing_actions, human_tasks, chat_messages AND
+  // grow_episodes — must be deleted BEFORE ai_decisions, or the ai_decisions
+  // delete hits a foreign-key violation and the whole request 500s (this was
+  // the "delete does nothing + red 500" bug: grow_episodes was missing here).
+  // We DELETE by system_id so an accidental id collision on another system's
+  // rows is impossible.
   await s`DELETE FROM dosing_actions WHERE system_id = ${id}`;
   await s`DELETE FROM human_tasks WHERE system_id = ${id}`;
   await s`DELETE FROM chat_messages WHERE system_id = ${id}`;
+  await s`DELETE FROM grow_episodes WHERE system_id = ${id}`;
   await s`DELETE FROM ai_decisions WHERE system_id = ${id}`;
   await s`DELETE FROM sensor_readings WHERE system_id = ${id}`;
+  // No FK to systems/ai_decisions, but delete to avoid orphan rows.
+  await s`DELETE FROM grower_memory WHERE system_id = ${id}`;
+  await s`DELETE FROM push_subscriptions WHERE system_id = ${id}`;
   const removed = (await s`DELETE FROM systems WHERE id = ${id} RETURNING id`) as unknown as Array<{ id: string }>;
   return NextResponse.json({
     ok: true,
