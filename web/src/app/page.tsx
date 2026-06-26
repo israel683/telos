@@ -139,7 +139,7 @@ export default function Dashboard() {
   }
 
   return (
-    <main dir={lang === "he" ? "rtl" : "ltr"} style={{ maxWidth: 1180, width: "100%", margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}>
+    <main dir={lang === "he" ? "rtl" : "ltr"} style={{ maxWidth: "var(--page-max)", width: "100%", margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Topbar */}
       <header style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
         <div>

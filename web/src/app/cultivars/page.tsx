@@ -10,7 +10,7 @@ export default function CultivarsPage() {
   return (
     <div
       dir={dir}
-      style={{ maxWidth: 1180, margin: "0 auto", padding: "clamp(1.8rem,4vw,3rem) clamp(0.9rem,3vw,1.6rem) 5rem", display: "flex", flexDirection: "column", gap: "clamp(22px,3vw,38px)" }}
+      style={{ maxWidth: "var(--page-max)", margin: "0 auto", padding: "clamp(1.8rem,4vw,3rem) clamp(0.9rem,3vw,1.6rem) 5rem", display: "flex", flexDirection: "column", gap: "clamp(22px,3vw,38px)" }}
     >
       <header className="tk-rise" style={{ maxWidth: "44ch" }}>
         <div className="t-eyebrow">{t("Network knowledge", "ידע הרשת")}</div>

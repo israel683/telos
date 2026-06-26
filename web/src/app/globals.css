@@ -109,6 +109,10 @@
   --beam-blur: 13px;
   --beam-angle: 16deg;
   --radius-soft: 14px;
+  /* Canonical page width — one fixed container so the nav and every content
+     page share the same edges (chat + changelog stay their own narrow
+     reading columns by design). */
+  --page-max: 1180px;
 
   /* Semantic role tokens — switch-ready Dark→Light */
   --bg: var(--ground-warm);

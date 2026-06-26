@@ -405,12 +405,12 @@ export default function GrowPage() {
     return startVisibilityAwarePolling(load, REFRESH_MS);
   }, [load]);
 
-  if (loading) return <div style={{ maxWidth: 1180, margin: "0 auto", padding: "3rem 1.5rem", color: "var(--c-ash)" }}>{t("Loading…", "טוען…")}</div>;
+  if (loading) return <div style={{ maxWidth: "var(--page-max)", margin: "0 auto", padding: "3rem 1.5rem", color: "var(--c-ash)" }}>{t("Loading…", "טוען…")}</div>;
   // Only blank to an error when nothing has loaded; once data is in, a transient
   // poll failure keeps the last-known view (no raw error text to the customer).
   if (!data) {
     return error ? (
-      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "3rem 1.5rem", color: "var(--c-ash)" }}>
+      <div style={{ maxWidth: "var(--page-max)", margin: "0 auto", padding: "3rem 1.5rem", color: "var(--c-ash)" }}>
         {t("Couldn't load the grow right now — it'll refresh on its own.", "לא הצלחתי לטעון את הגידול כרגע — זה יתעדכן מעצמו.")}
       </div>
     ) : null;
@@ -453,7 +453,7 @@ export default function GrowPage() {
   const latestEpisode = (heroStale ? null : heroEp?.summary) ?? currentStatement ?? undefined;
 
   return (
-    <div dir={lang === "he" ? "rtl" : "ltr"} style={{ maxWidth: 1180, margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}>
+    <div dir={lang === "he" ? "rtl" : "ltr"} style={{ maxWidth: "var(--page-max)", margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}>
       {/* HERO — cinematic image + spotlit statement */}
       <section className="tk-focus tk-rise">
         <div className="tk-focus-visual">
