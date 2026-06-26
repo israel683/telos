@@ -74,3 +74,32 @@ export function resolveHarvestOutcome(opts: {
     reason: `cut-and-come-again — next harvest in ~${cadence}d`,
   };
 }
+
+/**
+ * Derive the agronomic lifecycle phase of a grow from its coarse DB fields. Pure
+ * — used by the admin architecture surface (and reusable by the Brain). `status`
+ * stays the DB flag the cron filters on; this maps it (plus setup + harvest) onto
+ * the GrowPhase the system reasons about.
+ */
+export function deriveGrowPhase(g: {
+  status?: string | null;
+  setup_completed_at?: Date | string | null;
+  growth_stage?: string | null;
+  harvest_plan?: { next_date?: string | null; completed_at?: string | null; prep_lead_days?: number } | null;
+  now?: Date;
+}): GrowPhase {
+  if (g.status === "archived" || g.harvest_plan?.completed_at) return "closed";
+  if (!g.setup_completed_at) return "onboarding";
+  const hp = g.harvest_plan;
+  if (hp?.next_date) {
+    const now = (g.now ?? new Date()).getTime();
+    const target = new Date(`${hp.next_date}T00:00:00Z`).getTime();
+    if (Number.isFinite(target)) {
+      const leadMs = Math.max(hp.prep_lead_days ?? 1, 2) * 24 * 60 * 60 * 1000;
+      if (now >= target - leadMs) return "harvest_window";
+    }
+  }
+  if (g.growth_stage === "seedling") return "establishing";
+  return "growing";
+}
+

@@ -225,7 +225,8 @@ hard-coded, so tiers move without a code change.
    approval route all call. Remaining: lift the rest of the capabilities
    (recordHarvest / rememberFact / raiseTask …) into the registry so the cron can
    invoke them too.
-5. **Admin-gated live architecture surface** — real auth; live phase + decisions.
+5. **Admin-gated live architecture surface** — ✅ shipped (§12): server-side admin
+   gate + a live "system pulse" (phase + last decision + tier mix).
 6. **Replant** — a `closed` grow can spawn a fresh grow (new lifecycle, reusing
    rig config) instead of needing a brand-new system.
 
@@ -332,8 +333,29 @@ The first concrete piece of "one Brain over one safety-gated action layer" (§2.
   the approve copy had silently *forgotten to decrement the bottle*. With one
   primitive, safety + bookkeeping can't diverge again.
 
+## 12 · Shipped in this change — admin-gated live architecture surface (WS5)
+
+§1.5's "not truly visible or admin-gated" is closed:
+
+- **Real server-side admin gate** — `lib/admin-auth.ts` (`isAdmin()` against the
+  non-public `ADMIN_ACCESS_TOKEN` via an httpOnly cookie; constant-time compare;
+  locked by default when no token is set). `/api/admin/unlock` + `/api/admin/logout`
+  exchange the secret for / clear the cookie. This replaces the build-time
+  `NEXT_PUBLIC_SHOW_ARCHITECTURE` flag — which only hid a nav link and never gated
+  the page server-side.
+- **The page is now a server component** (`architecture/page.tsx`): non-admins get
+  `AdminUnlock`; admins get the interactive `ArchitectureExplorer` (the former
+  client page, moved intact).
+- **Live "system pulse"** — `SystemPulse` + admin-only `/api/admin/overview` show,
+  per grow: the derived lifecycle **phase** (`deriveGrowPhase`), status, and the
+  **last decision** (status, **tier**, source, trigger) + a tier tally — surfacing
+  the WS1–WS4 state, including the internal `tier` the customer API hides.
+
+The nav link still uses the public flag for *link visibility* only (no IP leak);
+the page enforces the real gate regardless of the URL.
+
 ## 11 · Still designed-and-sequenced (not yet built)
 
 The rest of the capability registry (cron-callable recordHarvest / rememberFact /
-raiseTask), the full Brain consolidation (§2.1), and the admin live surface (§2.5)
-remain in §4, plus the WS2 remainder: decision rows for significant *chat* actions.
+raiseTask) and the full Brain consolidation (§2.1) remain in §4, plus the WS2
+remainder: decision rows for significant *chat* actions.
