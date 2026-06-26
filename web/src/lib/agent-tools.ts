@@ -1310,11 +1310,12 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
 
     confirmSensorBinding: tool({
       description:
-        "During onboarding, look up the water sensor bound to THIS system on Tuya and report its NAME + online status, so the grower can CONFIRM it's theirs ('אני רואה חיישן בשם X, מקוון — זה שלך?'). Call this at the hardware-confirmation step BEFORE asserting the sensor is connected — never claim a connection you didn't verify. Honest when nothing is bound / Tuya unconfigured / the device is offline.",
+        "During onboarding, CONFIRM the water sensor bound to THIS system by pulling a LIVE reading (the authoritative check — a sensor that streams data is bound and working). Reports the live pH/EC/temp + the Tuya device name when available, so the grower can confirm it's theirs. Call this at the hardware-confirmation step. If no reading comes back it's usually a transient Tuya hiccup — never tell the grower a working sensor is 'missing' or to contact support.",
       inputSchema: z.object({}),
       execute: async () => {
         const sys = await getSystem(systemId);
-        const info = await getTuyaDeviceInfo(sys?.tuya_device_id ?? undefined);
+        const deviceId = sys?.tuya_device_id ?? undefined;
+        const info = await getTuyaDeviceInfo(deviceId);
         if (!info.configured) {
           return {
             ok: true,
@@ -1322,23 +1323,45 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
             message: "No Tuya sensor is configured for this system yet. Tell the grower we can continue and wire a sensor later — don't claim one is connected.",
           };
         }
-        if (!info.found) {
+        // Authoritative check: a LIVE reading. Readings come from the thing/shadow
+        // endpoint, which works even when /v1.0/devices (the name+online lookup)
+        // doesn't return the device — so a sensor that's streaming data IS bound
+        // and working regardless of what the metadata endpoint says. This is why
+        // we never gate confirmation on the metadata lookup alone (it gave false
+        // "sensor not found" on a perfectly working sensor).
+        let reading: Awaited<ReturnType<typeof readTuyaSensor>> | null = null;
+        try {
+          reading = await readTuyaSensor({ deviceId });
+        } catch {
+          reading = null;
+        }
+        const hasData =
+          !!reading && (reading.ph != null || reading.ec != null || reading.water_temp != null);
+        if (hasData) {
           return {
             ok: true,
-            status: "not_found",
+            status: "online",
+            name: info.name,
             deviceId: info.deviceId,
-            message: "A device id is set but Tuya couldn't find it (wrong id or a network error). Ask the grower to confirm the sensor id rather than asserting it's connected.",
+            reading: { ph: reading!.ph, ec: reading!.ec, water_temp: reading!.water_temp },
+            message: `Sensor is CONNECTED and reporting live data${info.name ? ` (Tuya name: "${info.name}")` : ""}. Confirm to the grower it's working — share the live pH / EC / water-temp — and ask if it's the right sensor. Do NOT say it's missing.`,
+          };
+        }
+        if (info.found) {
+          return {
+            ok: true,
+            status: info.online ? "online" : "offline",
+            name: info.name,
+            deviceId: info.deviceId,
+            online: info.online,
+            message: `Device found${info.name ? ` (name: "${info.name}")` : ""} but no reading came back this moment. Tell the grower its name, ask them to confirm it's theirs and in water, and offer to retry — don't declare it broken.`,
           };
         }
         return {
           ok: true,
-          status: info.online ? "online" : "offline",
-          name: info.name,
+          status: "no_signal",
           deviceId: info.deviceId,
-          online: info.online,
-          message: info.online
-            ? "Sensor found and ONLINE. Tell the grower its name and ask them to confirm it's the one wired to their system."
-            : "Sensor found but reporting OFFLINE. Tell the grower its name, ask them to confirm it's theirs, and to check it's powered and in water.",
+          message: "No live reading right now and the metadata lookup didn't return the device — usually a TRANSIENT Tuya hiccup, NOT a broken or wrong sensor. Do NOT tell the grower the sensor is missing or to contact support. Ask them to confirm it's powered and in the water, and offer to retry in a moment.",
         };
       },
     }),
