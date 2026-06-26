@@ -87,58 +87,52 @@ export function Nav() {
         borderBottom: "1px solid color-mix(in srgb, var(--c-parchment) 8%, transparent)",
       }}
     >
-      <div className="max-w-[var(--page-max)] mx-auto px-3 sm:px-6 pt-2 pb-2 flex flex-col gap-2">
-        {/* Row 1 — brand + scope (start) · status + overflow (end) */}
-        <div className="flex items-center justify-between gap-3 min-w-0">
-          <div className="flex items-center gap-3 min-w-0">
-            <Link href="/" className="flex items-baseline gap-2 shrink-0" aria-label="TELOS — the Brain">
-              <span className="t-wordmark text-base sm:text-lg">TELOS</span>
-              <span
-                className="hidden sm:inline"
-                style={{ fontFamily: "var(--f-display)", fontStyle: "italic", fontWeight: 500, fontSize: ".8rem", color: "var(--c-ash)" }}
-              >
-                the Brain
-              </span>
-            </Link>
-            {/* scope selector — adjacent to the logo */}
-            <SystemSwitcher />
-          </div>
-          <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
-            <AutonomousToggle />
-            <StatusChip />
-            <TasksBadge />
-            <OverflowMenu />
-          </div>
+      {/* One slim row: brand + scope (start) · compact icon nav (center) ·
+          controls (end). The section nav is icon-only (label on hover/tooltip +
+          a basil tint on the active section) so all of it fits on a single
+          line; it scrolls horizontally on a narrow phone rather than wrapping. */}
+      <div className="max-w-[var(--page-max)] mx-auto px-3 sm:px-6 h-14 flex items-center gap-2 sm:gap-4">
+        {/* brand + scope */}
+        <div className="flex items-center gap-2 shrink-0 min-w-0">
+          <Link href="/" className="flex items-baseline gap-2 shrink-0" aria-label="TELOS — the Brain">
+            <span className="t-wordmark text-base sm:text-lg">TELOS</span>
+            <span
+              className="hidden lg:inline"
+              style={{ fontFamily: "var(--f-display)", fontStyle: "italic", fontWeight: 500, fontSize: ".78rem", color: "var(--c-ash)" }}
+            >
+              the Brain
+            </span>
+          </Link>
+          <SystemSwitcher />
         </div>
 
-        {/* Row 2 — the section nav, a centered floating segmented control */}
-        <div className="flex justify-center">
-          <ul
-            className="flex items-center gap-0.5 p-1 rounded-full max-w-full overflow-x-auto no-scrollbar"
-            style={{ background: "var(--ground-warm)", border: "1px solid color-mix(in srgb, var(--c-parchment) 7%, transparent)", boxShadow: "var(--glow-shadow)" }}
-          >
-            {LINKS.map((l) => {
-              const active = pathname === l.href;
-              return (
-                <li key={l.href} className="shrink-0">
-                  <Link
-                    href={l.href}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[13px] sm:text-sm whitespace-nowrap transition-colors"
-                    style={{
-                      color: active ? "var(--c-parchment)" : "var(--c-ash)",
-                      background: active ? "color-mix(in srgb, var(--c-basil) 16%, transparent)" : "transparent",
-                    }}
-                  >
-                    <i
-                      className={"ph-light " + l.icon}
-                      style={{ fontSize: "1.05rem", color: active ? "var(--c-basil)" : "var(--c-stone)" }}
-                    />
-                    {t(l.en, l.he)}
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
+        {/* center — compact icon nav */}
+        <ul className="flex-1 flex items-center justify-center gap-0.5 sm:gap-1 overflow-x-auto no-scrollbar">
+          {LINKS.map((l) => {
+            const active = pathname === l.href;
+            return (
+              <li key={l.href} className="shrink-0">
+                <Link
+                  href={l.href}
+                  title={t(l.en, l.he)}
+                  aria-label={t(l.en, l.he)}
+                  aria-current={active ? "page" : undefined}
+                  className="flex items-center justify-center w-9 h-9 rounded-lg transition-colors text-[var(--c-stone)] hover:text-[var(--c-fog)] hover:bg-[color-mix(in_srgb,var(--c-parchment)_7%,transparent)]"
+                  style={active ? { color: "var(--c-basil)", background: "color-mix(in srgb, var(--c-basil) 15%, transparent)" } : undefined}
+                >
+                  <i className={"ph-light " + l.icon} style={{ fontSize: "1.2rem" }} />
+                </Link>
+              </li>
+            );
+          })}
+        </ul>
+
+        {/* controls */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <AutonomousToggle />
+          <StatusChip />
+          <TasksBadge />
+          <OverflowMenu />
         </div>
       </div>
     </nav>
