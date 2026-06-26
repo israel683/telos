@@ -1330,10 +1330,11 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
         // we never gate confirmation on the metadata lookup alone (it gave false
         // "sensor not found" on a perfectly working sensor).
         let reading: Awaited<ReturnType<typeof readTuyaSensor>> | null = null;
+        let readError: string | null = null;
         try {
           reading = await readTuyaSensor({ deviceId });
-        } catch {
-          reading = null;
+        } catch (e) {
+          readError = e instanceof Error ? e.message : String(e);
         }
         const hasData =
           !!reading && (reading.ph != null || reading.ec != null || reading.water_temp != null);
@@ -1357,10 +1358,25 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
             message: `Device found${info.name ? ` (name: "${info.name}")` : ""} but no reading came back this moment. Tell the grower its name, ask them to confirm it's theirs and in water, and offer to retry — don't declare it broken.`,
           };
         }
+        // Tuya's IoT Core cloud service is a (often trial) subscription; when it
+        // lapses EVERY read fails with this exact message and no device on the
+        // account is reachable. This is an account/billing issue, NOT a broken
+        // sensor or a wrong id — name it precisely so the grower fixes the right
+        // thing instead of suspecting their hardware.
+        if (readError && /subscription has expired|IoT Core/i.test(readError)) {
+          return {
+            ok: true,
+            status: "tuya_subscription_expired",
+            error: readError,
+            message:
+              "Tuya's cloud read failed: 'IoT Core service subscription has expired'. This is a TUYA ACCOUNT issue, not the grower's sensor and not our system — the Tuya IoT Core cloud entitlement lapsed, so the API can't read ANY device until it's renewed. Tell the grower plainly and warmly: the sensor itself is fine; the Tuya IoT Core subscription needs renewing in the Tuya IoT Platform (iot.tuya.com → Cloud → their project → Service API / renew the IoT Core trial). Until then no live readings will arrive. Do NOT blame the device id or tell them to replace the sensor.",
+          };
+        }
         return {
           ok: true,
           status: "no_signal",
           deviceId: info.deviceId,
+          error: readError,
           message: "No live reading right now and the metadata lookup didn't return the device — usually a TRANSIENT Tuya hiccup, NOT a broken or wrong sensor. Do NOT tell the grower the sensor is missing or to contact support. Ask them to confirm it's powered and in the water, and offer to retry in a moment.",
         };
       },
