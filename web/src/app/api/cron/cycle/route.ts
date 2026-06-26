@@ -36,7 +36,20 @@ export async function GET(req: Request) {
   try {
     const systems = (await listSystems()).filter((s) => s.status === "active");
 
+    // Per-cycle time budget. Each runSystemCycle can take tens of seconds (one
+    // model call, possibly dose sleeps); processing many systems sequentially
+    // could blow past the 60s function limit → a hard 504 that writes NO
+    // decision and leaves stale state. Once we're near the wall, stop STARTING
+    // new systems and return partial results — the rest are picked up next
+    // cycle rather than corrupting the run. (Real fix at scale: Vercel Queue.)
+    const BUDGET_MS = 48_000;
+    let skipped = 0;
     for (const sys of systems) {
+      if (Date.now() - started > BUDGET_MS) {
+        skipped = systems.length - results.length;
+        console.warn(`[cron/cycle] time budget reached after ${results.length} system(s); skipping ${skipped} for next cycle`);
+        break;
+      }
       try {
         results.push(await runSystemCycle(sys, { source: "cron" }));
       } catch (e) {
@@ -49,6 +62,7 @@ export async function GET(req: Request) {
     return NextResponse.json({
       ok: true,
       systems_processed: results.length,
+      systems_skipped: skipped,
       results,
       duration_ms: Date.now() - started,
     });
