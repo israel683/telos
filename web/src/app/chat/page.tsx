@@ -668,8 +668,10 @@ export default function ChatPage() {
             rows={1}
             placeholder={t("Write a message…", "כתוב הודעה...")}
             disabled={isStreaming}
-            className="flex-1 resize-none bg-[var(--c-soil)] border border-[rgba(238,237,232,0.07)] text-[var(--c-parchment)] placeholder:text-[var(--c-stone)] rounded-md px-3 py-2 text-sm focus:outline-none focus:border-[rgba(137,168,62,0.45)] focus:ring-1 focus:ring-[rgba(137,168,62,0.25)] disabled:opacity-50"
-            style={{ minHeight: 40, maxHeight: 160 }}
+            className="flex-1 resize-none bg-[var(--c-soil)] border border-[rgba(238,237,232,0.07)] text-[var(--c-parchment)] placeholder:text-[var(--c-stone)] rounded-md px-3 py-2 focus:outline-none focus:border-[rgba(137,168,62,0.45)] focus:ring-1 focus:ring-[rgba(137,168,62,0.25)] disabled:opacity-50"
+            // fontSize 16px (not text-sm) — iOS Safari auto-zooms any focused
+            // input below 16px, which yanks the grower out of context. 16px = no zoom.
+            style={{ minHeight: 40, maxHeight: 160, fontSize: 16 }}
           />
           <button
             type="submit"

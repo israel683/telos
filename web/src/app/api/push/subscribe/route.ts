@@ -6,6 +6,7 @@
 import { NextResponse } from "next/server";
 import { savePushSubscription } from "@/lib/db";
 import { systemIdFromRequest } from "@/lib/system-ctx";
+import { sendWebPush } from "@/lib/notify";
 
 export const maxDuration = 15;
 
@@ -27,6 +28,14 @@ export async function POST(req: Request) {
       p256dh: sub.keys.p256dh,
       auth: sub.keys.auth,
     });
+    // Immediate confirmation push so the grower KNOWS it works (and the whole
+    // pipeline is verified end-to-end). Best-effort + no-op when VAPID is unset
+    // — never fail the subscribe over it.
+    try {
+      await sendWebPush(systemId, "TELOS", "התראות מופעלות ✓ — מכאן אעדכן אותך כשצריך.");
+    } catch {
+      // ignore — subscription is saved regardless
+    }
     return NextResponse.json({ ok: true });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : String(e) }, { status: 500 });
