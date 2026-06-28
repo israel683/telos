@@ -65,6 +65,96 @@ function OverflowMenu() {
   );
 }
 
+/**
+ * Mobile navigation — a ⓘ button that opens an accessible full-height drawer.
+ * The slim single row could not fit brand + scope + 7 sections + controls on a
+ * phone (they overlapped and the center nav was un-tappable). On mobile the
+ * sections + the quieter controls live here instead: big tap targets, one
+ * section per row, real focus/aria, no overlap. Desktop never renders it.
+ */
+function MobileMenu({ pathname }: { pathname: string | null }) {
+  const [open, setOpen] = useState(false);
+  const { t } = useLang();
+  // Close on navigation.
+  useEffect(() => setOpen(false), [pathname]);
+  // Lock body scroll + close on Escape while open.
+  useEffect(() => {
+    if (!open) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.body.style.overflow = prev;
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  return (
+    <div className="md:hidden">
+      <button
+        onClick={() => setOpen(true)}
+        aria-label={t("Menu", "תפריט")}
+        aria-expanded={open}
+        className="flex items-center justify-center w-9 h-9 rounded-lg"
+        style={{ color: "var(--c-fog)", border: "1px solid color-mix(in srgb, var(--c-parchment) 8%, transparent)", background: "var(--surface-warm)" }}
+      >
+        <i className="ph-light ph-list" style={{ fontSize: "1.25rem" }} />
+      </button>
+      {open && (
+        <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={t("Navigation", "ניווט")}>
+          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setOpen(false)} />
+          <div
+            className="absolute inset-y-0 end-0 w-[84%] max-w-xs flex flex-col tk-rise"
+            style={{ background: "var(--c-soil)", borderInlineStart: "1px solid var(--c-bark)", paddingTop: "env(safe-area-inset-top)" }}
+          >
+            <div className="flex items-center justify-between px-4 h-14 shrink-0" style={{ borderBottom: "1px solid var(--c-bark)" }}>
+              <span className="t-wordmark text-lg">TELOS</span>
+              <button
+                onClick={() => setOpen(false)}
+                aria-label={t("Close", "סגור")}
+                className="w-9 h-9 flex items-center justify-center rounded-lg"
+                style={{ color: "var(--c-ash)" }}
+              >
+                <i className="ph-light ph-x" style={{ fontSize: "1.25rem" }} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-2 py-3" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
+              <ul className="flex flex-col gap-1">
+                {LINKS.map((l) => {
+                  const active = pathname === l.href;
+                  return (
+                    <li key={l.href}>
+                      <Link
+                        href={l.href}
+                        onClick={() => setOpen(false)}
+                        aria-current={active ? "page" : undefined}
+                        className="flex items-center gap-3 px-3 py-3 rounded-xl text-[15px] transition-colors"
+                        style={{
+                          color: active ? "var(--c-parchment)" : "var(--c-fog)",
+                          background: active ? "color-mix(in srgb, var(--c-basil) 15%, transparent)" : "transparent",
+                        }}
+                      >
+                        <i className={"ph-light " + l.icon} style={{ fontSize: "1.35rem", color: active ? "var(--c-basil)" : "var(--c-stone)" }} />
+                        {t(l.en, l.he)}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="mt-3 pt-3 flex flex-col gap-2" style={{ borderTop: "1px solid var(--c-bark)" }}>
+                <div className="px-1"><AutonomousToggle /></div>
+                <MaintenanceToggle />
+                <LanguageToggle />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Nav() {
   const pathname = usePathname();
   const { t } = useLang();
@@ -87,10 +177,10 @@ export function Nav() {
         borderBottom: "1px solid color-mix(in srgb, var(--c-parchment) 8%, transparent)",
       }}
     >
-      {/* One slim row: brand + scope (start) · compact icon nav (center) ·
-          controls (end). The section nav is icon-only (label on hover/tooltip +
-          a basil tint on the active section) so all of it fits on a single
-          line; it scrolls horizontally on a narrow phone rather than wrapping. */}
+      {/* Responsive top bar. DESKTOP (md+): brand + scope · section icon-nav ·
+          controls. MOBILE: brand + scope · status + tasks · ☰ — the sections and
+          quieter controls move into the MobileMenu drawer (one slim row was
+          unusable on a phone: overlapping items, un-tappable center nav). */}
       <div className="max-w-[var(--page-max)] mx-auto px-3 sm:px-6 h-14 flex items-center gap-2 sm:gap-4">
         {/* brand + scope */}
         <div className="flex items-center gap-2 shrink-0 min-w-0">
@@ -106,8 +196,9 @@ export function Nav() {
           <SystemSwitcher />
         </div>
 
-        {/* center — compact icon nav */}
-        <ul className="flex-1 flex items-center justify-center gap-0.5 sm:gap-1 overflow-x-auto no-scrollbar">
+        {/* center — section icon nav. DESKTOP ONLY: on a phone it doesn't fit,
+            so the sections move into the MobileMenu drawer instead. */}
+        <ul className="hidden md:flex flex-1 items-center justify-center gap-1 overflow-x-auto no-scrollbar">
           {LINKS.map((l) => {
             const active = pathname === l.href;
             return (
@@ -127,12 +218,14 @@ export function Nav() {
           })}
         </ul>
 
-        {/* controls */}
-        <div className="flex items-center gap-1.5 shrink-0">
-          <AutonomousToggle />
+        {/* controls. ms-auto pushes them to the end on mobile (no center nav);
+            the heavier controls are desktop-only, the rest live in the drawer. */}
+        <div className="flex items-center gap-1.5 shrink-0 ms-auto md:ms-0">
+          <div className="hidden md:block"><AutonomousToggle /></div>
           <StatusChip />
           <TasksBadge />
-          <OverflowMenu />
+          <div className="hidden md:block"><OverflowMenu /></div>
+          <MobileMenu pathname={pathname} />
         </div>
       </div>
     </nav>
