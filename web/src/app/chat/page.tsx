@@ -765,6 +765,7 @@ function MessageBubble({
             .map((p, i) => (
               <ToolPart key={i} part={p as { type: string } & Record<string, unknown>} />
             ))}
+          <ThinkingLog message={message} />
           {meta?.decision_id && (
             <div className="text-xs text-[var(--c-ash)]" dir="ltr">
               decision #{meta.decision_id}
@@ -900,8 +901,103 @@ function MessageBubble({
           }
           return null;
         })}
+        <ThinkingLog message={message} />
       </div>
     </div>
+  );
+}
+
+// Owner/debug gate. OFF by default; the operator turns it on per-device with
+// ?debug=1 (and ?debug=0 to clear) — customers never see it. It unlocks the
+// raw "thinking log" below, which intentionally exposes tool inputs/outputs
+// (the opposite of the customer-facing ToolPart, which hides them as IP).
+function useDebug(): boolean {
+  const [debug, setDebug] = useState(false);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const q = new URLSearchParams(window.location.search).get("debug");
+      if (q === "1") localStorage.setItem("telos-debug", "1");
+      else if (q === "0") localStorage.removeItem("telos-debug");
+      setDebug(localStorage.getItem("telos-debug") === "1");
+    } catch {
+      // private mode / blocked storage — stay off
+    }
+  }, []);
+  return debug;
+}
+
+function safeJson(v: unknown): string {
+  try {
+    return JSON.stringify(v, null, 2);
+  } catch {
+    return String(v);
+  }
+}
+
+/**
+ * Debug-only "thinking log" — a collapsible, per-message disclosure of HOW the
+ * agent reached its answer: the reasoning, every tool call with its raw input
+ * and output, and any error. For internal debugging + understanding the engine.
+ * Renders nothing unless owner debug mode is on (useDebug) — so tool I/O (IP)
+ * is never shown to a customer.
+ */
+function ThinkingLog({ message }: { message: UIMessageType }) {
+  const debug = useDebug();
+  const { t } = useLang();
+  if (!debug || message.role !== "assistant") return null;
+  const parts = message.parts ?? [];
+  const steps = parts.filter(
+    (p) => p.type === "reasoning" || (typeof p.type === "string" && (p.type as string).startsWith("tool-"))
+  );
+  if (!steps.length) return null;
+  return (
+    <details className="mt-2 text-xs rounded-lg border border-[rgba(238,237,232,0.1)] bg-[var(--ground-warm)] max-w-full overflow-hidden">
+      <summary className="cursor-pointer px-3 py-2 flex items-center gap-2 select-none" style={{ color: "var(--c-ash)" }}>
+        <i className="ph-light ph-brain" style={{ color: "var(--amber)" }} />
+        {t("Thinking", "חשיבה")} · {steps.length} {t("steps", "צעדים")}
+      </summary>
+      <div className="px-3 pb-3 space-y-2 overflow-x-auto" dir="ltr">
+        {parts.map((p, i) => {
+          if (p.type === "reasoning") {
+            const txt = ("text" in p && (p as { text?: string }).text) || "";
+            if (!txt) return null;
+            return (
+              <div key={i} className="rounded border border-[rgba(238,237,232,0.08)] p-2">
+                <div className="font-medium mb-1" style={{ color: "var(--c-fog)" }}>reasoning</div>
+                <pre className="whitespace-pre-wrap break-words" style={{ color: "var(--c-stone)" }}>{txt}</pre>
+              </div>
+            );
+          }
+          if (typeof p.type === "string" && (p.type as string).startsWith("tool-")) {
+            const name = (p.type as string).replace(/^tool-/, "");
+            const tp = p as { state?: string; input?: unknown; output?: unknown; errorText?: string };
+            return (
+              <div key={i} className="rounded border border-[rgba(238,237,232,0.08)] p-2">
+                <div className="font-medium mb-1 flex items-center gap-2" style={{ color: "var(--c-fog)" }}>
+                  <span>{name}</span>
+                  {tp.state && <span style={{ color: "var(--c-stone)" }}>· {tp.state}</span>}
+                </div>
+                {tp.input !== undefined && (
+                  <pre className="whitespace-pre-wrap break-words mb-1" style={{ color: "var(--c-ash)" }}>
+                    <span style={{ color: "var(--c-stone)" }}>in </span>{safeJson(tp.input)}
+                  </pre>
+                )}
+                {tp.output !== undefined && (
+                  <pre className="whitespace-pre-wrap break-words" style={{ color: "var(--c-ash)" }}>
+                    <span style={{ color: "var(--c-stone)" }}>out </span>{safeJson(tp.output)}
+                  </pre>
+                )}
+                {tp.errorText && (
+                  <div style={{ color: "var(--c-terra)" }}>error: {tp.errorText}</div>
+                )}
+              </div>
+            );
+          }
+          return null;
+        })}
+      </div>
+    </details>
   );
 }
 
