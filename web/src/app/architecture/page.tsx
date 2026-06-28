@@ -746,7 +746,7 @@ export default function ArchitecturePage() {
 function FlowDiagram({ onSelect }: { onSelect: (id: string) => void }) {
   const STAGES: Array<{ id: string; label_he: string; icon: string }> = [
     { id: "tuya-sensor", label_he: "חיישנים", icon: "🌡️" },
-    { id: "cron-poll", label_he: "Poll 5min", icon: "📡" },
+    { id: "cron-poll", label_he: "Poll 15min", icon: "📡" },
     { id: "cycle-gate", label_he: "Cycle Gate", icon: "🚦" },
     { id: "brain", label_he: "Brain", icon: "🤖" },
     { id: "safety", label_he: "Safety", icon: "🛡️" },
