@@ -16,16 +16,19 @@ const REGION_URLS = {
     login: "https://euaepapp.gizwits.com/app/smart_home/login/pwd",
     bind: "https://euapi.gizwits.com/app/bindings",
     control: (did: string) => `https://euapi.gizwits.com/app/control/${did}`,
+    data: (did: string) => `https://euapi.gizwits.com/app/devdata/${did}/latest`,
   },
   us: {
     login: "https://usaepapp.gizwits.com/app/smart_home/login/pwd",
     bind: "https://usapi.gizwits.com/app/bindings",
     control: (did: string) => `https://usapi.gizwits.com/app/control/${did}`,
+    data: (did: string) => `https://usapi.gizwits.com/app/devdata/${did}/latest`,
   },
   cn: {
     login: "https://aep-app.gizwits.com/app/smart_home/login/pwd",
     bind: "https://api.gizwits.com/app/bindings",
     control: (did: string) => `https://api.gizwits.com/app/control/${did}`,
+    data: (did: string) => `https://api.gizwits.com/app/devdata/${did}/latest`,
   },
 } as const;
 
@@ -219,6 +222,63 @@ async function setChannel(
   return { ok: false, status: r.status, body };
 }
 
+/**
+ * PANIC STOP — one coordinated batch that forces EVERYTHING off: master
+ * switch, all 8 channels, all timer-on flags, CALSW. The last line of defense
+ * when a normal per-channel OFF fails mid-dose. Uses the existing session.
+ */
+export async function panicStopAll(): Promise<{ ok: boolean; status?: number }> {
+  try {
+    const s = await ensureSession();
+    const attrs: Record<string, boolean> = { switch: false, CALSW: false };
+    for (let i = 1; i <= 8; i++) {
+      attrs[`channe${i}`] = false;
+      attrs[`Timer${i}ON`] = false;
+    }
+    const r = await fetch(REGION_URLS[s.region].control(s.deviceId), {
+      method: "POST",
+      headers: {
+        "X-Gizwits-Application-Id": JEBAO_AQUA_APP_ID,
+        "X-Gizwits-User-token": s.token,
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ attrs }),
+    });
+    console.error(`[jebao] PANIC STOP fired — HTTP ${r.status}`);
+    return { ok: r.ok, status: r.status };
+  } catch (e) {
+    console.error("[jebao] PANIC STOP threw:", e instanceof Error ? e.message : e);
+    return { ok: false };
+  }
+}
+
+/**
+ * Readback: the device's CURRENT reported state for one physical channel
+ * (devdata/latest). Source of truth for "did the pump actually turn off" —
+ * a 200 on the control call is a request-accepted, not a state guarantee.
+ * Returns null when the state can't be determined.
+ */
+async function readChannelState(physical: number): Promise<boolean | null> {
+  try {
+    const s = await ensureSession();
+    const r = await fetch(REGION_URLS[s.region].data(s.deviceId), {
+      headers: {
+        "X-Gizwits-Application-Id": JEBAO_AQUA_APP_ID,
+        "X-Gizwits-User-token": s.token,
+        Accept: "application/json",
+      },
+    });
+    if (!r.ok) return null;
+    const j = (await r.json()) as { attr?: Record<string, unknown> };
+    const v = j.attr?.[`channe${physical}`];
+    if (v === undefined || v === null) return null;
+    return v === true || v === 1;
+  } catch {
+    return null;
+  }
+}
+
 export type DoseResult = {
   success: boolean;
   /** Logical channel key (e.g. "micro" / "ph_up" / "ad_solution"). */
@@ -228,6 +288,13 @@ export type DoseResult = {
   amount_ml: number;
   runtime_seconds: number;
   error?: string;
+  /** Non-fatal anomaly during an otherwise-completed dose (e.g. OFF needed a
+   *  retry or the panic path — possible extra ml dispensed during recovery). */
+  warning?: string;
+  /** STRUCTURED critical flag: the pump could NOT be verified off after the
+   *  full recovery ladder (retry → panic-stop → readback). Callers must treat
+   *  this as an emergency: urgent task + interrupt notification. */
+  pump_stuck?: boolean;
 };
 
 /**
@@ -258,6 +325,24 @@ export async function doseChannelByPhysical(
   }
   const runtimeSeconds = (amountMl / FLOW_RATE_ML_PER_MIN) * 60;
 
+  // Device-layer hard clamp: every route that can dose has maxDuration=60s.
+  // A shot whose sleep + OFF-recovery ladder (~10s) can't fit means the
+  // function may be killed MID-SLEEP — before the OFF — leaving the pump
+  // physically on with no software able to stop it. Refuse instead; callers
+  // split into smaller doses (safety's max_single_dose_ml is sized to fit).
+  const MAX_SINGLE_SHOT_RUNTIME_S = 45;
+  if (runtimeSeconds > MAX_SINGLE_SHOT_RUNTIME_S) {
+    const maxMl = Math.floor((MAX_SINGLE_SHOT_RUNTIME_S / 60) * FLOW_RATE_ML_PER_MIN);
+    return {
+      success: false,
+      channel: channelKey,
+      physical_channel: physical,
+      amount_ml: amountMl,
+      runtime_seconds: runtimeSeconds,
+      error: `dose too large for one shot (${runtimeSeconds.toFixed(0)}s pump runtime exceeds the ${MAX_SINGLE_SHOT_RUNTIME_S}s serverless-safe cap) — split into doses of ≤${maxMl}ml`,
+    };
+  }
+
   console.log(
     `[jebao] dosing ${amountMl}ml on channe${physical} (${channelKey}) — ${runtimeSeconds.toFixed(2)}s · ${reason}`
   );
@@ -274,28 +359,62 @@ export async function doseChannelByPhysical(
     };
   }
 
-  try {
-    await new Promise((res) => setTimeout(res, runtimeSeconds * 1000));
-  } finally {
-    const offResp = await setChannel(physical, false);
-    if (!offResp.ok) {
-      return {
-        success: false,
-        channel: channelKey,
-        physical_channel: physical,
-        amount_ml: amountMl,
-        runtime_seconds: runtimeSeconds,
-        error: `CRITICAL: switch OFF failed — pump may be stuck on (HTTP ${offResp.status ?? "?"})`,
-      };
-    }
-  }
+  await new Promise((res) => setTimeout(res, runtimeSeconds * 1000));
 
-  return {
-    success: true,
+  const base = {
     channel: channelKey,
     physical_channel: physical,
     amount_ml: amountMl,
     runtime_seconds: runtimeSeconds,
+  };
+
+  // ── OFF recovery ladder ────────────────────────────────────────────────
+  // A failed OFF is the one fault that can kill the grow overnight (pump
+  // stays on, drains the bottle, crashes pH). Never settle for one attempt:
+  // 1. normal OFF (setChannel already re-auths once on 401/403)
+  // 2. wait 2s, retry OFF (transient network/API flake is the common case)
+  // 3. PANIC STOP (batch everything off) + readback VERIFY — a 200 on
+  //    control is request-accepted, not a state guarantee.
+  // Only an unverified state after all three earns the structured
+  // pump_stuck flag, which callers route to an urgent task + interrupt push.
+  const extraMlPerSec = FLOW_RATE_ML_PER_MIN / 60;
+  const off1 = await setChannel(physical, false);
+  if (off1.ok) return { success: true, ...base };
+
+  await new Promise((res) => setTimeout(res, 2000));
+  const off2 = await setChannel(physical, false);
+  if (off2.ok) {
+    const extra = (2.5 * extraMlPerSec).toFixed(1);
+    console.warn(`[jebao] OFF needed a retry on channe${physical} — ~${extra}ml extra dispensed`);
+    return {
+      success: true,
+      ...base,
+      warning: `switch OFF needed a retry (~${extra}ml extra dispensed during recovery)`,
+    };
+  }
+
+  const panic = await panicStopAll();
+  await new Promise((res) => setTimeout(res, 2000));
+  const state = await readChannelState(physical);
+  if (state === false) {
+    const extra = (6 * extraMlPerSec).toFixed(1);
+    console.error(`[jebao] channe${physical} OFF failed twice; PANIC STOP engaged and VERIFIED off`);
+    return {
+      success: true,
+      ...base,
+      warning: `switch OFF failed twice — panic stop engaged and verified off (~${extra}ml extra dispensed; master switch now OFF, next dose re-enables it)`,
+    };
+  }
+
+  console.error(`[jebao] channe${physical} PUMP STUCK: OFF failed, retry failed, panic ${panic.ok ? "accepted but state unverified" : "ALSO failed"} (readback=${state})`);
+  return {
+    success: false,
+    ...base,
+    pump_stuck: true,
+    error:
+      `CRITICAL: pump could not be verified off — OFF failed twice, panic stop ` +
+      (panic.ok ? `accepted but readback shows ${state === null ? "unknown" : "still ON"}` : "ALSO failed") +
+      `. Physical intervention may be needed NOW (unplug the doser / close the line).`,
   };
 }
 

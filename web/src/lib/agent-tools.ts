@@ -33,6 +33,7 @@ import { relAge, isoMinuteUtc } from "./time";
 import { getBottleStatusReport } from "./bottle-status";
 import { readTuyaSensor, getTuyaDeviceInfo } from "./devices/tuya";
 import { doseChannelByPhysical, listJebaoBindings } from "./devices/jebao";
+import { reportPumpStuckIfNeeded } from "./notify";
 import { validateCommand } from "./safety";
 import { PRIMING_DONE_SENTINEL, PRIMING_ML_PER_CHANNEL } from "./priming";
 import { getDosingConfig, allChannelKeys, type DosingConfig } from "./dosing-config";
@@ -264,6 +265,9 @@ export async function buildAgentTools(systemId: string = DEFAULT_SYSTEM_ID) {
           params.reason_he,
           params.channel
         );
+        // Pump-stuck emergency: urgent task + interrupt push (the grower is in
+        // chat, but the notification also reaches them if they close it).
+        await reportPumpStuckIfNeeded(systemId, r);
         // Log either way so the audit trail stays honest.
         try {
           await saveAction(

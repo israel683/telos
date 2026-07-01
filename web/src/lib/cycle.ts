@@ -46,7 +46,7 @@ import { doseChannelByPhysical } from "@/lib/devices/jebao";
 import { getDosingConfig } from "@/lib/dosing-config";
 import { evaluateCycleGate } from "@/lib/cycle-gate";
 import { getEffectiveTargets } from "@/lib/tolerance";
-import { notifyGrower } from "@/lib/notify";
+import { notifyGrower, reportPumpStuckIfNeeded } from "@/lib/notify";
 
 /**
  * How often the agent does a PROACTIVE REVIEW when everything is calm + healthy
@@ -85,6 +85,14 @@ export type RunCycleOptions = {
    * cron can still raise it if it's genuinely still needed.
    */
   suppressNewQuestions?: boolean;
+  /**
+   * Epoch-ms wall the SURROUNDING serverless function must finish by. A dose
+   * sleeps in real time (50 ml/min ⇒ 1.2s per ml); starting one that can't
+   * finish before the function is killed leaves the pump ON with no software
+   * able to turn it off. Doses that don't fit are queued as dose_approval
+   * tasks instead of started.
+   */
+  deadlineAt?: number;
 };
 
 /**
@@ -103,7 +111,15 @@ export async function reevalSystem(
     const sys = await getSystem(systemId);
     // Only re-evaluate live systems — a paused/archived rig shouldn't churn.
     if (!sys || sys.status !== "active") return null;
-    return await runSystemCycle(sys, { force: true, forcePush: true, source, suppressNewQuestions: true });
+    // Re-evals run inside 60s routes (task answer/approve, chat) — give the
+    // dose loop a deadline so it defers rather than dying mid-pump-sleep.
+    return await runSystemCycle(sys, {
+      force: true,
+      forcePush: true,
+      source,
+      suppressNewQuestions: true,
+      deadlineAt: Date.now() + 50_000,
+    });
   } catch (e) {
     console.error(`[cycle] reevalSystem(${systemId}, ${source}) failed:`, e);
     return null;
@@ -114,7 +130,7 @@ export async function runSystemCycle(
   sys: SystemRow,
   opts: RunCycleOptions = {}
 ): Promise<Record<string, unknown>> {
-  const { force = false, forcePush = false, source = "cron", suppressNewQuestions = false } = opts;
+  const { force = false, forcePush = false, source = "cron", suppressNewQuestions = false, deadlineAt } = opts;
   const chatSource: "cron-cycle" | "reeval" = source === "cron" ? "cron-cycle" : "reeval";
   const sysStart = Date.now();
 
@@ -380,12 +396,51 @@ export async function runSystemCycle(
         });
         continue;
       }
+      // TIME-BUDGET GUARD: a dose sleeps in real time; if it can't finish
+      // (runtime + ~12s for the OFF-recovery ladder and bookkeeping) before
+      // the surrounding function's deadline, do NOT start it — a function
+      // killed mid-sleep dies BEFORE the OFF fires and the pump stays on
+      // with no software able to stop it. Defer to a dose_approval task
+      // (notified below via the escalation path) instead of gambling.
+      const runtimeMs = (cmd.amount_ml / 50) * 60_000;
+      if (deadlineAt && Date.now() + runtimeMs + 12_000 > deadlineAt) {
+        try {
+          const dupePending = await hasRecentTaskOfTypeForChannel("dose_approval", cmd.channel, 3, sys.id);
+          if (!dupePending) {
+            await createHumanTask(
+              {
+                type: "dose_approval",
+                priority: "high",
+                title: `אישור מנה: ${cmd.channel} ${cmd.amount_ml}ml`,
+                reason:
+                  `המוח רצה להזריק ${cmd.amount_ml}ml ב-${cmd.channel} אבל חלון הזמן של המחזור לא הספיק לביצוע בטוח. ` +
+                  `הסיבה: ${cmd.reason}. אשר/י כדי לבצע עכשיו — או שהמחזור הבא יבצע אוטומטית.`,
+                payload: { channel: cmd.channel, amount_ml: cmd.amount_ml, reason_en: cmd.reason, settle_minutes: 30, source: "cycle-time-budget-deferral" },
+                expires_in_hours: 6,
+                decision_id: decisionId,
+              },
+              sys.id
+            );
+          }
+        } catch (e) {
+          console.error(`[cycle] failed to queue time-deferred dose: ${e}`);
+        }
+        executed.push({
+          channel: cmd.channel,
+          amount_ml: cmd.amount_ml,
+          success: false,
+          error: "deferred: insufficient time budget this cycle — queued as dose_approval",
+        });
+        continue;
+      }
       const r = await doseChannelByPhysical(phys, cmd.amount_ml, cmd.reason, cmd.channel);
+      // Pump-stuck emergency: urgent task + interrupt push on both channels.
+      await reportPumpStuckIfNeeded(sys.id, r);
       await saveAction(
         {
           channel: cmd.channel,
           amount_ml: cmd.amount_ml,
-          reason: r.success ? cmd.reason : `FAILED: ${r.error}`,
+          reason: r.success ? (r.warning ? `${cmd.reason} [recovery: ${r.warning}]` : cmd.reason) : `FAILED: ${r.error}`,
           success: r.success,
           ai_status: decision.status,
           ai_analysis: decision.analysis,
