@@ -18,6 +18,7 @@ import { getDosingConfig } from "@/lib/dosing-config";
 import { doseChannelByPhysical } from "@/lib/devices/jebao";
 import { validateCommand } from "@/lib/safety";
 import { getRecentReadings } from "@/lib/db";
+import { reportPumpStuckIfNeeded } from "@/lib/notify";
 
 // 60s, not 30: this route can run a physical dose (pump runtime scales with ml)
 // AND a post-dose reevalSystem (a full Brain call, itself up to 45s).
@@ -31,31 +32,51 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     return NextResponse.json({ error: "invalid id" }, { status: 400 });
   }
 
-  // Pull the task to extract its payload.
+  // ATOMIC CLAIM: flip pending→done in one statement and read the payload
+  // from the same UPDATE. The old SELECT-then-check let two rapid taps both
+  // see 'pending' and BOTH fire the pump (double dose). Zero rows = someone
+  // else already claimed it (or it doesn't exist) — distinguish below.
+  // Downstream completeTask calls simply refresh user_response on the row.
   await ensureSchema();
   const s = sql();
   const rows = (await s`
-    SELECT id, system_id, type, payload, status
-    FROM human_tasks
-    WHERE id = ${taskId} AND system_id = ${systemId}
+    UPDATE human_tasks
+    SET status = 'done', completed_at = NOW(), user_response = 'approved — executing'
+    WHERE id = ${taskId} AND system_id = ${systemId} AND status = 'pending'
+    RETURNING id, system_id, type, payload
   `) as unknown as Array<{
     id: number;
     system_id: string;
     type: string;
     payload: Record<string, unknown> | null;
-    status: string;
   }>;
   const task = rows[0];
   if (!task) {
-    return NextResponse.json({ error: "task not found for this system" }, { status: 404 });
-  }
-  if (task.status !== "pending") {
+    const existing = (await s`
+      SELECT status FROM human_tasks WHERE id = ${taskId} AND system_id = ${systemId}
+    `) as unknown as Array<{ status: string }>;
+    if (!existing[0]) {
+      return NextResponse.json({ error: "task not found for this system" }, { status: 404 });
+    }
     return NextResponse.json(
-      { error: `task is already ${task.status}` },
+      { error: `task is already ${existing[0].status}` },
       { status: 409 }
     );
   }
+  // Validation failures after the atomic claim must RELEASE the claim (revert
+  // to pending) — otherwise a bad-payload task gets silently swallowed as done.
+  const releaseClaim = async () => {
+    try {
+      await s`
+        UPDATE human_tasks SET status = 'pending', completed_at = NULL, user_response = NULL
+        WHERE id = ${taskId} AND system_id = ${systemId}
+      `;
+    } catch (e) {
+      console.error("[task/approve] failed to release claim:", e);
+    }
+  };
   if (task.type !== "dose_approval") {
+    await releaseClaim();
     return NextResponse.json(
       { error: `task type '${task.type}' is not approvable; use /complete instead` },
       { status: 400 }
@@ -65,6 +86,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const channel = String(payload.channel || "").trim();
   const amountMl = Number(payload.amount_ml);
   if (!channel || !Number.isFinite(amountMl) || amountMl <= 0) {
+    await releaseClaim();
     return NextResponse.json(
       { error: "task payload missing channel / amount_ml", payload },
       { status: 400 }
@@ -132,6 +154,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     { systemId, dosingConfig: cfg }
   );
   if (!safety.ok) {
+    // Release the atomic claim — a safety-blocked dose stays PENDING so the
+    // grower can retry once conditions change (fresh reading, settle window).
+    await releaseClaim();
     return NextResponse.json(
       { ok: false, blocked_by_safety: true, reason: safety.reason },
       { status: 422 }
@@ -145,6 +170,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     `approved dose_approval #${taskId}`,
     channel
   );
+  // Pump-stuck emergency: urgent task + interrupt push on both channels.
+  await reportPumpStuckIfNeeded(systemId, r);
 
   // Log + complete the task regardless of pump success, so the audit
   // trail captures the attempt and the task doesn't stay "pending forever".

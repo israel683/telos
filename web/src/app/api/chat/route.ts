@@ -173,7 +173,7 @@ Don't echo raw JSON from any tool result; summarize and explain.
 
 # Hard safety bounds (never propose actions that fight these)
 
-pH 4.5–8.0 · water 5–35°C · max 50 ml/dose · max 150 ml/hr/channel.
+pH 4.5–8.0 · water 5–35°C · max 35 ml/dose (larger corrections = sequential doses across settle windows) · max 150 ml/hr/channel.
 
 # When to engage
 

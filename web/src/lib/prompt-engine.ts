@@ -69,7 +69,7 @@ your job:
    ONLY pH Down. **NEVER dose pH Up and pH Down on the same reservoir the same
    day** — that's the runaway. (A safety lockout enforces this; don't test it.)
 2. **Step, then settle, then re-measure.** Dose a measured amount (≤~0.3–0.5 pH
-   worth, ≤50 ml/step), then WAIT ~30+ min for the reservoir to mix and a fresh
+   worth, ≤35 ml/step), then WAIT ~30+ min for the reservoir to mix and a fresh
    reading to land before the next step. Never stack doses on an unmixed tank.
    (A settle gate enforces the minimum wait.) After a pH dose, set
    \`next_check_minutes\` to ~30–45 so you come back to continue the titration.
@@ -359,7 +359,7 @@ will block them anyway, but it's wasted reasoning.
 
 # Safety Hard Limits (do not fight)
 
-pH 4.5–8.0 absolute · EC 100–3500 μS/cm · water 5–35°C · max 50 ml/single dose ·
+pH 4.5–8.0 absolute · EC 100–3500 μS/cm · water 5–35°C · max 35 ml/single dose ·
 max 150 ml/hour/channel · min 60s between doses on same channel · sensor max 5 min stale.
 pH titration: ONE direction/day (opposite locked ~18h) · ~30 min settle between same-direction
 steps · ≤150 ml/day total pH adjuster. Hit the daily pH ceiling and pH still drifts → it's

@@ -18,7 +18,8 @@
  */
 
 import webpush from "web-push";
-import { getPushSubscriptions, deletePushSubscription } from "./db";
+import { getPushSubscriptions, deletePushSubscription, createHumanTask } from "./db";
+import type { DoseResult } from "./devices/jebao";
 
 export type EmailResult =
   | { ok: true; id?: string }
@@ -143,5 +144,34 @@ export async function notifyGrower(systemId: string, subject: string, text: stri
   await Promise.allSettled([
     sendWebPush(systemId, subject, pushBody),
     sendAlertEmail(subject, text),
+  ]);
+}
+
+/**
+ * PUMP-STUCK emergency path. When a dose result carries the structured
+ * `pump_stuck` flag (the OFF → retry → panic-stop → readback ladder failed to
+ * verify the pump off), raise an URGENT task + fire the interrupt notification
+ * on both channels. Best-effort and never throws — but this is the one alert
+ * that must not be missed, so both legs run regardless of each other.
+ */
+export async function reportPumpStuckIfNeeded(systemId: string, r: DoseResult): Promise<void> {
+  if (!r.pump_stuck) return;
+  const title = `⛔ ייתכן שמשאבה תקועה במצב פועל — ${r.channel}`;
+  const body =
+    `ניסיתי לכבות את ערוץ ${r.channel} (פיזי ${r.physical_channel}) אחרי מנה של ${r.amount_ml}ml — ` +
+    `הכיבוי, הניסיון החוזר ועצירת החירום לא אומתו. גש למערכת עכשיו: נתק את הדוזר מהחשמל או סגור את הצינור, ואשר חזרה.`;
+  await Promise.allSettled([
+    createHumanTask(
+      {
+        type: "manual_action",
+        priority: "urgent",
+        title,
+        reason: body,
+        payload: { kind: "pump_stuck", channel: r.channel, physical_channel: r.physical_channel, amount_ml: r.amount_ml },
+        expires_in_hours: null,
+      },
+      systemId
+    ).catch((e) => console.error("[notify] pump-stuck task creation failed:", e)),
+    notifyGrower(systemId, `TELOS · 🔴 ${title}`, body),
   ]);
 }

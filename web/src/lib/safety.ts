@@ -80,8 +80,14 @@ export const SAFETY_LIMITS = {
   // Water temperature bounds (°C)
   water_temp_min: 5.0,
   water_temp_max: 35.0,
-  // Per-dose limits
-  max_single_dose_ml: 50.0,
+  // Per-dose limits.
+  // 35 (was 50): sized to the serverless wall. The pump sleeps in real time
+  // (50 ml/min ⇒ 35ml = 42s); a shot must finish — including the OFF-recovery
+  // ladder (~10s) — inside every dosing route's 60s maxDuration, or the
+  // function dies mid-sleep BEFORE the OFF and the pump stays physically on.
+  // Larger corrections happen as sequential doses across settle windows, which
+  // the dosing doctrine prefers anyway (stepwise, re-measure between steps).
+  max_single_dose_ml: 35.0,
   max_hourly_dose_ml_per_channel: 150.0,
   // 60s between *treatment* doses on the same channel.  Priming doses are
   // exempted via the reason-string sentinel below, so a "prime then dose"

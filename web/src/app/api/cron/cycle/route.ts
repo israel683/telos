@@ -61,7 +61,9 @@ export async function GET(req: Request) {
         break;
       }
       try {
-        results.push(await runSystemCycle(sys, { source: "cron" }));
+        // deadlineAt: the dose loop must never START a pump sleep it can't
+        // finish (incl. the OFF ladder) before this function is killed at 60s.
+        results.push(await runSystemCycle(sys, { source: "cron", deadlineAt: started + 55_000 }));
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         console.error(`[cron/cycle] system=${sys.id} error:`, msg);
