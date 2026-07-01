@@ -56,7 +56,7 @@ export default function ChatPage() {
     Record<string, { source: string; decision_id: number | null; status: string | null; ts: string }>
   >({});
 
-  const { messages, sendMessage, setMessages, status, error, regenerate } = useChat({
+  const { messages, sendMessage, setMessages, status, error, regenerate, clearError } = useChat({
     // Coalesce streamed token updates to ~10/s so the message list (and its
     // markdown) re-renders far less often — kills the mobile live-typing jank.
     // Client-only, compute-neutral.
@@ -191,6 +191,9 @@ export default function ChatPage() {
   }, [historyLoaded, status, setMessages]);
 
   const [input, setInput] = useState("");
+  // Manual-retry budget for the error banner: after 3 failed regenerates the
+  // banner switches to "refresh the page" instead of an infinite retry loop.
+  const [retryCount, setRetryCount] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
   const didInitialScrollRef = useRef(false);
@@ -396,6 +399,8 @@ export default function ChatPage() {
     const hasFiles = attachedFiles.length > 0;
     if (!value && !hasFiles) return;
     if (status !== "ready") return;
+    // A fresh user turn resets the manual-retry budget.
+    setRetryCount(0);
 
     let fileParts: Array<{ type: "file"; mediaType: string; url: string; filename?: string }> | undefined;
     if (hasFiles) {
@@ -521,26 +526,46 @@ export default function ChatPage() {
           <div className="text-center text-[var(--c-ash)] text-sm pt-12">{t("Loading history…", "טוען היסטוריה...")}</div>
         )}
 
-        {messages.map((m, idx) => {
-          const isLast = idx === messages.length - 1;
-          const isAssistant = m.role === "assistant";
-          // No typing effect: while the assistant turn is still in flight, hide
-          // the partial bubble entirely and show a single "thinking" indicator
-          // below. The message renders complete, all at once, when the turn
-          // settles — and the scroll effect then lands the grower on it.
-          if (isLast && isAssistant && isStreaming) return null;
-          const meta = messageMeta[m.id];
-          return (
-            <MessageBubble
-              key={m.id}
-              message={m}
-              meta={meta}
-              isLastAssistant={isLast && isAssistant}
-              awaitingAnswer={!isStreaming}
-              onAnswer={(text) => handleSubmit(text)}
-            />
-          );
-        })}
+        {(() => {
+          // The latest INTERACTIVE turn — a user message or a live agent turn
+          // (not a cron/system push). Question cards stay active on this index:
+          // gating on "positionally last" let a background cron message, pulled
+          // in by the live-update poll, land AFTER an open question and
+          // permanently disable its card mid-onboarding.
+          const isCronSource = (id: string) => {
+            const src = messageMeta[id]?.source;
+            return src === "cron-cycle" || src === "cron-poll" || src === "reeval" || src === "system";
+          };
+          let lastInteractiveIdx = -1;
+          for (let i = messages.length - 1; i >= 0; i--) {
+            const m = messages[i];
+            if (m.role === "user" || (m.role === "assistant" && !isCronSource(m.id))) {
+              lastInteractiveIdx = i;
+              break;
+            }
+          }
+          return messages.map((m, idx) => {
+            const isLast = idx === messages.length - 1;
+            const isAssistant = m.role === "assistant";
+            // No typing effect: while the assistant turn is still in flight, hide
+            // the partial bubble entirely and show a single "thinking" indicator
+            // below. The message renders complete, all at once, when the turn
+            // settles — and the scroll effect then lands the grower on it.
+            if (isLast && isAssistant && isStreaming) return null;
+            const meta = messageMeta[m.id];
+            return (
+              <MessageBubble
+                key={m.id}
+                message={m}
+                meta={meta}
+                isLastAssistant={idx === lastInteractiveIdx && isAssistant}
+                isNewest={isLast}
+                awaitingAnswer={!isStreaming}
+                onAnswer={(text) => handleSubmit(text)}
+              />
+            );
+          });
+        })()}
 
         {isStreaming && (
           <div className="flex items-center gap-2 text-[var(--c-ash)] text-sm">
@@ -553,14 +578,26 @@ export default function ChatPage() {
             className="text-sm p-3 rounded-lg flex items-start justify-between gap-3"
             style={{ background: "color-mix(in srgb, var(--c-terra) 10%, transparent)", border: "1px solid color-mix(in srgb, var(--c-terra) 30%, transparent)", color: "var(--c-fog)" }}
           >
-            <div className="break-words">{t("Something went wrong. Try again.", "משהו השתבש. נסה שוב.")}</div>
-            <button
-              onClick={() => regenerate()}
-              className="text-xs px-2 py-1 rounded shrink-0"
-              style={{ background: "color-mix(in srgb, var(--c-terra) 18%, transparent)", color: "var(--c-parchment)" }}
-            >
-              {t("Retry", "נסה שוב")}
-            </button>
+            <div className="break-words">
+              {retryCount >= 3
+                ? t("Still failing. Refresh the page — the conversation is saved.", "עדיין נכשל. רענן את הדף — השיחה שמורה.")
+                : t("Something went wrong. Try again.", "משהו השתבש. נסה שוב.")}
+            </div>
+            {retryCount < 3 && (
+              <button
+                onClick={() => {
+                  // clearError BEFORE regenerate — without it the SDK keeps the
+                  // error state and the banner sticks even while retrying.
+                  setRetryCount((c) => c + 1);
+                  clearError();
+                  regenerate();
+                }}
+                className="text-xs px-2 py-1 rounded shrink-0"
+                style={{ background: "color-mix(in srgb, var(--c-terra) 18%, transparent)", color: "var(--c-parchment)" }}
+              >
+                {t("Retry", "נסה שוב")}
+              </button>
+            )}
           </div>
         )}
 
@@ -699,12 +736,18 @@ function MessageBubble({
   message,
   meta,
   isLastAssistant,
+  isNewest,
   onAnswer,
   awaitingAnswer,
 }: {
   message: UIMessageType;
   meta?: { source: string; decision_id: number | null; status: string | null; ts: string };
+  /** The latest INTERACTIVE turn (user / live agent — cron pushes excluded).
+   *  Gates question cards so a background cron message can't disable them. */
   isLastAssistant: boolean;
+  /** Positionally last in the thread — used only for the cron log-card's
+   *  default-open state. */
+  isNewest?: boolean;
   onAnswer: (text: string) => void;
   awaitingAnswer: boolean;
 }) {
@@ -727,7 +770,7 @@ function MessageBubble({
       | { type: "text"; text: string }
       | undefined;
     return (
-      <details className="tk-card rounded-xl overflow-hidden max-w-full" style={{ padding: 0, background: "var(--surface-warm)" }} open={isLastAssistant}>
+      <details className="tk-card rounded-xl overflow-hidden max-w-full" style={{ padding: 0, background: "var(--surface-warm)" }} open={isNewest}>
         <summary className="cursor-pointer px-4 py-3 list-none flex items-start gap-3">
           <i className="ph-light ph-pulse text-lg mt-0.5" style={{ color: "var(--amber)" }} />
           <div className="flex-1 min-w-0">
