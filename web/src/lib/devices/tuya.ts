@@ -80,25 +80,46 @@ async function getAccessToken(cfg: TuyaConfig): Promise<string> {
 }
 
 async function signedGet(cfg: TuyaConfig, path: string): Promise<unknown> {
-  const token = await getAccessToken(cfg);
-  const t = Date.now().toString();
-  const nonce = "";
-  const bodyHash = crypto.createHash("sha256").update("").digest("hex");
-  const stringToSign = ["GET", bodyHash, "", path].join("\n");
-  const str = cfg.accessId + token + t + nonce + stringToSign;
-  const sign = crypto.createHmac("sha256", cfg.accessSecret).update(str).digest("hex").toUpperCase();
+  const attempt = async (): Promise<unknown> => {
+    const token = await getAccessToken(cfg);
+    const t = Date.now().toString();
+    const nonce = "";
+    const bodyHash = crypto.createHash("sha256").update("").digest("hex");
+    const stringToSign = ["GET", bodyHash, "", path].join("\n");
+    const str = cfg.accessId + token + t + nonce + stringToSign;
+    const sign = crypto.createHmac("sha256", cfg.accessSecret).update(str).digest("hex").toUpperCase();
 
-  const r = await fetch(`${cfg.endpoint}${path}`, {
-    headers: {
-      client_id: cfg.accessId,
-      access_token: token,
-      sign,
-      sign_method: "HMAC-SHA256",
-      t,
-      nonce,
-    },
-  });
-  return r.json();
+    const r = await fetch(`${cfg.endpoint}${path}`, {
+      headers: {
+        client_id: cfg.accessId,
+        access_token: token,
+        sign,
+        sign_method: "HMAC-SHA256",
+        t,
+        nonce,
+      },
+    });
+    return r.json();
+  };
+
+  const first = await attempt();
+  // Tuya can invalidate a token server-side before our local expiry — e.g.
+  // after credential rotation, or because a token grant elsewhere (another
+  // serverless instance / a manual API call) superseded it. The module-level
+  // cache then keeps serving a dead token and every read fails "token invalid"
+  // (codes 1010/1011) until the instance recycles. Detect it, drop the cache,
+  // and retry ONCE with a freshly minted token.
+  const body = first as { success?: boolean; code?: number; msg?: string } | null;
+  if (
+    body &&
+    body.success === false &&
+    (body.code === 1010 || body.code === 1011 || /token.*(invalid|expired)/i.test(body.msg ?? ""))
+  ) {
+    console.warn(`[tuya] stale token (${body.code ?? body.msg}) — re-authing and retrying once`);
+    _cachedToken = null;
+    return attempt();
+  }
+  return first;
 }
 
 /**
