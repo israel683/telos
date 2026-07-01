@@ -34,7 +34,17 @@ export async function GET(req: Request) {
   const results: Array<Record<string, unknown>> = [];
 
   try {
-    const systems = (await listSystems()).filter((s) => s.status === "active");
+    // First DB touch retries once on a cold Neon wake — same rationale as
+    // cron/poll: the aborted first fetch triggers the wake; one retry lands.
+    let allSystems;
+    try {
+      allSystems = await listSystems();
+    } catch (e) {
+      console.warn("[cron/cycle] first DB touch failed (cold Neon?) — retrying once:", e instanceof Error ? e.message : e);
+      await new Promise((r) => setTimeout(r, 4000));
+      allSystems = await listSystems();
+    }
+    const systems = allSystems.filter((s) => s.status === "active");
 
     // Per-cycle time budget. Each runSystemCycle can take tens of seconds (one
     // model call, possibly dose sleeps); processing many systems sequentially

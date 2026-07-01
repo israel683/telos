@@ -36,7 +36,20 @@ export async function GET(req: Request) {
   }> = [];
 
   try {
-    const systems = (await listSystems()).filter((s) => s.status === "active");
+    // First DB touch retries once: Neon scales to zero, and the fail-fast 8s
+    // fetch abort (right for interactive pollers) killed ~38 cron runs/month
+    // on cold wake — losing that tick's reading for EVERY system. The aborted
+    // first attempt itself triggers the wake, so a short pause + one retry
+    // reliably lands. A background cron (60s budget) can afford the wait.
+    let allSystems;
+    try {
+      allSystems = await listSystems();
+    } catch (e) {
+      console.warn("[cron/poll] first DB touch failed (cold Neon?) — retrying once:", e instanceof Error ? e.message : e);
+      await new Promise((r) => setTimeout(r, 4000));
+      allSystems = await listSystems();
+    }
+    const systems = allSystems.filter((s) => s.status === "active");
     for (const sys of systems) {
       // Systems whose readings arrive via push (Home Assistant, generic
       // webhook) don't need a Tuya cloud round-trip here — skip them.

@@ -19,7 +19,9 @@ import { doseChannelByPhysical } from "@/lib/devices/jebao";
 import { validateCommand } from "@/lib/safety";
 import { getRecentReadings } from "@/lib/db";
 
-export const maxDuration = 30;
+// 60s, not 30: this route can run a physical dose (pump runtime scales with ml)
+// AND a post-dose reevalSystem (a full Brain call, itself up to 45s).
+export const maxDuration = 60;
 
 export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -102,7 +104,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     // Re-derive the Brain's state now that the grower has dosed — so the
     // dashboard analysis + chat reflect "dose recorded, EC recovering"
     // instead of the stale "needs food now" from the last cron tick.
-    const reeval = await reevalSystem(systemId, "grower-dose");
+    // NON-FATAL: the dose is logged + task completed; a slow Brain call must
+    // not turn that success into an error.
+    let reeval: Record<string, unknown> | null = null;
+    try {
+      reeval = await reevalSystem(systemId, "grower-dose");
+    } catch (e) {
+      console.error("[task/approve] reeval failed (manual dose recorded fine):", e instanceof Error ? e.message : e);
+    }
     return NextResponse.json({
       ok: true,
       task_id: taskId,
@@ -164,7 +173,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   // Re-derive the Brain's state now that a dose actually fired, so every
   // surface reflects the post-dose reality rather than the last cron snapshot.
-  const reeval = r.success ? await reevalSystem(systemId, "grower-dose") : null;
+  // NON-FATAL: the dose fired + task completed; never 504 over the follow-up.
+  let reeval: Record<string, unknown> | null = null;
+  if (r.success) {
+    try {
+      reeval = await reevalSystem(systemId, "grower-dose");
+    } catch (e) {
+      console.error("[task/approve] reeval failed (dose executed fine):", e instanceof Error ? e.message : e);
+    }
+  }
 
   return NextResponse.json({
     ok: r.success,
