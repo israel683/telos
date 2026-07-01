@@ -518,7 +518,12 @@ export async function runSystemCycle(
   // -------------------------------------------------------------------
   if (source === "cron") {
     const escalated =
-      statusChanged && (decision.status === "warning" || decision.status === "critical");
+      statusChanged &&
+      // "attention" included: it's also the Brain's error-fallback status
+      // (brain.ts), so without it an AI failure would degrade the system
+      // silently — the grower must hear about that transition too. The
+      // statusChanged guard self-dedupes (steady-state doesn't re-notify).
+      (decision.status === "warning" || decision.status === "critical" || decision.status === "attention");
     const newHighTask = createdTasks.some(
       (t) => t.priority === "high" || t.priority === "urgent"
     );
