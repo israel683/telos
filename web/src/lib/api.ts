@@ -91,6 +91,15 @@ export type TimelineView = {
   forward: TimelineEvent[];
   /** Backward journal — grower-safe events (no confidential fields). Newest first. */
   past: JournalEvent[];
+  /** Grow context for the roadmap view: cycle anchor + current stage + harvest cadence. */
+  grow?: {
+    anchor_date: string | null;
+    growth_stage: string;
+    crop_type: string;
+    cultivar_id: string | null;
+    harvest_mode: "cut_and_come_again" | "repeated_pick" | "single_terminal" | null;
+    harvest_cadence_days: number | null;
+  };
   windowDays: number;
   truncated: boolean;
 };
