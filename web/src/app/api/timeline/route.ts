@@ -3,6 +3,7 @@ import { ensureSchema, getSystem, getRecentEpisodes, getTasksByStatus } from "@/
 import { systemIdFromRequest } from "@/lib/system-ctx";
 import { deriveTimeline } from "@/lib/grow-profile";
 import { buildJournal, episodeToJournalEvent } from "@/lib/journal";
+import { resolveCultivarHarvest } from "@/lib/cultivars";
 
 export const maxDuration = 15;
 
@@ -61,7 +62,26 @@ export async function GET(req: Request) {
       60
     );
 
-    return NextResponse.json({ forward, past, windowDays: days, truncated });
+    // Grow context for the roadmap/Gantt view: where the cycle is anchored,
+    // where the grower is now, and the harvest cadence for projecting repeats.
+    const harvest = resolveCultivarHarvest(sys.cultivar_id);
+    const iso10 = (d: Date | string | null | undefined) =>
+      d ? (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10) : null;
+    const anchor_date =
+      profile?.grow_anchor_date ??
+      profile?.onboarding_completed_at?.slice(0, 10) ??
+      iso10(sys.setup_completed_at) ??
+      iso10(sys.created_at);
+    const grow = {
+      anchor_date,
+      growth_stage: sys.growth_stage,
+      crop_type: sys.crop_type,
+      cultivar_id: sys.cultivar_id,
+      harvest_mode: harvest?.mode ?? null,
+      harvest_cadence_days: harvest?.cadence_days ?? null,
+    };
+
+    return NextResponse.json({ forward, past, grow, windowDays: days, truncated });
   } catch (e) {
     console.error("[/api/timeline] failed:", e);
     return NextResponse.json({ error: "timeline unavailable" }, { status: 500 });
