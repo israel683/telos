@@ -21,7 +21,9 @@ const LINKS = [
   { href: "/grow", en: "The Grow", he: "הגידול", icon: "ph-plant" },
   { href: "/grow/timeline", en: "Timeline", he: "ציר הזמן", icon: "ph-clock-countdown" },
   { href: "/cultivars", en: "Cultivars", he: "קולטיברים", icon: "ph-leaf" },
-  { href: "/chat", en: "Chat", he: "שיחה", icon: "ph-chat-circle" },
+  // Chat is no longer a nav tab — it lives in the app-wide Chat Island (a
+  // bottom sheet on every screen; see components/ChatIsland.tsx). The /chat
+  // route still exists as the full-screen fallback for onboarding + deep links.
   { href: "/decisions", en: "Decisions", he: "החלטות", icon: "ph-list-checks" },
   { href: "/changelog", en: "Change Log", he: "עדכונים", icon: "ph-scroll" },
   ...(SHOW_ARCHITECTURE

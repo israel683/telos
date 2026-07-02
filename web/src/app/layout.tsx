@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans, Noto_Serif_Hebrew, Rubik } from "next/font/google";
 import localFont from "next/font/local";
 import { Nav } from "@/components/Nav";
+import { ChatIsland } from "@/components/ChatIsland";
 import { LanguageProvider } from "@/lib/i18n";
 import { ServiceWorkerInit } from "@/components/ServiceWorkerInit";
 import "./globals.css";
@@ -85,6 +86,7 @@ export default function RootLayout({
           <ServiceWorkerInit />
           <Nav />
           {children}
+          <ChatIsland />
         </LanguageProvider>
       </body>
     </html>
