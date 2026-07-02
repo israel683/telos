@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import {
   getState,
   getTasks,
@@ -13,7 +12,7 @@ import {
   type TimelineSnapshot,
 } from "@/lib/api";
 import type { StateResponse, HumanTask, AgentStatus } from "@/lib/types";
-import { harvestNounHe } from "@/lib/grow-profile";
+import { GrowPicture } from "@/components/GrowPicture";
 import { NotifyOptIn } from "@/components/NotifyOptIn";
 import { SensorChart } from "@/components/SensorChart";
 import { BottleLevels } from "@/components/BottleLevels";
@@ -138,6 +137,17 @@ export default function Dashboard() {
     nextWhen = dd <= 0 ? t("now", "עכשיו") : dd === 1 ? t("tomorrow", "מחר") : t(`in ${dd} days`, `בעוד ${dd} ימים`);
   }
 
+  // Day-of-cycle for the words-picture eyebrow ("day 21"). From the grow anchor
+  // the snapshot now carries; guarded against a bad/absent date.
+  let dayOfCycle: number | null = null;
+  if (snap?.anchor_date) {
+    const anchorMs = new Date(`${snap.anchor_date}T00:00:00`).getTime();
+    if (Number.isFinite(anchorMs)) {
+      const dc = Math.floor((Date.now() - anchorMs) / 86_400_000) + 1;
+      if (dc >= 1 && dc < 3650) dayOfCycle = dc;
+    }
+  }
+
   return (
     <main dir={lang === "he" ? "rtl" : "ltr"} style={{ maxWidth: "var(--page-max)", width: "100%", margin: "0 auto", padding: "1.6rem clamp(0.9rem,3vw,1.6rem) 4rem", display: "flex", flexDirection: "column", gap: 16 }}>
       {/* Topbar */}
@@ -157,44 +167,20 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* What's next — TELOS's forward focus, stated in the agent's voice */}
-      {snap && (snap.next || snap.last) ? (
-        <Link href="/grow/timeline" style={{ textDecoration: "none", color: "inherit" }}>
-          <section
-            className="tk-card hover glow tk-rise"
-            style={{ padding: "clamp(18px,3.2vw,26px) clamp(18px,3.4vw,30px)", display: "flex", gap: 16, alignItems: "flex-start" }}
-          >
-            <span className="tk-live" style={{ marginTop: 10 }} aria-hidden="true" />
-            <div style={{ minWidth: 0, flex: 1 }}>
-              <div className="t-eyebrow" style={{ color: "var(--c-basil)" }}>{t("TELOS · what's next", "TELOS · הצעד הבא")}</div>
-              {snap.next ? (
-                <>
-                  <div style={{ fontFamily: "var(--f-display)", fontWeight: 500, fontSize: "clamp(1.4rem,2.7vw,2.05rem)", color: "var(--c-parchment)", lineHeight: 1.22, marginTop: 8 }}>
-                    <bdi>{snap.next.title || t("Harvest", harvestNounHe(snap.next.harvest_mode))}</bdi>
-                  </div>
-                  {nextWhen ? (
-                    <div style={{ marginTop: 7, fontSize: "1.02rem", color: "var(--c-basil)" }}>
-                      {nextWhen}
-                      {snap.next.scheduled_date ? <span dir="ltr" style={{ color: "var(--c-stone)", marginInlineStart: 8 }}>{snap.next.scheduled_date}</span> : null}
-                    </div>
-                  ) : null}
-                </>
-              ) : (
-                <div style={{ fontFamily: "var(--f-display)", fontSize: "clamp(1.25rem,2.5vw,1.75rem)", color: "var(--c-fog)", marginTop: 8 }}>
-                  {t("Watching over your grow", "שומר על הגידול שלך")}
-                </div>
-              )}
-              {snap.last ? (
-                <div style={{ marginTop: 13, fontSize: ".9rem", color: "var(--c-ash)", display: "flex", gap: 7, alignItems: "baseline", flexWrap: "wrap" }}>
-                  <span style={{ color: "var(--c-stone)" }}>{t("Recently", "לאחרונה")}:</span>
-                  <bdi style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" }}>{snap.last.title}</bdi>
-                </div>
-              ) : null}
-            </div>
-            <i className={"ph-light " + (lang === "he" ? "ph-arrow-left" : "ph-arrow-right")} style={{ color: "var(--c-stone)", fontSize: "1.05rem", flex: "none", marginTop: 8 }} />
-          </section>
-        </Link>
-      ) : null}
+      {/* The Grow Picture — words first: how the grow is doing, in TELOS's
+          voice, before any dial or chart. Then the page descends to details. */}
+      <GrowPicture
+        crop={sp.crop_type}
+        stage={stage}
+        dayOfCycle={dayOfCycle}
+        status={status}
+        reading={r}
+        message={d?.message ?? null}
+        analysis={d?.analysis ?? null}
+        next={snap?.next ?? null}
+        last={snap?.last ?? null}
+        nextWhen={nextWhen}
+      />
 
       {/* Notification opt-in — contextual soft-ask (push/email) */}
       <NotifyOptIn />
@@ -230,45 +216,32 @@ export default function Dashboard() {
         </section>
       </div>
 
-      {/* The Brain · analysis + status */}
-      <div className="tk-grid-2" style={{ gridTemplateColumns: "1.6fr 1fr" }}>
-        <section className="tk-card" style={{ padding: 22 }}>
-          <div className="tk-card-h">
-            <span className="ct" style={{ color: "var(--c-fog)", display: "flex", alignItems: "center", gap: 8 }}>
-              <i className="ph-light ph-brain" style={{ color: "var(--amber)" }} />{t("Brain analysis", "ניתוח המוח")}
-            </span>
-            <span className="more">{d ? new Date(d.timestamp).toLocaleString(lang === "he" ? "he-IL" : "en-US") : "—"}</span>
-          </div>
-          <p style={{ fontFamily: "var(--f-display)", fontStyle: "italic", fontWeight: 300, fontSize: "1.15rem", lineHeight: 1.5, color: "var(--c-parchment)" }}>
-            {d?.message || t("Waiting for the first analysis…", "ממתין לניתוח ראשון…")}
-          </p>
-          {d?.analysis ? (
-            <details style={{ fontSize: ".8rem", color: "var(--c-ash)", marginTop: 14 }}>
-              <summary style={{ cursor: "pointer", color: "var(--c-stone)", letterSpacing: ".04em" }}>{t("Technical detail", "פירוט טכני")}</summary>
-              <p style={{ marginTop: 8, lineHeight: 1.6 }} dir="ltr">{d.analysis}</p>
-            </details>
-          ) : null}
-        </section>
-        <section className="tk-card" style={{ padding: 22 }}>
-          <div className="tk-card-h"><span className="ct">{t("Brain status", "מצב המוח")}</span></div>
-          <dl style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-            <Row label={t("Cycle #", "מחזור #")} value={String(state.agent.cycle_count)} />
-            <Row label={t("Next analysis", "ניתוח הבא")} value={t(`in ${Math.round(state.agent.next_ai_seconds / 60)} min`, `בעוד ${Math.round(state.agent.next_ai_seconds / 60)} ד'`)} />
-            <Row label={t("Model", "מודל")} value={state.agent.model || "claude-sonnet-4-6"} />
-            <Row label={t("Growth stage", "שלב גידול")} value={stage} />
-            <Row
-              label={t("Mode", "מצב")}
-              value={
-                state.system_profile.posture === "autonomous"
-                  ? t("Autonomous", "אוטונומי")
-                  : state.system_profile.control_mode === "advisor_only"
-                    ? t("Advisor — you dose", "ייעוץ — אתה מבצע")
-                    : t("Autonomous (inactive)", "אוטונומי (לא פעיל)")
-              }
-            />
-          </dl>
-        </section>
-      </div>
+      {/* The Brain · status facts. The analysis narrative now leads the page
+          in the Grow Picture above, so this card is just the vitals. */}
+      <section className="tk-card" style={{ padding: 22 }}>
+        <div className="tk-card-h">
+          <span className="ct" style={{ color: "var(--c-fog)", display: "flex", alignItems: "center", gap: 8 }}>
+            <i className="ph-light ph-brain" style={{ color: "var(--amber)" }} />{t("Brain status", "מצב המוח")}
+          </span>
+          <span className="more">{d ? new Date(d.timestamp).toLocaleString(lang === "he" ? "he-IL" : "en-US") : "—"}</span>
+        </div>
+        <dl style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "10px 24px" }}>
+          <Row label={t("Cycle #", "מחזור #")} value={String(state.agent.cycle_count)} />
+          <Row label={t("Next analysis", "ניתוח הבא")} value={t(`in ${Math.round(state.agent.next_ai_seconds / 60)} min`, `בעוד ${Math.round(state.agent.next_ai_seconds / 60)} ד'`)} />
+          <Row label={t("Model", "מודל")} value={state.agent.model || "claude-sonnet-4-6"} />
+          <Row label={t("Growth stage", "שלב גידול")} value={stage} />
+          <Row
+            label={t("Mode", "מצב")}
+            value={
+              state.system_profile.posture === "autonomous"
+                ? t("Autonomous", "אוטונומי")
+                : state.system_profile.control_mode === "advisor_only"
+                  ? t("Advisor — you dose", "ייעוץ — אתה מבצע")
+                  : t("Autonomous (inactive)", "אוטונומי (לא פעיל)")
+            }
+          />
+        </dl>
+      </section>
 
       <TasksPanel tasks={tasks} posture={state.system_profile.posture} onApprove={handleApproveDose} onComplete={handleComplete} onDismiss={handleDismiss} onAnswer={handleAnswer} />
 

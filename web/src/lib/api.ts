@@ -113,6 +113,8 @@ export type TimelineSnapshot = {
   next: TimelineEvent | null;
   /** The most recent thing that happened to the grow, or null. */
   last: JournalEvent | null;
+  /** Cycle anchor (YYYY-MM-DD) so the dashboard can say "day N". */
+  anchor_date?: string | null;
 };
 
 export async function getTimelineSnapshot(): Promise<TimelineSnapshot> {

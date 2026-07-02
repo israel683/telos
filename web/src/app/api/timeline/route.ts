@@ -42,7 +42,17 @@ export async function GET(req: Request) {
         forward.find((e) => e.status === "planned" || e.status === "due") ?? null;
       const recent = await getRecentEpisodes(systemId, 1);
       const last = recent[0] ? episodeToJournalEvent(recent[0]) : null;
-      return NextResponse.json({ next, last });
+      // The cycle anchor lets the dashboard's words-picture say "day N" — the
+      // TELOS voice ("Day 21", not "how's it going"). Same resolution order as
+      // the full path below.
+      const iso10s = (d: Date | string | null | undefined) =>
+        d ? (d instanceof Date ? d.toISOString() : String(d)).slice(0, 10) : null;
+      const anchor_date =
+        profile?.grow_anchor_date ??
+        profile?.onboarding_completed_at?.slice(0, 10) ??
+        iso10s(sys.setup_completed_at) ??
+        iso10s(sys.created_at);
+      return NextResponse.json({ next, last, anchor_date });
     }
 
     const [episodes, doneTasks, dismissedTasks, expiredTasks] = await Promise.all([

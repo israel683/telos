@@ -68,7 +68,7 @@ export function LanguageProvider({ children }: { children: React.ReactNode }) {
 /** Shared status-word translations (used by the chip, dashboard, decisions, chat). */
 const STATUS_WORDS: Record<string, [string, string]> = {
   healthy: ["Healthy", "תקין"],
-  attention: ["Attention", "לב"],
+  attention: ["Attention", "תשומת לב"],
   warning: ["Warning", "אזהרה"],
   critical: ["Critical", "קריטי"],
   unknown: ["—", "—"],
